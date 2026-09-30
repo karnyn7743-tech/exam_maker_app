@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.exams_automation"
+    namespace = "com.example.exam_maker_app"
     compileSdk = 36
     ndkVersion = "28.2.13676358"
 
@@ -17,7 +17,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.exams_automation"
+        applicationId = "com.example.exam_maker_app"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
