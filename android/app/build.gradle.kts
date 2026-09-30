@@ -1,5 +1,3 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -8,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.exam_maker_app"
-    compileSdk = 36
+    compileSdk = 35
     ndkVersion = "28.2.13676358"
 
     compileOptions {
@@ -19,7 +17,7 @@ android {
     defaultConfig {
         applicationId = "com.example.exam_maker_app"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
     }
@@ -53,10 +51,4 @@ flutter {
 
 kotlin {
     jvmToolchain(17)
-}
-
-// عزل واستبعاد الحزم الزائدة المسببة لتكرار الـ Namespace
-configurations.all {
-    exclude(group = "org.tensorflow", module = "tensorflow-lite-api")
-    exclude(group = "org.tensorflow", module = "tensorflow-lite-gpu")
 }
