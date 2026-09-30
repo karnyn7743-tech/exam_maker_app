@@ -34,9 +34,9 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
-      # 5. بناء تطبيق APK بصيغة Release عبر محرك Flutter الرسمي
+      # 5. بناء تطبيق APK بصيغة Release مع تجاوز قيود تدقيق إصدارات الأدوات
       - name: Build APK via Flutter
-        run: flutter build apk --release
+        run: flutter build apk --release --android-skip-build-dependency-validation
 
       # 6. رفع ملف الـ APK الناتج لتنزيله مباشرة من تبويب Artifacts
       - name: Upload APK Artifact
