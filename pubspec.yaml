@@ -45,10 +45,15 @@ flutter:
   assets:
     - assets/images/
 
-  # إعدادات الخطوط الرسمية
+  # إعدادات خط الأميري المعتمد
   fonts:
-    - family: Traditional Arabic
+    - family: Amiri
       fonts:
-        - asset: assets/fonts/Traditional_Arabic.ttf
-        - asset: assets/fonts/Traditional_Arabic_Bold.ttf
+        - asset: assets/fonts/Amiri-Regular.ttf
+        - asset: assets/fonts/Amiri-Bold.ttf
           weight: 700
+        - asset: assets/fonts/Amiri-Slanted.ttf
+          style: italic
+        - asset: assets/fonts/Amiri-BoldSlanted.ttf
+          weight: 700
+          style: italic
