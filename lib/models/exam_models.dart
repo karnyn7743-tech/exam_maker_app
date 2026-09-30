@@ -1,7 +1,13 @@
 import 'dart:convert';
 
-/// يمثل مقطعاً نصياً منسقاً داخل السؤال (Rich Text Span)
-/// يدعم التسطير، التفخيم، حجم الخط، نوع الخط، والمد (الكشيدة)
+/// اتجاه كتابة اسم السؤال في الخانة الأولى
+enum QuestionTitleOrientation {
+  horizontal, // أفقي عادي
+  verticalBottomToTop, // رأسي من الأسفل للأعلى (باتجاه اليمين)
+  verticalTopToBottom, // رأسي من الأعلى للأسفل (باتجاه اليسار)
+}
+
+/// مقطع نصي منسق داخل السؤال
 class TextSpanModel {
   String text;
   bool isBold;
@@ -34,72 +40,74 @@ class TextSpanModel {
       );
 }
 
-/// يمثل السؤال الكامل ودرجته ونوعه ومقاطعه المنسقة
+/// نموذج السؤال المقسم لثلاثة أقسام (الاسم وتدويره | المحتوى والتنسيق | الدرجة)
 class QuestionModel {
   String id;
-  String title; // مثل: السؤال الأول
-  List<TextSpanModel> spans; // نص السؤال مع تنسيقاته الجزئية
+  String title; // اسم السؤال مثل: السؤال الأول / س١
+  QuestionTitleOrientation titleOrientation; // اتجاه كتابة الاسم
+  List<TextSpanModel> spans; // محتوى السؤال
   double mark; // درجة السؤال
-  String type; // essay, mcq, true_false, matching
-  List<String> options; // الخيارات إن كان اختيار من متعدد
 
   QuestionModel({
     required this.id,
     this.title = '',
+    this.titleOrientation = QuestionTitleOrientation.horizontal,
     required this.spans,
     this.mark = 0.0,
-    this.type = 'essay',
-    this.options = const [],
   });
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
+        'titleOrientation': titleOrientation.name,
         'spans': spans.map((s) => s.toJson()).toList(),
         'mark': mark,
-        'type': type,
-        'options': options,
       };
 
   factory QuestionModel.fromJson(Map<String, dynamic> json) => QuestionModel(
         id: json['id'] ?? '',
         title: json['title'] ?? '',
+        titleOrientation: QuestionTitleOrientation.values.firstWhere(
+          (e) => e.name == json['titleOrientation'],
+          orElse: () => QuestionTitleOrientation.horizontal,
+        ),
         spans: (json['spans'] as List? ?? [])
             .map((s) => TextSpanModel.fromJson(s))
             .toList(),
         mark: (json['mark'] as num?)?.toDouble() ?? 0.0,
-        type: json['type'] ?? 'essay',
-        options: (json['options'] as List? ?? []).map((e) => e.toString()).toList(),
       );
 }
 
-/// يمثل بيانات الترويسة المعتمدة
+/// نموذج الترويسة والتذييل وخيارات الورقة
 class HeaderModel {
-  // الجانب الأيمن (الجهة الإدارية)
+  // الجهة الإدارية (اليمين)
   String country;
   String ministry;
   String governorate;
   String directorate;
   String school;
 
-  // الجانب الأوسط (الشعار والبسملة)
+  // الوسط
   String basmalaText;
-  String? basmalaImagePath;
-  String? logoImagePath; // شعار مخصص أو طير الجمهورية
+  String? logoImagePath;
 
-  // الجانب الأيسر (المعلومات التعليمية والزمن)
+  // اليسار
   String grade;
   String subject;
   String examDate;
   String examTime;
   String period;
 
-  // الشريط الأوسط العريض (عنوان الاختبار)
+  // الشريط الأوسط والشريط التوجيهي
   String examTitle;
-
-  // توجيه الامتحان وخيارات الصفحة
   String instructionText;
-  bool topMargin1cm; // خيار ترك فراغ 1 سم أعلى الصفحة
+  bool topMargin1cm;
+
+  // --- خيارات التذييل القابلة للتعديل ---
+  bool isMultiPage; // هل الاختبار أكثر من ورقة؟
+  String singlePageFooterText; // ختام الورقة الواحدة
+  String continuationText; // عبارة يتبع إن كان متعدد الصفحات
+  String teacherSignature; // توقيع المعلم
 
   HeaderModel({
     this.country = 'الجمهـــــورية اليمنيـــــة',
@@ -108,7 +116,6 @@ class HeaderModel {
     this.directorate = 'مكتب التربية والتعليم بمديرية عتمة',
     this.school = 'مدرسة هجرة بني عبد الصمد',
     this.basmalaText = 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
-    this.basmalaImagePath,
     this.logoImagePath,
     this.grade = 'الصف الثاني',
     this.subject = 'لغتي العربية',
@@ -118,6 +125,10 @@ class HeaderModel {
     this.examTitle = 'إمتحان نهاية الفصل الدراسي الاول للعام الدراسي 2026/2027 م',
     this.instructionText = 'أجب مستعيناً بالله عن جميع الأسئلة الآتية :-',
     this.topMargin1cm = true,
+    this.isMultiPage = false,
+    this.singlePageFooterText = 'انتهت الأسئلة - مع تمنياتنا لكم بالنجاح والتوفيق',
+    this.continuationText = '( انظر بقية الأسئلة في الصفحة التالية ◄ )',
+    this.teacherSignature = 'معلم المادة: ....................',
   });
 
   Map<String, dynamic> toJson() => {
@@ -127,7 +138,6 @@ class HeaderModel {
         'directorate': directorate,
         'school': school,
         'basmalaText': basmalaText,
-        'basmalaImagePath': basmalaImagePath,
         'logoImagePath': logoImagePath,
         'grade': grade,
         'subject': subject,
@@ -137,6 +147,10 @@ class HeaderModel {
         'examTitle': examTitle,
         'instructionText': instructionText,
         'topMargin1cm': topMargin1cm,
+        'isMultiPage': isMultiPage,
+        'singlePageFooterText': singlePageFooterText,
+        'continuationText': continuationText,
+        'teacherSignature': teacherSignature,
       };
 
   factory HeaderModel.fromJson(Map<String, dynamic> json) => HeaderModel(
@@ -146,7 +160,6 @@ class HeaderModel {
         directorate: json['directorate'] ?? '',
         school: json['school'] ?? '',
         basmalaText: json['basmalaText'] ?? '',
-        basmalaImagePath: json['basmalaImagePath'],
         logoImagePath: json['logoImagePath'],
         grade: json['grade'] ?? '',
         subject: json['subject'] ?? '',
@@ -156,13 +169,20 @@ class HeaderModel {
         examTitle: json['examTitle'] ?? '',
         instructionText: json['instructionText'] ?? '',
         topMargin1cm: json['topMargin1cm'] ?? true,
+        isMultiPage: json['isMultiPage'] ?? false,
+        singlePageFooterText: json['singlePageFooterText'] ??
+            'انتهت الأسئلة - مع تمنياتنا لكم بالنجاح والتوفيق',
+        continuationText: json['continuationText'] ??
+            '( انظر بقية الأسئلة في الصفحة التالية ◄ )',
+        teacherSignature:
+            json['teacherSignature'] ?? 'معلم المادة: ....................',
       );
 }
 
-/// يمثل وثيقة الاختبار الكاملة المحفوظة في التطبيق
+/// نموذج وثيقة الامتحان
 class ExamModel {
   String id;
-  String fileName; // اسم ملف الـ docx المحفوظ (بدون امتداد أو معه)
+  String fileName;
   DateTime createdAt;
   DateTime updatedAt;
   HeaderModel header;
@@ -177,8 +197,7 @@ class ExamModel {
     required this.questions,
   });
 
-  double get totalMarks =>
-      questions.fold(0.0, (sum, item) => sum + item.mark);
+  double get totalMarks => questions.fold(0.0, (sum, item) => sum + item.mark);
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -200,11 +219,7 @@ class ExamModel {
             .toList(),
       );
 
-  /// إنشاء نسخة جديدة مطابقة لأجل خاصية "حفظ باسم"
-  ExamModel copyWith({
-    String? newId,
-    String? newFileName,
-  }) {
+  ExamModel copyWith({String? newId, String? newFileName}) {
     final rawJson = jsonDecode(jsonEncode(toJson()));
     rawJson['id'] = newId ?? id;
     rawJson['fileName'] = newFileName ?? fileName;
