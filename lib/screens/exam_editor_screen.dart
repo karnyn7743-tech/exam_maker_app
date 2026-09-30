@@ -68,7 +68,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       context: context,
       currentExam: _exam,
       isNewExam: _isNew,
-      onPerformSave: (updated) {
+      onPerformSave: (ExamModel updated) {
         setState(() {
           _exam = updated;
           _isNew = false;
