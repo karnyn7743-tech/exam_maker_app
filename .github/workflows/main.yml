@@ -1,4 +1,4 @@
-name: exams_automation
+name: exam_maker_app
 
 on:
   push:
