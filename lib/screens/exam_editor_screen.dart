@@ -25,11 +25,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   late ExamModel _exam;
   late bool _isNew;
 
-  bool _isBoldActive = false;
-  bool _isUnderlineActive = false;
-  final double _currentFontSize = 14.0;
-  final String _currentFontFamily = 'Traditional Arabic';
-
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -337,6 +332,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           return Text(
                             s.text,
                             style: TextStyle(
+                              fontFamily: s.fontFamily == 'Amiri' ? 'Amiri' : null,
                               fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
                               decoration: s.isUnderline
                                   ? TextDecoration.underline
@@ -459,6 +455,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     QuestionTitleOrientation orientation = q.titleOrientation;
     List<InsertableElement> currentElements = List.from(q.elements);
 
+    String selectedFont = q.spans.isNotEmpty ? q.spans.first.fontFamily : 'Amiri';
+    double selectedFontSize = q.spans.isNotEmpty ? q.spans.first.fontSize : 14.0;
+    bool isBold = q.spans.isNotEmpty ? q.spans.first.isBold : false;
+    bool isUnderline = q.spans.isNotEmpty ? q.spans.first.isUnderline : false;
+
+    final List<String> availableFonts = ['Amiri', 'Traditional Arabic', 'Arial'];
+    final List<double> availableSizes = [12.0, 14.0, 16.0, 18.0, 20.0, 22.0];
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -475,7 +479,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(isEdit ? 'تعديل السؤال' : 'إضافة سؤال جديد',
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -528,9 +532,104 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
+
+                // شريط التنسيق مع القوائم المنسدلة للخط والحجم
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    alignment: WrapAlignment.spaceBetween,
+                    children: [
+                      DropdownButton<String>(
+                        value: selectedFont,
+                        underline: const SizedBox(),
+                        icon: const Icon(Icons.font_download_outlined, size: 18),
+                        items: availableFonts.map((f) {
+                          return DropdownMenuItem(
+                            value: f,
+                            child: Text(f,
+                                style: TextStyle(
+                                    fontFamily: f == 'Amiri' ? 'Amiri' : null,
+                                    fontSize: 13)),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) setModalState(() => selectedFont = val);
+                        },
+                      ),
+                      DropdownButton<double>(
+                        value: selectedFontSize,
+                        underline: const SizedBox(),
+                        icon: const Icon(Icons.format_size, size: 18),
+                        items: availableSizes.map((s) {
+                          return DropdownMenuItem(
+                            value: s,
+                            child: Text('${s.toInt()} نقطة',
+                                style: const TextStyle(fontSize: 13)),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) setModalState(() => selectedFontSize = val);
+                        },
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.format_bold,
+                                color: isBold ? Colors.blue : Colors.black87),
+                            tooltip: 'خط عريض',
+                            onPressed: () => setModalState(() => isBold = !isBold),
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.format_underlined,
+                                color: isUnderline ? Colors.blue : Colors.black87),
+                            tooltip: 'تسطير',
+                            onPressed: () =>
+                                setModalState(() => isUnderline = !isUnderline),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => _insertTatweel(textCtrl),
+                            style: ElevatedButton.styleFrom(
+                              minimumSize: const Size(40, 32),
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                            ),
+                            child: const Text('ـ كشيدة'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 6),
+
+                // حقل كتابة محتوى السؤال مع المعاينة الفورية
+                TextField(
+                  controller: textCtrl,
+                  maxLines: 4,
+                  style: TextStyle(
+                    fontFamily: selectedFont == 'Amiri' ? 'Amiri' : null,
+                    fontSize: selectedFontSize,
+                    fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+                    decoration: isUnderline
+                        ? TextDecoration.underline
+                        : TextDecoration.none,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'محتوى نص السؤال (معاينة حية للتنسيق)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
                 // أدوات إدراج حرة (شعار/صورة، مربع نص، أسطر تنقيط)
                 Container(
-                  padding: const EdgeInsets.all(6),
+                  padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     color: Colors.blue.shade50,
                     borderRadius: BorderRadius.circular(8),
@@ -561,7 +660,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ),
                       TextButton.icon(
                         icon: const Icon(Icons.text_fields, size: 18),
-                        label: const Text('مربع نص',
+                        label: const Text('مربع إرشاد',
                             style: TextStyle(fontSize: 11)),
                         onPressed: () {
                           _showTextBoxEntryDialog(context, (txt) {
@@ -577,7 +676,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ),
                       TextButton.icon(
                         icon: const Icon(Icons.more_horiz, size: 18),
-                        label: const Text('سطر تنقيط',
+                        label: const Text('سطر إجابة',
                             style: TextStyle(fontSize: 11)),
                         onPressed: () {
                           setModalState(() {
@@ -593,39 +692,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    ElevatedButton(
-                      onPressed: () => _insertTatweel(textCtrl),
-                      style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(44, 36)),
-                      child: const Text('ـ كشيدة'),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.format_bold,
-                          color: _isBoldActive ? Colors.blue : Colors.black),
-                      onPressed: () =>
-                          setModalState(() => _isBoldActive = !_isBoldActive),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.format_underlined,
-                          color:
-                              _isUnderlineActive ? Colors.blue : Colors.black),
-                      onPressed: () => setModalState(
-                          () => _isUnderlineActive = !_isUnderlineActive),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: textCtrl,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'محتوى السؤال',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
                 if (currentElements.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Wrap(
@@ -637,24 +703,25 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         label: Text(el.type == ElementType.image
                             ? 'صورة مدرجة'
                             : el.type == ElementType.textBox
-                                ? 'مربع نص'
-                                : 'سطر تنقيط'),
+                                ? 'مربع إرشاد'
+                                : 'سطر إجابة'),
                         onDeleted: () =>
                             setModalState(() => currentElements.removeAt(i)),
                       );
                     }).toList(),
                   ),
                 ],
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
+
                 ElevatedButton(
                   onPressed: () {
                     final newSpans = [
                       TextSpanModel(
                         text: textCtrl.text,
-                        isBold: _isBoldActive,
-                        isUnderline: _isUnderlineActive,
-                        fontSize: _currentFontSize,
-                        fontFamily: _currentFontFamily,
+                        isBold: isBold,
+                        isUnderline: isUnderline,
+                        fontSize: selectedFontSize,
+                        fontFamily: selectedFont,
                       )
                     ];
 
@@ -676,7 +743,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     });
                     Navigator.pop(ctx);
                   },
-                  child: const Text('تأكيد السؤال'),
+                  child: const Text('تأكيد السؤال وحفظ التنسيق'),
                 ),
                 const SizedBox(height: 12),
               ],
