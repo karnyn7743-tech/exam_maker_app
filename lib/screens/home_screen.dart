@@ -3,7 +3,7 @@ import 'package:uuid/uuid.dart';
 import '../models/exam_models.dart';
 import '../services/exam_storage_service.dart';
 import '../services/file_manager.dart';
-import 'exam_editor_screen.dart'; // سنبنيها في المهمة 4
+import 'exam_editor_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -175,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         decoration: BoxDecoration(
                           color: Colors.blue.shade50,
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.pad(BorderSide(color: Colors.blue.shade200)),
+                          border: Border.all(color: Colors.blue.shade200),
                         ),
                         child: Text(
                           exam.header.grade,
