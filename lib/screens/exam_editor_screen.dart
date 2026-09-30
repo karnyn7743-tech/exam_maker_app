@@ -25,11 +25,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   late ExamModel _exam;
   late bool _isNew;
 
-  // أدوات التنسيق النشطة
   bool _isBoldActive = false;
   bool _isUnderlineActive = false;
-  double _currentFontSize = 14.0;
-  String _currentFontFamily = 'Traditional Arabic';
+  final double _currentFontSize = 14.0;
+  final String _currentFontFamily = 'Traditional Arabic';
 
   final ImagePicker _picker = ImagePicker();
 
@@ -40,19 +39,18 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     _isNew = widget.isNewExam;
   }
 
-  // مد الحرف (الكشيدة)
   void _insertTatweel(TextEditingController controller) {
     final pos = controller.selection.start;
     const tatweel = '\u0640';
     if (pos >= 0) {
-      controller.text = controller.text.replaceRange(pos, controller.selection.end, tatweel);
+      controller.text =
+          controller.text.replaceRange(pos, controller.selection.end, tatweel);
       controller.selection = TextSelection.collapsed(offset: pos + 1);
     } else {
       controller.text += tatweel;
     }
   }
 
-  // اختيار شعار المدرسة
   Future<void> _pickLogoImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image != null) {
@@ -62,7 +60,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
   }
 
-  // حفظ الاختبار
   Future<void> _triggerSave() async {
     final saved = await showSaveChoiceDialog(
       context: context,
@@ -87,7 +84,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
   }
 
-  // تصدير وفتح ملف Word مباشرة
   Future<void> _exportAndOpenOffice() async {
     await ExamStorageService.saveOrUpdateExam(_exam);
     await DocxGeneratorService.generateAndOpenDocx(_exam);
@@ -120,15 +116,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         padding: const EdgeInsets.all(10),
         child: Column(
           children: [
-            // الترويسة المعتمدة
             _buildExamHeader(),
             const SizedBox(height: 12),
-
-            // قائمة الأسئلة بالتقسيم الثلاثي
             _buildQuestionsTable(),
             const SizedBox(height: 12),
-
-            // التذييل الملتصق بآخر سؤال
             _buildFooterPreview(),
           ],
         ),
@@ -156,7 +147,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // --- واجهة الترويسة ---
   Widget _buildExamHeader() {
     return Container(
       decoration: BoxDecoration(
@@ -170,44 +160,55 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // اليمين
               Expanded(
                 flex: 4,
                 child: InkWell(
                   onTap: _editAdminHeaderDialog,
                   child: Column(
                     children: [
-                      Text(_exam.header.country, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                      Text(_exam.header.ministry, style: const TextStyle(fontSize: 10)),
-                      Text(_exam.header.governorate, style: const TextStyle(fontSize: 10)),
-                      Text(_exam.header.directorate, style: const TextStyle(fontSize: 10)),
-                      Text(_exam.header.school, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+                      Text(_exam.header.country,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 12)),
+                      Text(_exam.header.ministry,
+                          style: const TextStyle(fontSize: 10)),
+                      Text(_exam.header.governorate,
+                          style: const TextStyle(fontSize: 10)),
+                      Text(_exam.header.directorate,
+                          style: const TextStyle(fontSize: 10)),
+                      Text(_exam.header.school,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 10)),
                     ],
                   ),
                 ),
               ),
-              // الوسط
               Expanded(
                 flex: 3,
                 child: Column(
                   children: [
-                    Text(_exam.header.basmalaText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11), textAlign: TextAlign.center),
+                    Text(_exam.header.basmalaText,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 11),
+                        textAlign: TextAlign.center),
                     const SizedBox(height: 4),
                     GestureDetector(
                       onTap: _pickLogoImage,
                       child: _exam.header.logoImagePath != null
-                          ? Image.file(File(_exam.header.logoImagePath!), height: 48, fit: BoxFit.contain)
+                          ? Image.file(File(_exam.header.logoImagePath!),
+                              height: 48, fit: BoxFit.contain)
                           : Container(
                               height: 48,
                               width: 48,
-                              decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(4)),
-                              child: const Icon(Icons.add_photo_alternate, size: 24, color: Colors.grey),
+                              decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey),
+                                  borderRadius: BorderRadius.circular(4)),
+                              child: const Icon(Icons.add_photo_alternate,
+                                  size: 24, color: Colors.grey),
                             ),
                     ),
                   ],
                 ),
               ),
-              // اليسار
               Expanded(
                 flex: 4,
                 child: InkWell(
@@ -215,10 +216,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('الصف : ${_exam.header.grade}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                      Text('الماده : ${_exam.header.subject}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                      Text('التاريخ: ${_exam.header.examDate}', style: const TextStyle(fontSize: 10)),
-                      Text('الزمن: ${_exam.header.examTime}  الفتره (${_exam.header.period})', style: const TextStyle(fontSize: 9)),
+                      Text('الصف : ${_exam.header.grade}',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 11)),
+                      Text('الماده : ${_exam.header.subject}',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 11)),
+                      Text('التاريخ: ${_exam.header.examDate}',
+                          style: const TextStyle(fontSize: 10)),
+                      Text(
+                          'الزمن: ${_exam.header.examTime}  الفتره (${_exam.header.period})',
+                          style: const TextStyle(fontSize: 9)),
                     ],
                   ),
                 ),
@@ -226,7 +234,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ],
           ),
           const SizedBox(height: 6),
-          // عنوان الامتحان
           InkWell(
             onTap: _editExamTitleDialog,
             child: Container(
@@ -241,25 +248,29 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          // شريط التوجيه الثلاثي
           Row(
             children: [
               Container(
                 width: 60,
                 alignment: Alignment.center,
-                child: const Text('السؤال', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                child: const Text('السؤال',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
               ),
               Expanded(
                 child: Text(
                   _exam.header.instructionText,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 11),
+                  style: const TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11),
                 ),
               ),
               Container(
                 width: 60,
                 alignment: Alignment.center,
-                child: const Text('الدرجه', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                child: const Text('الدرجه',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
               ),
             ],
           ),
@@ -268,7 +279,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // --- جدول الأسئلة بالتقسيم الثلاثي الدقيق وتدوير الاسم ---
   Widget _buildQuestionsTable() {
     if (_exam.questions.isEmpty) {
       return Container(
@@ -281,15 +291,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     return Table(
       border: TableBorder.all(color: Colors.black, width: 1),
       columnWidths: const {
-        0: FixedColumnWidth(60), // خانة اسم السؤال
-        1: FlexColumnWidth(),    // خانة محتوى السؤال
-        2: FixedColumnWidth(60), // خانة الدرجة
+        0: FixedColumnWidth(60),
+        1: FlexColumnWidth(),
+        2: FixedColumnWidth(60),
       },
       children: _exam.questions.asMap().entries.map((entry) {
         final index = entry.key;
         final q = entry.value;
 
-        // تدوير اسم السؤال بحسب الخيار المحدد
         Widget titleWidget = Text(
           q.title,
           textAlign: TextAlign.center,
@@ -304,7 +313,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
         return TableRow(
           children: [
-            // 1. خانة اسم السؤال وتدويره
             TableCell(
               verticalAlignment: TableCellVerticalAlignment.middle,
               child: InkWell(
@@ -315,31 +323,36 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
               ),
             ),
-
-            // 2. خانة محتوى السؤال
             TableCell(
               verticalAlignment: TableCellVerticalAlignment.middle,
               child: InkWell(
                 onTap: () => _openQuestionDialog(questionIndex: index),
                 child: Padding(
                   padding: const EdgeInsets.all(8.0),
-                  child: Wrap(
-                    children: q.spans.map((s) {
-                      return Text(
-                        s.text,
-                        style: TextStyle(
-                          fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
-                          decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
-                          fontSize: s.fontSize,
-                        ),
-                      );
-                    }).toList(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Wrap(
+                        children: q.spans.map((s) {
+                          return Text(
+                            s.text,
+                            style: TextStyle(
+                              fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
+                              decoration: s.isUnderline
+                                  ? TextDecoration.underline
+                                  : TextDecoration.none,
+                              fontSize: s.fontSize,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      if (q.elements.isNotEmpty) const SizedBox(height: 8),
+                      ...q.elements.map((el) => _buildRenderedElement(el)),
+                    ],
                   ),
                 ),
               ),
             ),
-
-            // 3. خانة الدرجة
             TableCell(
               verticalAlignment: TableCellVerticalAlignment.middle,
               child: InkWell(
@@ -361,7 +374,47 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // --- تذييل الورقة الملتصق بالأسئلة ---
+  Widget _buildRenderedElement(InsertableElement el) {
+    switch (el.type) {
+      case ElementType.image:
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Center(
+            child: Image.file(
+              File(el.content),
+              height: el.height,
+              width: el.width,
+              fit: BoxFit.contain,
+            ),
+          ),
+        );
+      case ElementType.textBox:
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            border: Border.all(color: Colors.black87),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            el.content,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+          ),
+        );
+      case ElementType.dottedLine:
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Text(
+            el.content,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 14, letterSpacing: 2),
+          ),
+        );
+    }
+  }
+
   Widget _buildFooterPreview() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -387,7 +440,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // --- نافذة كتابة وتنسيق وتدوير السؤال ---
   void _openQuestionDialog({int? questionIndex}) {
     final bool isEdit = questionIndex != null;
     final q = isEdit
@@ -396,12 +448,16 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             id: const Uuid().v4(),
             title: 'السؤال ${_exam.questions.length + 1}',
             spans: [],
+            elements: [],
           );
 
     final titleCtrl = TextEditingController(text: q.title);
-    final textCtrl = TextEditingController(text: q.spans.map((e) => e.text).join(''));
-    final markCtrl = TextEditingController(text: q.mark > 0 ? q.mark.toString() : '5');
+    final textCtrl =
+        TextEditingController(text: q.spans.map((e) => e.text).join(''));
+    final markCtrl =
+        TextEditingController(text: q.mark > 0 ? q.mark.toString() : '5');
     QuestionTitleOrientation orientation = q.titleOrientation;
+    List<InsertableElement> currentElements = List.from(q.elements);
 
     showModalBottomSheet(
       context: context,
@@ -418,68 +474,150 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(isEdit ? 'تعديل السؤال' : 'إضافة سؤال جديد', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(isEdit ? 'تعديل السؤال' : 'إضافة سؤال جديد',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
                       flex: 2,
-                      child: TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'اسم السؤال (س١)')),
+                      child: TextField(
+                          controller: titleCtrl,
+                          decoration:
+                              const InputDecoration(labelText: 'اسم السؤال (س١)')),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       flex: 1,
-                      child: TextField(controller: markCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الدرجة')),
+                      child: TextField(
+                          controller: markCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration:
+                              const InputDecoration(labelText: 'الدرجة')),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
-
-                // أزرار تدوير اسم السؤال
-                const Text('اتجاه كتابة اسم السؤال:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                const Text('اتجاه كتابة اسم السؤال:',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 Row(
                   children: [
                     ChoiceChip(
                       label: const Text('أفقي'),
-                      selected: orientation == QuestionTitleOrientation.horizontal,
-                      onSelected: (val) => setModalState(() => orientation = QuestionTitleOrientation.horizontal),
+                      selected:
+                          orientation == QuestionTitleOrientation.horizontal,
+                      onSelected: (val) => setModalState(
+                          () => orientation = QuestionTitleOrientation.horizontal),
                     ),
                     const SizedBox(width: 6),
                     ChoiceChip(
                       label: const Text('رأسي (يمين ◄)'),
-                      selected: orientation == QuestionTitleOrientation.verticalBottomToTop,
-                      onSelected: (val) => setModalState(() => orientation = QuestionTitleOrientation.verticalBottomToTop),
+                      selected: orientation ==
+                          QuestionTitleOrientation.verticalBottomToTop,
+                      onSelected: (val) => setModalState(() => orientation =
+                          QuestionTitleOrientation.verticalBottomToTop),
                     ),
                     const SizedBox(width: 6),
                     ChoiceChip(
                       label: const Text('رأسي (يسار ►)'),
-                      selected: orientation == QuestionTitleOrientation.verticalTopToBottom,
-                      onSelected: (val) => setModalState(() => orientation = QuestionTitleOrientation.verticalTopToBottom),
+                      selected: orientation ==
+                          QuestionTitleOrientation.verticalTopToBottom,
+                      onSelected: (val) => setModalState(() => orientation =
+                          QuestionTitleOrientation.verticalTopToBottom),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
-
-                // شريط التنسيق (كشيدة، تسطير، تفخيم)
+                // أدوات إدراج حرة (شعار/صورة، مربع نص، أسطر تنقيط)
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade100),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      TextButton.icon(
+                        icon: const Icon(Icons.add_photo_alternate, size: 18),
+                        label: const Text('إدراج صورة',
+                            style: TextStyle(fontSize: 11)),
+                        onPressed: () async {
+                          final img = await _picker.pickImage(
+                              source: ImageSource.gallery);
+                          if (img != null) {
+                            setModalState(() {
+                              currentElements.add(InsertableElement(
+                                id: const Uuid().v4(),
+                                type: ElementType.image,
+                                content: img.path,
+                                width: 90,
+                                height: 90,
+                              ));
+                            });
+                          }
+                        },
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.text_fields, size: 18),
+                        label: const Text('مربع نص',
+                            style: TextStyle(fontSize: 11)),
+                        onPressed: () {
+                          _showTextBoxEntryDialog(context, (txt) {
+                            setModalState(() {
+                              currentElements.add(InsertableElement(
+                                id: const Uuid().v4(),
+                                type: ElementType.textBox,
+                                content: txt,
+                              ));
+                            });
+                          });
+                        },
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.more_horiz, size: 18),
+                        label: const Text('سطر تنقيط',
+                            style: TextStyle(fontSize: 11)),
+                        onPressed: () {
+                          setModalState(() {
+                            currentElements.add(InsertableElement(
+                              id: const Uuid().v4(),
+                              type: ElementType.dottedLine,
+                              content:
+                                  '......................................................................',
+                            ));
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     ElevatedButton(
                       onPressed: () => _insertTatweel(textCtrl),
-                      style: ElevatedButton.styleFrom(minimumSize: const Size(44, 36)),
+                      style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(44, 36)),
                       child: const Text('ـ كشيدة'),
                     ),
                     IconButton(
-                      icon: Icon(Icons.format_bold, color: _isBoldActive ? Colors.blue : Colors.black),
-                      onPressed: () => setModalState(() => _isBoldActive = !_isBoldActive),
+                      icon: Icon(Icons.format_bold,
+                          color: _isBoldActive ? Colors.blue : Colors.black),
+                      onPressed: () =>
+                          setModalState(() => _isBoldActive = !_isBoldActive),
                     ),
                     IconButton(
-                      icon: Icon(Icons.format_underlined, color: _isUnderlineActive ? Colors.blue : Colors.black),
-                      onPressed: () => setModalState(() => _isUnderlineActive = !_isUnderlineActive),
+                      icon: Icon(Icons.format_underlined,
+                          color:
+                              _isUnderlineActive ? Colors.blue : Colors.black),
+                      onPressed: () => setModalState(
+                          () => _isUnderlineActive = !_isUnderlineActive),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
-
                 TextField(
                   controller: textCtrl,
                   maxLines: 4,
@@ -488,8 +626,26 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     border: OutlineInputBorder(),
                   ),
                 ),
+                if (currentElements.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: currentElements.asMap().entries.map((entry) {
+                      final i = entry.key;
+                      final el = entry.value;
+                      return Chip(
+                        label: Text(el.type == ElementType.image
+                            ? 'صورة مدرجة'
+                            : el.type == ElementType.textBox
+                                ? 'مربع نص'
+                                : 'سطر تنقيط'),
+                        onDeleted: () =>
+                            setModalState(() => currentElements.removeAt(i)),
+                      );
+                    }).toList(),
+                  ),
+                ],
                 const SizedBox(height: 10),
-
                 ElevatedButton(
                   onPressed: () {
                     final newSpans = [
@@ -508,6 +664,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       titleOrientation: orientation,
                       mark: double.tryParse(markCtrl.text) ?? 0.0,
                       spans: newSpans,
+                      elements: currentElements,
                     );
 
                     setState(() {
@@ -530,9 +687,41 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // --- نافذة إعدادات التذييل والهوامش ---
+  void _showTextBoxEntryDialog(
+      BuildContext context, Function(String) onConfirm) {
+    final textCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('إدراج مربع نص / إرشاد'),
+        content: TextField(
+          controller: textCtrl,
+          decoration: const InputDecoration(
+            hintText: 'اكتب نص المربع هنا...',
+            border: OutlineInputBorder(),
+          ),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          ElevatedButton(
+            onPressed: () {
+              if (textCtrl.text.trim().isNotEmpty) {
+                onConfirm(textCtrl.text.trim());
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('إدراج'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _openFooterSettingsDialog() {
-    final singleCtrl = TextEditingController(text: _exam.header.singlePageFooterText);
+    final singleCtrl =
+        TextEditingController(text: _exam.header.singlePageFooterText);
     final multiCtrl = TextEditingController(text: _exam.header.continuationText);
     final signCtrl = TextEditingController(text: _exam.header.teacherSignature);
     bool isMulti = _exam.header.isMultiPage;
@@ -562,12 +751,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 if (isMulti)
                   TextField(
                     controller: multiCtrl,
-                    decoration: const InputDecoration(labelText: 'عبارة المتابعة للورقة التالية'),
+                    decoration: const InputDecoration(
+                        labelText: 'عبارة المتابعة للورقة التالية'),
                   )
                 else
                   TextField(
                     controller: singleCtrl,
-                    decoration: const InputDecoration(labelText: 'عبارة ختام الامتحان'),
+                    decoration:
+                        const InputDecoration(labelText: 'عبارة ختام الامتحان'),
                   ),
                 const SizedBox(height: 8),
                 TextField(
@@ -578,7 +769,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
             ElevatedButton(
               onPressed: () {
                 setState(() {
@@ -598,7 +790,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // نوافذ التعديل السريع للترويسة
   void _editAdminHeaderDialog() {
     final cCountry = TextEditingController(text: _exam.header.country);
     final cGov = TextEditingController(text: _exam.header.governorate);
