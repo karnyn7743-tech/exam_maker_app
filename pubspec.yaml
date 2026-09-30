@@ -41,6 +41,14 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # مجلد الأصول الافتراضية (شعار الجمهورية، البسملة، قوالب الخطوط إن وُجدت)
+  # مجلد الأصول الافتراضية
   assets:
     - assets/images/
+
+  # إعدادات الخطوط الرسمية
+  fonts:
+    - family: Traditional Arabic
+      fonts:
+        - asset: assets/fonts/Traditional_Arabic.ttf
+        - asset: assets/fonts/Traditional_Arabic_Bold.ttf
+          weight: 700
