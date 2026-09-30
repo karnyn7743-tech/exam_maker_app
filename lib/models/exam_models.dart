@@ -1,13 +1,54 @@
 import 'dart:convert';
 
-/// اتجاه كتابة اسم السؤال في الخانة الأولى
 enum QuestionTitleOrientation {
-  horizontal, // أفقي عادي
-  verticalBottomToTop, // رأسي من الأسفل للأعلى (باتجاه اليمين)
-  verticalTopToBottom, // رأسي من الأعلى للأسفل (باتجاه اليسار)
+  horizontal,
+  verticalBottomToTop,
+  verticalTopToBottom,
 }
 
-/// مقطع نصي منسق داخل السؤال
+enum ElementType {
+  image,
+  textBox,
+  dottedLine,
+}
+
+class InsertableElement {
+  final String id;
+  final ElementType type;
+  String content; // مسار الصورة أو نص مربع الإرشاد أو محتوى السطر
+  double width;
+  double height;
+  String alignment;
+
+  InsertableElement({
+    required this.id,
+    required this.type,
+    required this.content,
+    this.width = 100,
+    this.height = 100,
+    this.alignment = 'center',
+  });
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'type': type.name,
+        'content': content,
+        'width': width,
+        'height': height,
+        'alignment': alignment,
+      };
+
+  factory InsertableElement.fromMap(Map<String, dynamic> map) =>
+      InsertableElement(
+        id: map['id'] ?? '',
+        type: ElementType.values.byName(map['type'] ?? 'textBox'),
+        content: map['content'] ?? '',
+        width: (map['width'] as num?)?.toDouble() ?? 100.0,
+        height: (map['height'] as num?)?.toDouble() ?? 100.0,
+        alignment: map['alignment'] ?? 'center',
+      );
+}
+
 class TextSpanModel {
   String text;
   bool isBold;
@@ -23,7 +64,7 @@ class TextSpanModel {
     this.fontFamily = 'Traditional Arabic',
   });
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toMap() => {
         'text': text,
         'isBold': isBold,
         'isUnderline': isUnderline,
@@ -31,107 +72,103 @@ class TextSpanModel {
         'fontFamily': fontFamily,
       };
 
-  factory TextSpanModel.fromJson(Map<String, dynamic> json) => TextSpanModel(
-        text: json['text'] ?? '',
-        isBold: json['isBold'] ?? false,
-        isUnderline: json['isUnderline'] ?? false,
-        fontSize: (json['fontSize'] as num?)?.toDouble() ?? 14.0,
-        fontFamily: json['fontFamily'] ?? 'Traditional Arabic',
+  factory TextSpanModel.fromMap(Map<String, dynamic> map) => TextSpanModel(
+        text: map['text'] ?? '',
+        isBold: map['isBold'] ?? false,
+        isUnderline: map['isUnderline'] ?? false,
+        fontSize: (map['fontSize'] as num?)?.toDouble() ?? 14.0,
+        fontFamily: map['fontFamily'] ?? 'Traditional Arabic',
       );
 }
 
-/// نموذج السؤال المقسم لثلاثة أقسام (الاسم وتدويره | المحتوى والتنسيق | الدرجة)
 class QuestionModel {
-  String id;
-  String title; // اسم السؤال مثل: السؤال الأول / س١
-  QuestionTitleOrientation titleOrientation; // اتجاه كتابة الاسم
-  List<TextSpanModel> spans; // محتوى السؤال
-  double mark; // درجة السؤال
+  final String id;
+  String title;
+  QuestionTitleOrientation titleOrientation;
+  double mark;
+  List<TextSpanModel> spans;
+  List<InsertableElement> elements;
 
   QuestionModel({
     required this.id,
-    this.title = '',
+    required this.title,
     this.titleOrientation = QuestionTitleOrientation.horizontal,
-    required this.spans,
     this.mark = 0.0,
-  });
+    required this.spans,
+    List<InsertableElement>? elements,
+  }) : elements = elements ?? [];
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toMap() => {
         'id': id,
         'title': title,
         'titleOrientation': titleOrientation.name,
-        'spans': spans.map((s) => s.toJson()).toList(),
         'mark': mark,
+        'spans': spans.map((s) => s.toMap()).toList(),
+        'elements': elements.map((e) => e.toMap()).toList(),
       };
 
-  factory QuestionModel.fromJson(Map<String, dynamic> json) => QuestionModel(
-        id: json['id'] ?? '',
-        title: json['title'] ?? '',
-        titleOrientation: QuestionTitleOrientation.values.firstWhere(
-          (e) => e.name == json['titleOrientation'],
-          orElse: () => QuestionTitleOrientation.horizontal,
+  factory QuestionModel.fromMap(Map<String, dynamic> map) => QuestionModel(
+        id: map['id'] ?? '',
+        title: map['title'] ?? '',
+        titleOrientation: QuestionTitleOrientation.values.byName(
+          map['titleOrientation'] ?? 'horizontal',
         ),
-        spans: (json['spans'] as List? ?? [])
-            .map((s) => TextSpanModel.fromJson(s))
-            .toList(),
-        mark: (json['mark'] as num?)?.toDouble() ?? 0.0,
+        mark: (map['mark'] as num?)?.toDouble() ?? 0.0,
+        spans: (map['spans'] as List<dynamic>?)
+                ?.map((item) => TextSpanModel.fromMap(item))
+                .toList() ??
+            [],
+        elements: (map['elements'] as List<dynamic>?)
+                ?.map((item) => InsertableElement.fromMap(item))
+                .toList() ??
+            [],
       );
 }
 
-/// نموذج الترويسة والتذييل وخيارات الورقة
 class HeaderModel {
-  // الجهة الإدارية (اليمين)
   String country;
   String ministry;
   String governorate;
   String directorate;
   String school;
-
-  // الوسط
   String basmalaText;
   String? logoImagePath;
-
-  // اليسار
   String grade;
   String subject;
   String examDate;
   String examTime;
   String period;
-
-  // الشريط الأوسط والشريط التوجيهي
   String examTitle;
   String instructionText;
+  bool isMultiPage;
+  String singlePageFooterText;
+  String continuationText;
+  String teacherSignature;
   bool topMargin1cm;
 
-  // --- خيارات التذييل القابلة للتعديل ---
-  bool isMultiPage; // هل الاختبار أكثر من ورقة؟
-  String singlePageFooterText; // ختام الورقة الواحدة
-  String continuationText; // عبارة يتبع إن كان متعدد الصفحات
-  String teacherSignature; // توقيع المعلم
-
   HeaderModel({
-    this.country = 'الجمهـــــورية اليمنيـــــة',
-    this.ministry = 'وزارة التربية والتعليم والبحث العلمي',
-    this.governorate = 'مكتب التربية والتعليم بمحافظة ذمار',
-    this.directorate = 'مكتب التربية والتعليم بمديرية عتمة',
-    this.school = 'مدرسة هجرة بني عبد الصمد',
-    this.basmalaText = 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
+    this.country = 'الجمهورية اليمنية',
+    this.ministry = 'وزارة التربية والتعليم',
+    this.governorate = 'محافظة صنعاء',
+    this.directorate = 'مديرية معين',
+    this.school = 'مدرسة الأمل الحديثة',
+    this.basmalaText = 'بسم الله الرحمن الرحيم',
     this.logoImagePath,
-    this.grade = 'الصف الثاني',
-    this.subject = 'لغتي العربية',
-    this.examDate = '1 / 10 / 2026 م',
+    this.grade = 'التاسع',
+    this.subject = 'الرياضيات',
+    this.examDate = '1447/08/15 هـ',
     this.examTime = 'ساعتان',
-    this.period = 'واحدة',
-    this.examTitle = 'إمتحان نهاية الفصل الدراسي الاول للعام الدراسي 2026/2027 م',
-    this.instructionText = 'أجب مستعيناً بالله عن جميع الأسئلة الآتية :-',
-    this.topMargin1cm = true,
+    this.period = 'الأولى',
+    this.examTitle = 'اختبار نهاية الفصل الدراسي الأول',
+    this.instructionText = 'أجب عن جميع الأسئلة الآتية',
     this.isMultiPage = false,
-    this.singlePageFooterText = 'انتهت الأسئلة - مع تمنياتنا لكم بالنجاح والتوفيق',
-    this.continuationText = '( انظر بقية الأسئلة في الصفحة التالية ◄ )',
-    this.teacherSignature = 'معلم المادة: ....................',
+    this.singlePageFooterText = 'انتهت الأسئلة مع تمنياتنا لكم بالتوفيق والنجاح',
+    this.continuationText = 'يتبع الصفحة التالية ◄',
+    this.teacherSignature = 'معلم المادة: ......................',
+    this.topMargin1cm = true,
   });
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toMap() => {
         'country': country,
         'ministry': ministry,
         'governorate': governorate,
@@ -146,42 +183,38 @@ class HeaderModel {
         'period': period,
         'examTitle': examTitle,
         'instructionText': instructionText,
-        'topMargin1cm': topMargin1cm,
         'isMultiPage': isMultiPage,
         'singlePageFooterText': singlePageFooterText,
         'continuationText': continuationText,
         'teacherSignature': teacherSignature,
+        'topMargin1cm': topMargin1cm,
       };
 
-  factory HeaderModel.fromJson(Map<String, dynamic> json) => HeaderModel(
-        country: json['country'] ?? 'الجمهـــــورية اليمنيـــــة',
-        ministry: json['ministry'] ?? 'وزارة التربية والتعليم والبحث العلمي',
-        governorate: json['governorate'] ?? '',
-        directorate: json['directorate'] ?? '',
-        school: json['school'] ?? '',
-        basmalaText: json['basmalaText'] ?? '',
-        logoImagePath: json['logoImagePath'],
-        grade: json['grade'] ?? '',
-        subject: json['subject'] ?? '',
-        examDate: json['examDate'] ?? '',
-        examTime: json['examTime'] ?? '',
-        period: json['period'] ?? '',
-        examTitle: json['examTitle'] ?? '',
-        instructionText: json['instructionText'] ?? '',
-        topMargin1cm: json['topMargin1cm'] ?? true,
-        isMultiPage: json['isMultiPage'] ?? false,
-        singlePageFooterText: json['singlePageFooterText'] ??
-            'انتهت الأسئلة - مع تمنياتنا لكم بالنجاح والتوفيق',
-        continuationText: json['continuationText'] ??
-            '( انظر بقية الأسئلة في الصفحة التالية ◄ )',
-        teacherSignature:
-            json['teacherSignature'] ?? 'معلم المادة: ....................',
+  factory HeaderModel.fromMap(Map<String, dynamic> map) => HeaderModel(
+        country: map['country'] ?? 'الجمهورية اليمنية',
+        ministry: map['ministry'] ?? 'وزارة التربية والتعليم',
+        governorate: map['governorate'] ?? '',
+        directorate: map['directorate'] ?? '',
+        school: map['school'] ?? '',
+        basmalaText: map['basmalaText'] ?? 'بسم الله الرحمن الرحيم',
+        logoImagePath: map['logoImagePath'],
+        grade: map['grade'] ?? '',
+        subject: map['subject'] ?? '',
+        examDate: map['examDate'] ?? '',
+        examTime: map['examTime'] ?? '',
+        period: map['period'] ?? '',
+        examTitle: map['examTitle'] ?? '',
+        instructionText: map['instructionText'] ?? '',
+        isMultiPage: map['isMultiPage'] ?? false,
+        singlePageFooterText: map['singlePageFooterText'] ?? '',
+        continuationText: map['continuationText'] ?? '',
+        teacherSignature: map['teacherSignature'] ?? '',
+        topMargin1cm: map['topMargin1cm'] ?? true,
       );
 }
 
-/// نموذج وثيقة الامتحان
 class ExamModel {
-  String id;
+  final String id;
   String fileName;
   DateTime createdAt;
   DateTime updatedAt;
@@ -197,34 +230,45 @@ class ExamModel {
     required this.questions,
   });
 
-  double get totalMarks => questions.fold(0.0, (sum, item) => sum + item.mark);
+  double get totalMarks =>
+      questions.fold(0.0, (sum, item) => sum + item.mark);
 
-  Map<String, dynamic> toJson() => {
+  ExamModel copyWith({
+    String? newId,
+    String? newFileName,
+  }) {
+    return ExamModel(
+      id: newId ?? id,
+      fileName: newFileName ?? fileName,
+      createdAt: createdAt,
+      updatedAt: DateTime.now(),
+      header: HeaderModel.fromMap(header.toMap()),
+      questions: questions.map((q) => QuestionModel.fromMap(q.toMap())).toList(),
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
         'id': id,
         'fileName': fileName,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
-        'header': header.toJson(),
-        'questions': questions.map((q) => q.toJson()).toList(),
+        'header': header.toMap(),
+        'questions': questions.map((q) => q.toMap()).toList(),
       };
 
-  factory ExamModel.fromJson(Map<String, dynamic> json) => ExamModel(
-        id: json['id'] ?? '',
-        fileName: json['fileName'] ?? 'اختبار_جديد',
-        createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
-        updatedAt: DateTime.tryParse(json['updatedAt'] ?? '') ?? DateTime.now(),
-        header: HeaderModel.fromJson(json['header'] ?? {}),
-        questions: (json['questions'] as List? ?? [])
-            .map((q) => QuestionModel.fromJson(q))
-            .toList(),
+  factory ExamModel.fromMap(Map<String, dynamic> map) => ExamModel(
+        id: map['id'] ?? '',
+        fileName: map['fileName'] ?? '',
+        createdAt: DateTime.parse(map['createdAt']),
+        updatedAt: DateTime.parse(map['updatedAt']),
+        header: HeaderModel.fromMap(map['header'] ?? {}),
+        questions: (map['questions'] as List<dynamic>?)
+                ?.map((item) => QuestionModel.fromMap(item))
+                .toList() ??
+            [],
       );
 
-  ExamModel copyWith({String? newId, String? newFileName}) {
-    final rawJson = jsonDecode(jsonEncode(toJson()));
-    rawJson['id'] = newId ?? id;
-    rawJson['fileName'] = newFileName ?? fileName;
-    rawJson['createdAt'] = DateTime.now().toIso8601String();
-    rawJson['updatedAt'] = DateTime.now().toIso8601String();
-    return ExamModel.fromJson(rawJson);
-  }
+  String toJson() => jsonEncode(toMap());
+  factory ExamModel.fromJson(String source) =>
+      ExamModel.fromMap(jsonDecode(source));
 }
