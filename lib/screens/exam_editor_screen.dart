@@ -6,6 +6,7 @@ import '../models/exam_models.dart';
 import '../utils/save_dialog_helper.dart';
 import '../services/docx_generator_service.dart';
 import '../services/exam_storage_service.dart';
+import '../services/pdf_export_service.dart';
 
 class ExamEditorScreen extends StatefulWidget {
   final ExamModel initialExam;
@@ -25,14 +26,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   late ExamModel _exam;
   late bool _isNew;
 
-  // نسب عرض خانات الترويسة الثلاث (يمين، وسط، يسار) مع حرية التحكم بها
-  int _rightHeaderFlex = 4;
-  int _centerHeaderFlex = 3;
-  int _leftHeaderFlex = 4;
+  // عرض خانتي الترويسة اليمنى واليسرى (المرتكز ثابت على الحافة والتمدد نحو الوسط)
+  double _sideHeaderWidth = 145.0;
 
   // عرض أعمدة السؤال والدرجة
-  double _questionColWidth = 40.0;
-  double _markColWidth = 40.0;
+  double _questionColWidth = 38.0;
+  double _markColWidth = 38.0;
 
   final ImagePicker _picker = ImagePicker();
 
@@ -93,10 +92,35 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     await DocxGeneratorService.generateAndOpenDocx(_exam);
   }
 
+  Future<void> _exportPdfToDownloads() async {
+    await ExamStorageService.saveOrUpdateExam(_exam);
+    try {
+      final path = await PdfExportService.exportToDownloadsPdf(_exam);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تم حفظ PDF بنجاح في مجلد التنزيلات:\n$path'),
+            backgroundColor: Colors.green.shade800,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تعذر تصدير PDF: $e'),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFD6D9E0), // خلفية مكتبية تبرز حدود ورقة A4
+      backgroundColor: const Color(0xFFD6D9E0),
       appBar: AppBar(
         title: Text(_isNew ? 'اختبار جديد' : _exam.fileName,
             style: const TextStyle(color: Colors.white, fontSize: 16)),
@@ -104,13 +128,18 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
+            icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
+            tooltip: 'تصدير PDF وحفظه في مجلد التنزيلات',
+            onPressed: _exportPdfToDownloads,
+          ),
+          IconButton(
             icon: const Icon(Icons.print, color: Colors.white),
-            tooltip: 'تصدير وفتح في تطبيق Office',
+            tooltip: 'تصدير وفتح في تطبيق Word',
             onPressed: _exportAndOpenOffice,
           ),
           IconButton(
             icon: const Icon(Icons.view_column, color: Colors.white),
-            tooltip: 'توزيع عرض خانات الترويسة والأعمدة',
+            tooltip: 'أبعاد الترويسة والأعمدة',
             onPressed: _openHeaderFlexSettingsDialog,
           ),
           IconButton(
@@ -130,7 +159,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
           child: Column(
             children: [
-              // حاوية ورقة A4 الحقيقية
               Container(
                 constraints: const BoxConstraints(maxWidth: 820),
                 decoration: BoxDecoration(
@@ -184,7 +212,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // --- واجهة الترويسة المعدلة مع الصف الناقص والنسب القابلة للتحرير ---
   Widget _buildExamHeader() {
     return Container(
       decoration: BoxDecoration(
@@ -197,20 +224,18 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. الترويسة اليمنى (بـ 6 صفوف مكتملة)
-              Expanded(
-                flex: _rightHeaderFlex,
+              // 1. الترويسة اليمنى (ملتصقة بالحافة اليمنى وتتمدد نحو الوسط)
+              SizedBox(
+                width: _sideHeaderWidth,
                 child: InkWell(
                   onTap: _editAdminHeaderDialog,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Text(_exam.header.country,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 11)),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                       Text(_exam.header.ministry,
                           style: const TextStyle(fontSize: 9.5)),
-                      // الصف المضاف لوزارة التربية أو قطاع التعليم
                       Text(
                           _exam.header.directorate.isNotEmpty
                               ? 'قطاع المناهج والتوجيه'
@@ -221,23 +246,20 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       Text('إدارة التربية والتعليم بمديرية ${_exam.header.directorate}',
                           style: const TextStyle(fontSize: 9), textAlign: TextAlign.center),
                       Text('مدرسة: ${_exam.header.school}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 9.5),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 9.5),
                           textAlign: TextAlign.center),
                     ],
                   ),
                 ),
               ),
 
-              // 2. الترويسة الوسطى (البسملة والشعار مع ضبط التوسيط الفاصل)
+              // 2. الترويسة الوسطى (تستوعب المساحة المتبقية بالوسط)
               Expanded(
-                flex: _centerHeaderFlex,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(_exam.header.basmalaText,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 11),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                         textAlign: TextAlign.center),
                     const SizedBox(height: 6),
                     GestureDetector(
@@ -259,20 +281,18 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
               ),
 
-              // 3. الترويسة اليسرى
-              Expanded(
-                flex: _leftHeaderFlex,
+              // 3. الترويسة اليسرى (ملتصقة بالحافة اليسرى وتتمدد نحو الوسط)
+              SizedBox(
+                width: _sideHeaderWidth,
                 child: InkWell(
                   onTap: _editExamDetailsDialog,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('الصف : ${_exam.header.grade}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 11)),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                       Text('الماده : ${_exam.header.subject}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 11)),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                       Text('التاريخ: ${_exam.header.examDate}',
                           style: const TextStyle(fontSize: 10)),
                       Text(
@@ -286,7 +306,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
           const SizedBox(height: 4),
 
-          // عنوان الامتحان
           InkWell(
             onTap: _editExamTitleDialog,
             child: Container(
@@ -302,7 +321,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
           const SizedBox(height: 2),
 
-          // شريط التوجيه الثلاثي بمقاسات الأعمدة المصغرة الجديدة
           Row(
             children: [
               SizedBox(
@@ -334,7 +352,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // --- جدول الأسئلة مع تصغير الأعمدة الجانبية ---
   Widget _buildQuestionsTable() {
     if (_exam.questions.isEmpty) {
       return Container(
@@ -347,9 +364,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     return Table(
       border: TableBorder.all(color: Colors.black, width: 1),
       columnWidths: {
-        0: FixedColumnWidth(_questionColWidth), // عمود السؤال المصغر
-        1: const FlexColumnWidth(),            // عمود المحتوى المتسع
-        2: FixedColumnWidth(_markColWidth),     // عمود الدرجة المصغر
+        0: FixedColumnWidth(_questionColWidth),
+        1: const FlexColumnWidth(),
+        2: FixedColumnWidth(_markColWidth),
       },
       children: _exam.questions.asMap().entries.map((entry) {
         final index = entry.key;
@@ -370,7 +387,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
         return TableRow(
           children: [
-            // 1. عمود اسم السؤال
             TableCell(
               verticalAlignment: TableCellVerticalAlignment.middle,
               child: InkWell(
@@ -381,8 +397,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
               ),
             ),
-
-            // 2. عمود محتوى السؤال المتسع
             TableCell(
               verticalAlignment: TableCellVerticalAlignment.middle,
               child: InkWell(
@@ -415,8 +429,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
               ),
             ),
-
-            // 3. عمود الدرجة
             TableCell(
               verticalAlignment: TableCellVerticalAlignment.middle,
               child: InkWell(
@@ -505,82 +517,37 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // --- نافذة ضبط نسب الترويسة وأبعاد الأعمدة الحرة ---
   void _openHeaderFlexSettingsDialog() {
-    int rFlex = _rightHeaderFlex;
-    int cFlex = _centerHeaderFlex;
-    int lFlex = _leftHeaderFlex;
+    double sideWidth = _sideHeaderWidth;
     double qWidth = _questionColWidth;
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDlgState) => AlertDialog(
-          title: const Text('أبعاد خانات الترويسة والجدول'),
+          title: const Text('أبعاد خانات الترويسة والأعمدة'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('نسب توزيع مساحة الترويسة (يمين - وسط - يسار):',
+                const Text('عرض الترويسة اليمنى واليسرى (تمدد نحو الوسط):',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        children: [
-                          const Text('اليمين', style: TextStyle(fontSize: 11)),
-                          Slider(
-                            value: rFlex.toDouble(),
-                            min: 2,
-                            max: 6,
-                            divisions: 4,
-                            label: '$rFlex',
-                            onChanged: (v) => setDlgState(() => rFlex = v.toInt()),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          const Text('الوسط', style: TextStyle(fontSize: 11)),
-                          Slider(
-                            value: cFlex.toDouble(),
-                            min: 2,
-                            max: 5,
-                            divisions: 3,
-                            label: '$cFlex',
-                            onChanged: (v) => setDlgState(() => cFlex = v.toInt()),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          const Text('اليسار', style: TextStyle(fontSize: 11)),
-                          Slider(
-                            value: lFlex.toDouble(),
-                            min: 2,
-                            max: 6,
-                            divisions: 4,
-                            label: '$lFlex',
-                            onChanged: (v) => setDlgState(() => lFlex = v.toInt()),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                Slider(
+                  value: sideWidth,
+                  min: 100,
+                  max: 200,
+                  divisions: 20,
+                  label: '${sideWidth.toInt()} px',
+                  onChanged: (v) => setDlgState(() => sideWidth = v),
                 ),
                 const Divider(),
                 const Text('عرض عمودي (السؤال) و(الدرجة):',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 Slider(
                   value: qWidth,
-                  min: 30,
-                  max: 60,
-                  divisions: 6,
+                  min: 28,
+                  max: 55,
+                  divisions: 27,
                   label: '${qWidth.toInt()} px',
                   onChanged: (v) => setDlgState(() => qWidth = v),
                 ),
@@ -592,9 +559,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ElevatedButton(
               onPressed: () {
                 setState(() {
-                  _rightHeaderFlex = rFlex;
-                  _centerHeaderFlex = cFlex;
-                  _leftHeaderFlex = lFlex;
+                  _sideHeaderWidth = sideWidth;
                   _questionColWidth = qWidth;
                   _markColWidth = qWidth;
                 });
@@ -608,6 +573,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
+  // --- نافذة كتابة السؤال مع التنسيق الموجه للنص المحدد فقط ---
   void _openQuestionDialog({int? questionIndex}) {
     final bool isEdit = questionIndex != null;
     final q = isEdit
@@ -627,13 +593,93 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     QuestionTitleOrientation orientation = q.titleOrientation;
     List<InsertableElement> currentElements = List.from(q.elements);
 
-    String selectedFont = q.spans.isNotEmpty ? q.spans.first.fontFamily : 'Amiri';
-    double selectedFontSize = q.spans.isNotEmpty ? q.spans.first.fontSize : 14.0;
-    bool isBold = q.spans.isNotEmpty ? q.spans.first.isBold : false;
-    bool isUnderline = q.spans.isNotEmpty ? q.spans.first.isUnderline : false;
+    // قائمة المقاطع الحالية (تنسيق كل جزء بشكل مستقل)
+    List<TextSpanModel> workingSpans = q.spans.isNotEmpty
+        ? q.spans.map((s) => TextSpanModel(
+              text: s.text,
+              isBold: s.isBold,
+              isUnderline: s.isUnderline,
+              fontSize: s.fontSize,
+              fontFamily: s.fontFamily,
+            )).toList()
+        : [
+            TextSpanModel(
+              text: textCtrl.text,
+              fontSize: 14.0,
+              fontFamily: 'Amiri',
+            )
+          ];
+
+    String selectedFont = 'Amiri';
+    double selectedFontSize = 14.0;
+    bool isBold = false;
+    bool isUnderline = false;
 
     final List<String> availableFonts = ['Amiri', 'Traditional Arabic', 'Arial'];
     final List<double> availableSizes = [12.0, 14.0, 16.0, 18.0, 20.0, 22.0];
+
+    // دالة تقسيم وتطبيق التنسيق على النص المحدد فقط
+    void applyFormatToSelection({
+      bool? bold,
+      bool? underline,
+      String? font,
+      double? size,
+    }) {
+      final sel = textCtrl.selection;
+      if (!sel.isValid || sel.isCollapsed) return;
+
+      final fullText = textCtrl.text;
+      final selStart = sel.start;
+      final selEnd = sel.end;
+
+      List<TextSpanModel> newSpans = [];
+      int currentPos = 0;
+
+      for (var span in workingSpans) {
+        int spanStart = currentPos;
+        int spanEnd = currentPos + span.text.length;
+
+        if (spanEnd <= selStart || spanStart >= selEnd) {
+          // المقطع خارج نطاق التحديد، يبقى كما هو
+          newSpans.add(span);
+        } else {
+          // المقطع يتقاطع مع التحديد، نقسمه
+          if (spanStart < selStart) {
+            newSpans.add(TextSpanModel(
+              text: fullText.substring(spanStart, selStart),
+              isBold: span.isBold,
+              isUnderline: span.isUnderline,
+              fontSize: span.fontSize,
+              fontFamily: span.fontFamily,
+            ));
+          }
+
+          int overlapStart = spanStart > selStart ? spanStart : selStart;
+          int overlapEnd = spanEnd < selEnd ? spanEnd : selEnd;
+
+          newSpans.add(TextSpanModel(
+            text: fullText.substring(overlapStart, overlapEnd),
+            isBold: bold ?? span.isBold,
+            isUnderline: underline ?? span.isUnderline,
+            fontSize: size ?? span.fontSize,
+            fontFamily: font ?? span.fontFamily,
+          ));
+
+          if (spanEnd > selEnd) {
+            newSpans.add(TextSpanModel(
+              text: fullText.substring(selEnd, spanEnd),
+              isBold: span.isBold,
+              isUnderline: span.isUnderline,
+              fontSize: span.fontSize,
+              fontFamily: span.fontFamily,
+            ));
+          }
+        }
+        currentPos = spanEnd;
+      }
+
+      workingSpans = newSpans.where((s) => s.text.isNotEmpty).toList();
+    }
 
     showModalBottomSheet(
       context: context,
@@ -705,6 +751,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 const SizedBox(height: 8),
 
+                // شريط التنسيق: يطبق التغيير على النص المحدد فقط
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -730,7 +777,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           );
                         }).toList(),
                         onChanged: (val) {
-                          if (val != null) setModalState(() => selectedFont = val);
+                          if (val != null) {
+                            setModalState(() {
+                              selectedFont = val;
+                              applyFormatToSelection(font: val);
+                            });
+                          }
                         },
                       ),
                       DropdownButton<double>(
@@ -745,7 +797,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           );
                         }).toList(),
                         onChanged: (val) {
-                          if (val != null) setModalState(() => selectedFontSize = val);
+                          if (val != null) {
+                            setModalState(() {
+                              selectedFontSize = val;
+                              applyFormatToSelection(size: val);
+                            });
+                          }
                         },
                       ),
                       Row(
@@ -754,15 +811,24 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           IconButton(
                             icon: Icon(Icons.format_bold,
                                 color: isBold ? Colors.blue : Colors.black87),
-                            tooltip: 'خط عريض',
-                            onPressed: () => setModalState(() => isBold = !isBold),
+                            tooltip: 'تطبيق خط عريض على المحدد',
+                            onPressed: () {
+                              setModalState(() {
+                                isBold = !isBold;
+                                applyFormatToSelection(bold: isBold);
+                              });
+                            },
                           ),
                           IconButton(
                             icon: Icon(Icons.format_underlined,
                                 color: isUnderline ? Colors.blue : Colors.black87),
-                            tooltip: 'تسطير',
-                            onPressed: () =>
-                                setModalState(() => isUnderline = !isUnderline),
+                            tooltip: 'تطبيق تسطير على المحدد',
+                            onPressed: () {
+                              setModalState(() {
+                                isUnderline = !isUnderline;
+                                applyFormatToSelection(underline: isUnderline);
+                              });
+                            },
                           ),
                           ElevatedButton(
                             onPressed: () => _insertTatweel(textCtrl),
@@ -779,19 +845,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 const SizedBox(height: 6),
 
+                // حقل كتابة محتوى السؤال
                 TextField(
                   controller: textCtrl,
                   maxLines: 4,
-                  style: TextStyle(
-                    fontFamily: selectedFont == 'Amiri' ? 'Amiri' : null,
-                    fontSize: selectedFontSize,
-                    fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-                    decoration: isUnderline
-                        ? TextDecoration.underline
-                        : TextDecoration.none,
-                  ),
                   decoration: const InputDecoration(
-                    labelText: 'محتوى نص السؤال (معاينة حية للتنسيق)',
+                    labelText: 'محتوى نص السؤال (حدد جزءاً لتنسيقه مستقلاً)',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -884,22 +943,27 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
                 ElevatedButton(
                   onPressed: () {
-                    final newSpans = [
-                      TextSpanModel(
-                        text: textCtrl.text,
-                        isBold: isBold,
-                        isUnderline: isUnderline,
-                        fontSize: selectedFontSize,
-                        fontFamily: selectedFont,
-                      )
-                    ];
+                    // إذا لم يتم التحديد والتعديل على مقاطع، نعتمد كامل النص بكتلة واحدة
+                    final spansToSave = workingSpans.isNotEmpty &&
+                            workingSpans.map((s) => s.text).join('') ==
+                                textCtrl.text
+                        ? workingSpans
+                        : [
+                            TextSpanModel(
+                              text: textCtrl.text,
+                              isBold: isBold,
+                              isUnderline: isUnderline,
+                              fontSize: selectedFontSize,
+                              fontFamily: selectedFont,
+                            )
+                          ];
 
                     final newQ = QuestionModel(
                       id: q.id,
                       title: titleCtrl.text,
                       titleOrientation: orientation,
                       mark: double.tryParse(markCtrl.text) ?? 0.0,
-                      spans: newSpans,
+                      spans: spansToSave,
                       elements: currentElements,
                     );
 
