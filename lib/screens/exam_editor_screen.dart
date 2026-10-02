@@ -435,7 +435,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           return Text(
                             s.text,
                             style: TextStyle(
-                              fontFamily: s.fontFamily == 'Amiri' ? 'Amiri' : null,
+                              fontFamily: s.fontFamily,
                               fontWeight:
                                   s.isBold ? FontWeight.bold : FontWeight.normal,
                               decoration: s.isUnderline
@@ -632,12 +632,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             )
           ];
 
-    String selectedFont = 'Amiri';
+    String selectedFont = q.spans.isNotEmpty ? q.spans.first.fontFamily : 'Amiri';
     double selectedFontSize = 14.0;
     bool isBold = false;
     bool isUnderline = false;
 
-    final List<String> availableFonts = ['Amiri', 'Traditional Arabic', 'Arial'];
+    // تم تحديث قائمة الخطوط لتشمل الحزم الجديدة
+    final List<String> availableFonts = ['Amiri', 'Sultan', 'Thuluth', 'Traditional Arabic', 'Arial'];
     final List<double> availableSizes = [12.0, 14.0, 16.0, 18.0, 20.0, 22.0];
 
     void applyFormatToSelection({
@@ -788,10 +789,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         items: availableFonts.map((f) {
                           return DropdownMenuItem(
                             value: f,
-                            child: Text(f,
-                                style: TextStyle(
-                                    fontFamily: f == 'Amiri' ? 'Amiri' : null,
-                                    fontSize: 13)),
+                            child: Text(
+                              f,
+                              style: TextStyle(
+                                fontFamily: f,
+                                fontSize: 13,
+                              ),
+                            ),
                           );
                         }).toList(),
                         onChanged: (val) {
