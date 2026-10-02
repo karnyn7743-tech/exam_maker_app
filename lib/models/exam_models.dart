@@ -146,6 +146,21 @@ class HeaderModel {
   String teacherSignature;
   bool topMargin1cm;
 
+  // خصائص الخطوط وتنسيقات حقول الترويسة المضافة
+  String basmalaFont;
+  double basmalaFontSize;
+  bool basmalaBold;
+
+  String titleFont;
+  double titleFontSize;
+  bool titleBold;
+
+  String adminFont;
+  double adminFontSize;
+
+  String detailsFont;
+  double detailsFontSize;
+
   HeaderModel({
     this.country = 'الجمهورية اليمنية',
     this.ministry = 'وزارة التربية والتعليم',
@@ -166,6 +181,16 @@ class HeaderModel {
     this.continuationText = 'يتبع الصفحة التالية ◄',
     this.teacherSignature = 'معلم المادة: ......................',
     this.topMargin1cm = true,
+    this.basmalaFont = 'Amiri',
+    this.basmalaFontSize = 12.0,
+    this.basmalaBold = true,
+    this.titleFont = 'Amiri',
+    this.titleFontSize = 12.0,
+    this.titleBold = true,
+    this.adminFont = 'Amiri',
+    this.adminFontSize = 9.5,
+    this.detailsFont = 'Amiri',
+    this.detailsFontSize = 10.0,
   });
 
   Map<String, dynamic> toMap() => {
@@ -188,6 +213,16 @@ class HeaderModel {
         'continuationText': continuationText,
         'teacherSignature': teacherSignature,
         'topMargin1cm': topMargin1cm,
+        'basmalaFont': basmalaFont,
+        'basmalaFontSize': basmalaFontSize,
+        'basmalaBold': basmalaBold,
+        'titleFont': titleFont,
+        'titleFontSize': titleFontSize,
+        'titleBold': titleBold,
+        'adminFont': adminFont,
+        'adminFontSize': adminFontSize,
+        'detailsFont': detailsFont,
+        'detailsFontSize': detailsFontSize,
       };
 
   factory HeaderModel.fromMap(Map<String, dynamic> map) => HeaderModel(
@@ -210,6 +245,16 @@ class HeaderModel {
         continuationText: map['continuationText'] ?? '',
         teacherSignature: map['teacherSignature'] ?? '',
         topMargin1cm: map['topMargin1cm'] ?? true,
+        basmalaFont: map['basmalaFont'] ?? 'Amiri',
+        basmalaFontSize: (map['basmalaFontSize'] as num?)?.toDouble() ?? 12.0,
+        basmalaBold: map['basmalaBold'] ?? true,
+        titleFont: map['titleFont'] ?? 'Amiri',
+        titleFontSize: (map['titleFontSize'] as num?)?.toDouble() ?? 12.0,
+        titleBold: map['titleBold'] ?? true,
+        adminFont: map['adminFont'] ?? 'Amiri',
+        adminFontSize: (map['adminFontSize'] as num?)?.toDouble() ?? 9.5,
+        detailsFont: map['detailsFont'] ?? 'Amiri',
+        detailsFontSize: (map['detailsFontSize'] as num?)?.toDouble() ?? 10.0,
       );
 }
 
