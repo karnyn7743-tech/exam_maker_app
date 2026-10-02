@@ -28,6 +28,7 @@ dependencies:
   xml: ^6.5.0
   pdf: ^3.10.8
   printing: ^5.12.0
+
   # فتح المستند مباشرة في تطبيق Word المثبت على الهاتف
   open_filex: ^4.5.0
 
@@ -46,8 +47,9 @@ flutter:
   assets:
     - assets/images/
 
-  # إعدادات خط الأميري المعتمد
+  # إعدادات الخطوط الرسمية
   fonts:
+    # 1. عائلة خط الأميري
     - family: Amiri
       fonts:
         - asset: assets/fonts/Amiri-Regular.ttf
@@ -58,3 +60,20 @@ flutter:
         - asset: assets/fonts/Amiri-BoldSlanted.ttf
           weight: 700
           style: italic
+
+    # 2. عائلة خط سلطان
+    - family: Sultan
+      fonts:
+        - asset: assets/fonts/Sultan-Medium.ttf
+        - asset: assets/fonts/Sultan-bold.ttf
+          weight: 700
+
+    # 3. خط الثلث للعناوين
+    - family: Thuluth
+      fonts:
+        - asset: assets/fonts/DTHULUTH-II-1.ttf
+
+    # 4. خط زخارف البسملة
+    - family: ZagharefBesm
+      fonts:
+        - asset: assets/fonts/zaghref-besm.ttf
