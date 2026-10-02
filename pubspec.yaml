@@ -76,4 +76,4 @@ flutter:
     # 4. خط زخارف البسملة
     - family: ZagharefBesm
       fonts:
-        - asset: assets/fonts/zaghref-besm.ttf
+        - asset: assets/fonts/zagharef-besm.ttf
