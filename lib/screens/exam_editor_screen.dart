@@ -262,15 +262,18 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
               ),
 
-              // 2. الترويسة الوسطى (البسملة والشعار)
+              // 2. الترويسة الوسطى (البسملة والشعار مع إمكانية تحرير البسملة)
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      _exam.header.basmalaText,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
-                      textAlign: TextAlign.center,
+                    InkWell(
+                      onTap: _editBasmalaDialog,
+                      child: Text(
+                        _exam.header.basmalaText,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     GestureDetector(
@@ -637,9 +640,89 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     bool isBold = false;
     bool isUnderline = false;
 
-    // تم تحديث قائمة الخطوط لتشمل الحزم الجديدة
     final List<String> availableFonts = ['Amiri', 'Sultan', 'Thuluth', 'Traditional Arabic', 'Arial'];
     final List<double> availableSizes = [12.0, 14.0, 16.0, 18.0, 20.0, 22.0];
+
+    void insertSymbol(String symbol) {
+      final pos = textCtrl.selection.start;
+      if (pos >= 0) {
+        textCtrl.text = textCtrl.text.replaceRange(pos, textCtrl.selection.end, symbol);
+        textCtrl.selection = TextSelection.collapsed(offset: pos + symbol.length);
+      } else {
+        textCtrl.text += symbol;
+      }
+    }
+
+    void showSymbolsSheet(void Function(void Function()) setParentModalState) {
+      final Map<String, List<String>> symbolCategories = {
+        'تقييم وأقواس': ['✔', '✘', '✓', '✗', '(   )', '[   ]', '○', '●', '□', '■', '« »'],
+        'أسس علوية (س²)': ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹', '⁺', '⁻', 'ⁿ', 'ˣ', 'ʸ'],
+        'صيغ كيميائية (H₂O)': ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉', '₊', '₋', 'ₐ', 'ₑ', 'ₒ', 'ₓ'],
+        'عمليات ومقارنات': ['×', '÷', '+', '-', '=', '≠', '≈', '<', '>', '≤', '≥', '±'],
+        'دوال ورياضيات': ['√', '∛', 'π', '∞', '%', '°', '½', '¼', '¾', '∆', '∑', '∫'],
+        'أسهم وتوجيه': ['←', '→', '↑', '↓', '↔', '⇐', '⇒', '⇔'],
+      };
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        builder: (bCtx) => DefaultTabController(
+          length: symbolCategories.keys.length,
+          child: SizedBox(
+            height: 350,
+            child: Column(
+              children: [
+                TabBar(
+                  isScrollable: true,
+                  labelColor: const Color(0xFF1E3A8A),
+                  indicatorColor: const Color(0xFF1E3A8A),
+                  tabs: symbolCategories.keys.map((cat) => Tab(text: cat)).toList(),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: symbolCategories.values.map((symbols) {
+                      return GridView.builder(
+                        padding: const EdgeInsets.all(12),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 6,
+                          mainAxisSpacing: 8,
+                          crossAxisSpacing: 8,
+                        ),
+                        itemCount: symbols.length,
+                        itemBuilder: (context, i) {
+                          final sym = symbols[i];
+                          return InkWell(
+                            onTap: () {
+                              setParentModalState(() {
+                                insertSymbol(sym);
+                              });
+                              Navigator.pop(bCtx);
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade300),
+                                borderRadius: BorderRadius.circular(6),
+                                color: Colors.grey.shade50,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  sym,
+                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     void applyFormatToSelection({
       bool? bold,
@@ -852,6 +935,16 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               });
                             },
                           ),
+                          ElevatedButton.icon(
+                            onPressed: () => showSymbolsSheet(setModalState),
+                            style: ElevatedButton.styleFrom(
+                              minimumSize: const Size(40, 32),
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                            ),
+                            icon: const Icon(Icons.calculate_outlined, size: 16),
+                            label: const Text('رموز ودوال'),
+                          ),
+                          const SizedBox(width: 4),
                           ElevatedButton(
                             onPressed: () => _insertTatweel(textCtrl),
                             style: ElevatedButton.styleFrom(
@@ -1246,6 +1339,33 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ElevatedButton(
             onPressed: () {
               setState(() => _exam.header.examTitle = cTitle.text);
+              Navigator.pop(ctx);
+            },
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _editBasmalaDialog() {
+    final cBasmala = TextEditingController(text: _exam.header.basmalaText);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تعديل نص البسملة'),
+        content: TextField(
+          controller: cBasmala,
+          decoration: const InputDecoration(
+            labelText: 'نص البسملة أو العبارة الافتتاحية',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          ElevatedButton(
+            onPressed: () {
+              setState(() => _exam.header.basmalaText = cBasmala.text);
               Navigator.pop(ctx);
             },
             child: const Text('حفظ'),
