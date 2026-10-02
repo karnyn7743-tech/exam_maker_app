@@ -33,6 +33,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   double _questionColWidth = 38.0;
   double _markColWidth = 38.0;
 
+  // إعدادات خط البسملة التلقائي
+  String _basmalaFont = 'Amiri';
+  double _basmalaFontSize = 12.0;
+
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -262,7 +266,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
               ),
 
-              // 2. الترويسة الوسطى (البسملة والشعار مع إمكانية تحرير البسملة)
+              // 2. الترويسة الوسطى (البسملة بالخط المختار والشعار)
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -271,7 +275,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       onTap: _editBasmalaDialog,
                       child: Text(
                         _exam.header.basmalaText,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                        style: TextStyle(
+                          fontFamily: _basmalaFont,
+                          fontWeight: FontWeight.bold,
+                          fontSize: _basmalaFontSize,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -345,136 +353,150 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 2),
-
-          // شريط التوجيه
-          Row(
-            children: [
-              SizedBox(
-                width: _questionColWidth,
-                child: const Text('السؤال',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-              ),
-              Expanded(
-                child: Text(
-                  _exam.header.instructionText,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11),
-                ),
-              ),
-              SizedBox(
-                width: _markColWidth,
-                child: const Text('الدرجه',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
 
+  // --- جدول الأسئلة مع دمج صف العناوين كأول صف ---
   Widget _buildQuestionsTable() {
-    if (_exam.questions.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        alignment: Alignment.center,
-        child: const Text('لا توجد أسئلة، اضغط على زر إضافة سؤال بالأسفل'),
-      );
-    }
-
     return Table(
       border: TableBorder.all(color: Colors.black, width: 1),
       columnWidths: {
-        0: FixedColumnWidth(_questionColWidth),
-        1: const FlexColumnWidth(),
-        2: FixedColumnWidth(_markColWidth),
+        0: FixedColumnWidth(_questionColWidth), // عمود السؤال
+        1: const FlexColumnWidth(),            // عمود فقرات الأسئلة
+        2: FixedColumnWidth(_markColWidth),     // عمود توزيع الدرجات
       },
-      children: _exam.questions.asMap().entries.map((entry) {
-        final index = entry.key;
-        final q = entry.value;
-
-        Widget titleWidget = Text(
-          q.title,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
-        );
-
-        if (q.titleOrientation == QuestionTitleOrientation.verticalBottomToTop) {
-          titleWidget = RotatedBox(quarterTurns: 3, child: titleWidget);
-        } else if (q.titleOrientation ==
-            QuestionTitleOrientation.verticalTopToBottom) {
-          titleWidget = RotatedBox(quarterTurns: 1, child: titleWidget);
-        }
-
-        return TableRow(
+      children: [
+        // --- صف العناوين الأول المدمج داخل الجدول ---
+        TableRow(
+          decoration: BoxDecoration(color: Colors.grey.shade100),
           children: [
             TableCell(
               verticalAlignment: TableCellVerticalAlignment.middle,
-              child: InkWell(
-                onTap: () => _openQuestionDialog(questionIndex: index),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Center(child: titleWidget),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: const Text(
+                  'السؤال',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5),
                 ),
               ),
             ),
             TableCell(
               verticalAlignment: TableCellVerticalAlignment.middle,
               child: InkWell(
-                onTap: () => _openQuestionDialog(questionIndex: index),
+                onTap: _editInstructionDialog,
                 child: Padding(
-                  padding: const EdgeInsets.all(6.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Wrap(
-                        children: q.spans.map((s) {
-                          return Text(
-                            s.text,
-                            style: TextStyle(
-                              fontFamily: s.fontFamily,
-                              fontWeight:
-                                  s.isBold ? FontWeight.bold : FontWeight.normal,
-                              decoration: s.isUnderline
-                                  ? TextDecoration.underline
-                                  : TextDecoration.none,
-                              fontSize: s.fontSize,
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                      if (q.elements.isNotEmpty) const SizedBox(height: 6),
-                      ...q.elements.map((el) => _buildRenderedElement(el)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            TableCell(
-              verticalAlignment: TableCellVerticalAlignment.middle,
-              child: InkWell(
-                onTap: () => _openQuestionDialog(questionIndex: index),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Center(
-                    child: Text(
-                      q.mark > 0 ? '${q.mark} د' : '-',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 11),
+                  padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+                  child: Text(
+                    _exam.header.instructionText,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
                     ),
                   ),
                 ),
               ),
             ),
+            TableCell(
+              verticalAlignment: TableCellVerticalAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: const Text(
+                  'الدرجة',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5),
+                ),
+              ),
+            ),
           ],
-        );
-      }).toList(),
+        ),
+
+        // --- صفوف الأسئلة والفقرات ---
+        ..._exam.questions.asMap().entries.map((entry) {
+          final index = entry.key;
+          final q = entry.value;
+
+          Widget titleWidget = Text(
+            q.title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+          );
+
+          if (q.titleOrientation == QuestionTitleOrientation.verticalBottomToTop) {
+            titleWidget = RotatedBox(quarterTurns: 3, child: titleWidget);
+          } else if (q.titleOrientation ==
+              QuestionTitleOrientation.verticalTopToBottom) {
+            titleWidget = RotatedBox(quarterTurns: 1, child: titleWidget);
+          }
+
+          return TableRow(
+            children: [
+              TableCell(
+                verticalAlignment: TableCellVerticalAlignment.middle,
+                child: InkWell(
+                  onTap: () => _openQuestionDialog(questionIndex: index),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Center(child: titleWidget),
+                  ),
+                ),
+              ),
+              TableCell(
+                verticalAlignment: TableCellVerticalAlignment.middle,
+                child: InkWell(
+                  onTap: () => _openQuestionDialog(questionIndex: index),
+                  child: Padding(
+                    padding: const EdgeInsets.all(6.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Wrap(
+                          children: q.spans.map((s) {
+                            return Text(
+                              s.text,
+                              style: TextStyle(
+                                fontFamily: s.fontFamily,
+                                fontWeight:
+                                    s.isBold ? FontWeight.bold : FontWeight.normal,
+                                decoration: s.isUnderline
+                                    ? TextDecoration.underline
+                                    : TextDecoration.none,
+                                fontSize: s.fontSize,
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        if (q.elements.isNotEmpty) const SizedBox(height: 6),
+                        ...q.elements.map((el) => _buildRenderedElement(el)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              TableCell(
+                verticalAlignment: TableCellVerticalAlignment.middle,
+                child: InkWell(
+                  onTap: () => _openQuestionDialog(questionIndex: index),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Center(
+                      child: Text(
+                        q.mark > 0 ? '${q.mark} د' : '-',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 11),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }),
+      ],
     );
   }
 
@@ -1348,16 +1370,95 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
+  // --- نافذة تحرير وتنسيق واختيار خط البسملة ---
   void _editBasmalaDialog() {
     final cBasmala = TextEditingController(text: _exam.header.basmalaText);
+    String font = _basmalaFont;
+    double size = _basmalaFontSize;
+    final List<String> fonts = ['Amiri', 'Sultan', 'Thuluth', 'ZagharefBesm'];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          title: const Text('تنسيق وتحرير البسملة'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: cBasmala,
+                style: TextStyle(
+                  fontFamily: font,
+                  fontSize: size,
+                  fontWeight: FontWeight.bold,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'نص البسملة / العبارة الافتتاحية',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  DropdownButton<String>(
+                    value: font,
+                    items: fonts.map((f) {
+                      return DropdownMenuItem(
+                        value: f,
+                        child: Text(f, style: TextStyle(fontFamily: f)),
+                      );
+                    }).toList(),
+                    onChanged: (v) {
+                      if (v != null) setDlgState(() => font = v);
+                    },
+                  ),
+                  DropdownButton<double>(
+                    value: size,
+                    items: [10.0, 11.0, 12.0, 14.0, 16.0, 18.0, 22.0].map((s) {
+                      return DropdownMenuItem(
+                        value: s,
+                        child: Text('${s.toInt()} نقطة'),
+                      );
+                    }).toList(),
+                    onChanged: (v) {
+                      if (v != null) setDlgState(() => size = v);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _exam.header.basmalaText = cBasmala.text;
+                  _basmalaFont = font;
+                  _basmalaFontSize = size;
+                });
+                Navigator.pop(ctx);
+              },
+              child: const Text('حفظ التنسيق'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- نافذة تحرير عبارة التوجيه أعلى الأسئلة ---
+  void _editInstructionDialog() {
+    final cInst = TextEditingController(text: _exam.header.instructionText);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('تعديل نص البسملة'),
+        title: const Text('تعديل عبارة التوجيه'),
         content: TextField(
-          controller: cBasmala,
+          controller: cInst,
           decoration: const InputDecoration(
-            labelText: 'نص البسملة أو العبارة الافتتاحية',
+            labelText: 'عبارة التوجيه أعلى الأسئلة',
             border: OutlineInputBorder(),
           ),
         ),
@@ -1365,7 +1466,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
           ElevatedButton(
             onPressed: () {
-              setState(() => _exam.header.basmalaText = cBasmala.text);
+              setState(() => _exam.header.instructionText = cInst.text);
               Navigator.pop(ctx);
             },
             child: const Text('حفظ'),
