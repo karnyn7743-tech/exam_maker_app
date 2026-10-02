@@ -224,7 +224,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. الترويسة اليمنى (ملتصقة بالحافة اليمنى وتتمدد نحو الوسط)
+              // 1. الترويسة اليمنى (5 حقول فقط وقابلة للتعديل)
               SizedBox(
                 width: _sideHeaderWidth,
                 child: InkWell(
@@ -232,35 +232,46 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Text(_exam.header.country,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                      Text(_exam.header.ministry,
-                          style: const TextStyle(fontSize: 9.5)),
                       Text(
-                          _exam.header.directorate.isNotEmpty
-                              ? 'قطاع المناهج والتوجيه'
-                              : 'وزارة التربية والتعليم والبحث العلمي',
-                          style: const TextStyle(fontSize: 9)),
-                      Text('مكتب التربية والتعليم بمحافظة ${_exam.header.governorate}',
-                          style: const TextStyle(fontSize: 9), textAlign: TextAlign.center),
-                      Text('إدارة التربية والتعليم بمديرية ${_exam.header.directorate}',
-                          style: const TextStyle(fontSize: 9), textAlign: TextAlign.center),
-                      Text('مدرسة: ${_exam.header.school}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 9.5),
-                          textAlign: TextAlign.center),
+                        _exam.header.country,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                        textAlign: TextAlign.center,
+                      ),
+                      Text(
+                        _exam.header.ministry,
+                        style: const TextStyle(fontSize: 9.5),
+                        textAlign: TextAlign.center,
+                      ),
+                      Text(
+                        _exam.header.governorate,
+                        style: const TextStyle(fontSize: 9),
+                        textAlign: TextAlign.center,
+                      ),
+                      Text(
+                        _exam.header.directorate,
+                        style: const TextStyle(fontSize: 9),
+                        textAlign: TextAlign.center,
+                      ),
+                      Text(
+                        _exam.header.school,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 9.5),
+                        textAlign: TextAlign.center,
+                      ),
                     ],
                   ),
                 ),
               ),
 
-              // 2. الترويسة الوسطى (تستوعب المساحة المتبقية بالوسط)
+              // 2. الترويسة الوسطى (البسملة والشعار)
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(_exam.header.basmalaText,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
-                        textAlign: TextAlign.center),
+                    Text(
+                      _exam.header.basmalaText,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: 6),
                     GestureDetector(
                       onTap: _pickLogoImage,
@@ -281,7 +292,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
               ),
 
-              // 3. الترويسة اليسرى (ملتصقة بالحافة اليسرى وتتمدد نحو الوسط)
+              // 3. الترويسة اليسرى (5 حقول مستقلة وقابلة للتعديل)
               SizedBox(
                 width: _sideHeaderWidth,
                 child: InkWell(
@@ -289,15 +300,26 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('الصف : ${_exam.header.grade}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                      Text('الماده : ${_exam.header.subject}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                      Text('التاريخ: ${_exam.header.examDate}',
-                          style: const TextStyle(fontSize: 10)),
                       Text(
-                          'الزمن: ${_exam.header.examTime}  الفتره (${_exam.header.period})',
-                          style: const TextStyle(fontSize: 9)),
+                        'الصف : ${_exam.header.grade}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                      ),
+                      Text(
+                        'الماده : ${_exam.header.subject}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                      ),
+                      Text(
+                        'التاريخ: ${_exam.header.examDate}',
+                        style: const TextStyle(fontSize: 10),
+                      ),
+                      Text(
+                        'الزمن: ${_exam.header.examTime}',
+                        style: const TextStyle(fontSize: 9.5),
+                      ),
+                      Text(
+                        'الفتره: ${_exam.header.period}',
+                        style: const TextStyle(fontSize: 9.5),
+                      ),
                     ],
                   ),
                 ),
@@ -306,6 +328,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
           const SizedBox(height: 4),
 
+          // عنوان الامتحان
           InkWell(
             onTap: _editExamTitleDialog,
             child: Container(
@@ -321,6 +344,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
           const SizedBox(height: 2),
 
+          // شريط التوجيه
           Row(
             children: [
               SizedBox(
@@ -573,7 +597,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // --- نافذة كتابة السؤال مع التنسيق الموجه للنص المحدد فقط ---
   void _openQuestionDialog({int? questionIndex}) {
     final bool isEdit = questionIndex != null;
     final q = isEdit
@@ -593,7 +616,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     QuestionTitleOrientation orientation = q.titleOrientation;
     List<InsertableElement> currentElements = List.from(q.elements);
 
-    // قائمة المقاطع الحالية (تنسيق كل جزء بشكل مستقل)
     List<TextSpanModel> workingSpans = q.spans.isNotEmpty
         ? q.spans.map((s) => TextSpanModel(
               text: s.text,
@@ -618,7 +640,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     final List<String> availableFonts = ['Amiri', 'Traditional Arabic', 'Arial'];
     final List<double> availableSizes = [12.0, 14.0, 16.0, 18.0, 20.0, 22.0];
 
-    // دالة تقسيم وتطبيق التنسيق على النص المحدد فقط
     void applyFormatToSelection({
       bool? bold,
       bool? underline,
@@ -640,10 +661,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         int spanEnd = currentPos + span.text.length;
 
         if (spanEnd <= selStart || spanStart >= selEnd) {
-          // المقطع خارج نطاق التحديد، يبقى كما هو
           newSpans.add(span);
         } else {
-          // المقطع يتقاطع مع التحديد، نقسمه
           if (spanStart < selStart) {
             newSpans.add(TextSpanModel(
               text: fullText.substring(spanStart, selStart),
@@ -751,7 +770,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                // شريط التنسيق: يطبق التغيير على النص المحدد فقط
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -845,7 +863,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 const SizedBox(height: 6),
 
-                // حقل كتابة محتوى السؤال
                 TextField(
                   controller: textCtrl,
                   maxLines: 4,
@@ -943,7 +960,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
                 ElevatedButton(
                   onPressed: () {
-                    // إذا لم يتم التحديد والتعديل على مقاطع، نعتمد كامل النص بكتلة واحدة
                     final spansToSave = workingSpans.isNotEmpty &&
                             workingSpans.map((s) => s.text).join('') ==
                                 textCtrl.text
@@ -1095,19 +1111,42 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     final cGov = TextEditingController(text: _exam.header.governorate);
     final cDir = TextEditingController(text: _exam.header.directorate);
     final cSchool = TextEditingController(text: _exam.header.school);
+    final cMinistry = TextEditingController(text: _exam.header.ministry);
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('تعديل بيانات المدرسة والإدارة'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: cCountry, decoration: const InputDecoration(labelText: 'الدولة')),
-            TextField(controller: cGov, decoration: const InputDecoration(labelText: 'المحافظة')),
-            TextField(controller: cDir, decoration: const InputDecoration(labelText: 'المديرية')),
-            TextField(controller: cSchool, decoration: const InputDecoration(labelText: 'المدرسة')),
-          ],
+        title: const Text('تعديل الحقول الإدارية (اليمين)'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: cCountry,
+                decoration: const InputDecoration(labelText: 'اسم الدولة'),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: cMinistry,
+                decoration: const InputDecoration(labelText: 'اسم الوزارة'),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: cGov,
+                decoration: const InputDecoration(labelText: 'اسم مكتب المحافظة'),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: cDir,
+                decoration: const InputDecoration(labelText: 'اسم إدارة المديرية'),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: cSchool,
+                decoration: const InputDecoration(labelText: 'اسم المدرسة'),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
@@ -1115,6 +1154,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             onPressed: () {
               setState(() {
                 _exam.header.country = cCountry.text;
+                _exam.header.ministry = cMinistry.text;
                 _exam.header.governorate = cGov.text;
                 _exam.header.directorate = cDir.text;
                 _exam.header.school = cSchool.text;
@@ -1138,16 +1178,37 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('تعديل بيانات المادة والزمن'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: cGrade, decoration: const InputDecoration(labelText: 'الصف')),
-            TextField(controller: cSub, decoration: const InputDecoration(labelText: 'المادة')),
-            TextField(controller: cDate, decoration: const InputDecoration(labelText: 'التاريخ')),
-            TextField(controller: cTime, decoration: const InputDecoration(labelText: 'الزمن')),
-            TextField(controller: cPeriod, decoration: const InputDecoration(labelText: 'الفترة')),
-          ],
+        title: const Text('تعديل بيانات الامتحان (اليسار)'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: cGrade,
+                decoration: const InputDecoration(labelText: 'اسم الصف'),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: cSub,
+                decoration: const InputDecoration(labelText: 'اسم المادة'),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: cDate,
+                decoration: const InputDecoration(labelText: 'التاريخ'),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: cTime,
+                decoration: const InputDecoration(labelText: 'الزمن'),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: cPeriod,
+                decoration: const InputDecoration(labelText: 'الفترة'),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
