@@ -163,10 +163,10 @@ class HeaderModel {
 
   HeaderModel({
     this.country = 'الجمهورية اليمنية',
-    this.ministry = 'وزارة التربية والتعليم',
-    this.governorate = 'محافظة صنعاء',
-    this.directorate = 'مديرية معين',
-    this.school = 'مدرسة الأمل الحديثة',
+    this.ministry = ' وزارة التربية والتعليم والبحث العلمي',
+    this.governorate = 'مكنب التربية والتعليم بمحافظة ذمار',
+    this.directorate = 'مكتب التربية والتعليم بمديرية عتمة',
+    this.school = 'مدرسة هجرة بني عبد الصمد',
     this.basmalaText = 'بسم الله الرحمن الرحيم',
     this.logoImagePath,
     this.grade = 'التاسع',
