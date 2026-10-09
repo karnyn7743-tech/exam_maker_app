@@ -159,7 +159,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // إطار ورقة الامتحان: ينتهي عند الفقرة الأخيرة والتذييل
               Container(
                 constraints: const BoxConstraints(maxWidth: 820),
                 decoration: BoxDecoration(
@@ -208,6 +207,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 onPressed: () => _openQuestionDialog(),
               ),
             ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.auto_awesome, color: Color(0xFF1E3A8A)),
+              label: const Text('قوالب جاهزة', style: TextStyle(color: Color(0xFF1E3A8A))),
+              onPressed: () => _showQuestionTemplatesDialog(),
+            ),
             const SizedBox(width: 12),
             Text(
               'المجموع: ${_exam.totalMarks} د',
@@ -231,7 +236,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. الترويسة اليمنى (5 حقول مستقلة)
               SizedBox(
                 width: _sideHeaderWidth,
                 child: InkWell(
@@ -285,8 +289,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                 ),
               ),
-
-              // 2. الترويسة الوسطى (البسملة والشعار)
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -322,8 +324,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ],
                 ),
               ),
-
-              // 3. الترويسة اليسرى (5 حقول مستقلة)
               SizedBox(
                 width: _sideHeaderWidth,
                 child: InkWell(
@@ -375,8 +375,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ],
           ),
           const SizedBox(height: 4),
-
-          // عنوان الامتحان
           InkWell(
             onTap: _editExamTitleDialog,
             child: Container(
@@ -408,7 +406,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         2: FixedColumnWidth(_markColWidth),
       },
       children: [
-        // صف العناوين الأول المدمج داخل الجدول
         TableRow(
           decoration: BoxDecoration(color: Colors.grey.shade100),
           children: [
@@ -454,8 +451,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           ],
         ),
-
-        // صفوف الأسئلة والفقرات
         ..._exam.questions.asMap().entries.map((entry) {
           final index = entry.key;
           final q = entry.value;
@@ -536,7 +531,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // --- دالة رسم العناصر الرياضية والمدرجة داخل ورقة الاختبار ---
   Widget _buildRenderedElement(InsertableElement el) {
     switch (el.type) {
       case ElementType.image:
@@ -580,7 +574,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
   }
 
-  // رسم العملية الحسابية العمودية أو القالب الرياضي العربي
   Widget _renderMathOperation(String jsonStr) {
     try {
       final data = jsonDecode(jsonStr);
@@ -640,13 +633,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   height: 1.5,
                   color: Colors.black87,
                 ),
-                const SizedBox(height: 12), // فراغ لكتابة الطالب للناتج
+                const SizedBox(height: 12),
               ],
             ),
           ),
         );
       } else if (kind == 'fraction') {
-        // كسر عربي
         final num = data['num'] ?? '';
         final den = data['den'] ?? '';
         return Padding(
@@ -661,26 +653,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               ],
             ),
           ),
-        );
-      } else if (kind == 'limit') {
-        // نها س -> أ
-        final variable = data['var'] ?? 'س';
-        final to = data['to'] ?? '٠';
-        final expr = data['expr'] ?? '';
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('نهـا', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                Text('$variable ← $to', style: const TextStyle(fontSize: 10)),
-              ],
-            ),
-            const SizedBox(width: 6),
-            Text(expr, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-          ],
         );
       }
     } catch (_) {}
@@ -761,6 +733,128 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 Navigator.pop(ctx);
               },
               child: const Text('تطبيق الأبعاد'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- نافذة اختيار القوالب الجاهزة بنقرة زر ---
+  void _showQuestionTemplatesDialog() {
+    final templates = [
+      {
+        'title': 'ضع علامة (✔) أو (✘)',
+        'subtitle': 'توجيه صح وخطأ مع ٤ فقرات وأقواس في البداية',
+        'qTitle': 'السؤال ${_exam.questions.length + 1}',
+        'content':
+            'ضع علامة (✔) أمام العبارة الصحيحة وعلامة (✘) أمام العبارة الخطأ فيما يأتي:\n\n'
+            '١ - (   ) ......................................................................\n'
+            '٢ - (   ) ......................................................................\n'
+            '٣ - (   ) ......................................................................\n'
+            '٤ - (   ) ......................................................................',
+        'mark': 8.0,
+      },
+      {
+        'title': 'اختر الإجابة الصحيحة',
+        'subtitle': 'توجيه اختيارات مع خيارات بين أقواس',
+        'qTitle': 'السؤال ${_exam.questions.length + 1}',
+        'content':
+            'اختر الإجابة الصحيحة من بين الأقواس لما يأتي:\n\n'
+            '١ - ........................................ [ أ- ........... ، ب- ........... ، ج- ........... ]\n'
+            '٢ - ........................................ [ أ- ........... ، ب- ........... ، ج- ........... ]\n'
+            '٣ - ........................................ [ أ- ........... ، ب- ........... ، ج- ........... ]\n'
+            '٤ - ........................................ [ أ- ........... ، ب- ........... ، ج- ........... ]',
+        'mark': 8.0,
+      },
+      {
+        'title': 'علل لما يأتي / اذكر السبب',
+        'subtitle': 'فقرات تعليل مع أسطر إجابة',
+        'qTitle': 'السؤال ${_exam.questions.length + 1}',
+        'content':
+            'علل لما يأتي (اذكر السبب):\n\n'
+            '١ - ..................................................................................\n'
+            'جـ/ ..................................................................................\n\n'
+            '٢ - ..................................................................................\n'
+            'جـ/ ..................................................................................',
+        'mark': 6.0,
+      },
+      {
+        'title': 'أكمل الفراغات الآتية',
+        'subtitle': 'جمل بكلمات ناقصة وأسطر منقطة',
+        'qTitle': 'السؤال ${_exam.questions.length + 1}',
+        'content':
+            'أكمل الفراغات الآتية بما يناسبها:\n\n'
+            '١ - ..................................................................................\n'
+            '٢ - ..................................................................................\n'
+            '٣ - ..................................................................................',
+        'mark': 6.0,
+      },
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: const [
+                Icon(Icons.auto_awesome, color: Color(0xFF1E3A8A)),
+                SizedBox(width: 8),
+                Text('قوالب الأسئلة الجاهزة',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: ListView.separated(
+                itemCount: templates.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, i) {
+                  final t = templates[i];
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.blue.shade50,
+                      child: Text('${i + 1}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
+                    ),
+                    title: Text(t['title'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    subtitle: Text(t['subtitle'] as String, style: const TextStyle(fontSize: 11)),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                    onTap: () {
+                      final newQ = QuestionModel(
+                        id: const Uuid().v4(),
+                        title: t['qTitle'] as String,
+                        titleOrientation: QuestionTitleOrientation.horizontal,
+                        mark: (t['mark'] as num).toDouble(),
+                        spans: [
+                          TextSpanModel(
+                            text: t['content'] as String,
+                            fontSize: 14.0,
+                            fontFamily: 'Amiri',
+                          )
+                        ],
+                      );
+                      setState(() {
+                        _exam.questions.add(newQ);
+                      });
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('تمت إضافة ${t['title']} بنجاح'),
+                          backgroundColor: Colors.green.shade700,
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -881,7 +975,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       workingSpans = newSpans.where((s) => s.text.isNotEmpty).toList();
     }
 
-    // نافذة إدخال مسألة جمع أو طرح عمودي (حتى 4 صفوف)
     void showVerticalMathDialog(void Function(void Function()) setParentState) {
       int rowCount = 3;
       String op = '+';
@@ -980,7 +1073,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       );
     }
 
-    // نافذة إدراج كسر عربي أو نهايات
     void showArabicMathTemplates(void Function(void Function()) setParentState) {
       final numCtrl = TextEditingController(text: 'س + ١');
       final denCtrl = TextEditingController(text: 'س - ٢');
@@ -1022,7 +1114,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       );
     }
 
-    // لوحة الرموز الشاملة المتوافقة مع المنهج اليمني
     void showSymbolsModal(void Function(void Function()) setParentState) {
       final Map<String, List<String>> categories = {
         'رياضيات عربية RTL': ['⎷', 'نهـا', 'مجـ', 'تـ', 'ط', 'هـ', '∆', 'س', 'ص', 'ع', 'د', 'ل', 'ك', 'ن', 'ق'],
@@ -1156,9 +1247,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                // ==========================================
-                // شريط الأوامر والوظائف الأفقي المتحرك
-                // ==========================================
                 Container(
                   height: 48,
                   decoration: BoxDecoration(
@@ -1170,21 +1258,18 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Row(
                       children: [
-                        // 1. زر عملية عمودية متتالية
                         _buildBarBtn(
                           text: 'عمودي ±',
                           color: const Color(0xFFE11D48),
                           tooltip: 'جمع / طرح عمودي متعدد الصفوف',
                           onTap: () => showVerticalMathDialog(setModalState),
                         ),
-                        // 2. زر كسر عربي
                         _buildBarBtn(
                           text: 'بسط/مقام',
                           color: const Color(0xFF7C3AED),
                           tooltip: 'كسر عربي اعتيادي',
                           onTap: () => showArabicMathTemplates(setModalState),
                         ),
-                        // 3. زر إدراج صورة
                         _buildBarBtn(
                           icon: Icons.image_outlined,
                           color: Colors.blueGrey.shade700,
@@ -1204,7 +1289,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             }
                           },
                         ),
-                        // 4. زر سطر إجابة
                         _buildBarBtn(
                           icon: Icons.border_horizontal,
                           color: Colors.blueGrey.shade700,
@@ -1219,28 +1303,24 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             });
                           },
                         ),
-                        // 5. زر أقواس (   )
                         _buildBarBtn(
                           text: '( )',
                           color: Colors.blueGrey.shade700,
                           tooltip: 'أقواس خالية',
                           onTap: () => setModalState(() => insertAtCursor('(   )')),
                         ),
-                        // 6. زر علامة صح ✔️
                         _buildBarBtn(
                           icon: Icons.check,
                           color: const Color(0xFF0F766E),
                           tooltip: 'علامة صح',
                           onTap: () => setModalState(() => insertAtCursor('✔')),
                         ),
-                        // 7. زر علامة خطأ ✖️
                         _buildBarBtn(
                           icon: Icons.close,
                           color: const Color(0xFFB91C1C),
                           tooltip: 'علامة خطأ',
                           onTap: () => setModalState(() => insertAtCursor('✘')),
                         ),
-                        // 8. مربع إرشاد
                         _buildBarBtn(
                           icon: Icons.edit_note,
                           color: const Color(0xFFD97706),
@@ -1257,7 +1337,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             });
                           },
                         ),
-                        // 9. خط عريض B للمحدد
                         _buildBarBtn(
                           text: 'B',
                           color: isBoldActive ? Colors.blue : Colors.blueGrey.shade800,
@@ -1269,7 +1348,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             });
                           },
                         ),
-                        // 10. تسطير U للمحدد
                         _buildBarBtn(
                           text: 'U',
                           color: isUnderlineActive ? Colors.blue : Colors.blueGrey.shade800,
@@ -1281,28 +1359,24 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             });
                           },
                         ),
-                        // 11. أس علوي x²
                         _buildBarBtn(
                           text: 'x²',
                           color: const Color(0xFF0284C7),
                           tooltip: 'أس علوي',
                           onTap: () => setModalState(() => insertAtCursor('²')),
                         ),
-                        // 12. رقم سفلي كيميائي x₂
                         _buildBarBtn(
                           text: 'x₂',
                           color: const Color(0xFF0284C7),
                           tooltip: 'صيغة كيميائية',
                           onTap: () => setModalState(() => insertAtCursor('₂')),
                         ),
-                        // 13. كشيدة
                         _buildBarBtn(
                           text: 'ـ',
                           color: Colors.blueGrey.shade800,
                           tooltip: 'كشيدة تمديد',
                           onTap: () => _insertTatweel(textCtrl),
                         ),
-                        // 14. اختيار الخط للمحدد
                         PopupMenuButton<String>(
                           tooltip: 'نوع الخط للمحدد',
                           child: Container(
@@ -1335,7 +1409,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             'Arial'
                           ].map((f) => PopupMenuItem(value: f, child: Text(f))).toList(),
                         ),
-                        // 15. اختيار الحجم للمحدد
                         PopupMenuButton<double>(
                           tooltip: 'حجم الخط للمحدد',
                           child: Container(
@@ -1365,7 +1438,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                   value: s, child: Text('${s.toInt()} نقطة')))
                               .toList(),
                         ),
-                        // 16. لوحة الرموز الشاملة
                         _buildBarBtn(
                           text: 'رموز',
                           color: const Color(0xFF0D9488),
