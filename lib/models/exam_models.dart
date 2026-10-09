@@ -10,13 +10,13 @@ enum ElementType {
   image,
   textBox,
   dottedLine,
-  mathOperation, // النوع المضاف للعمليات الرأسية وقوالب الرياضيات العربية
+  mathOperation,
 }
 
 class InsertableElement {
   final String id;
   final ElementType type;
-  String content; // مسار الصورة، نص الإرشاد، محتوى السطر، أو بيانات العملية الرياضية (JSON)
+  String content;
   double width;
   double height;
   String alignment;
@@ -89,6 +89,7 @@ class QuestionModel {
   double mark;
   List<TextSpanModel> spans;
   List<InsertableElement> elements;
+  String answerKey; // حقل الإجابة النموذجية المضاف
 
   QuestionModel({
     required this.id,
@@ -97,6 +98,7 @@ class QuestionModel {
     this.mark = 0.0,
     required this.spans,
     List<InsertableElement>? elements,
+    this.answerKey = '',
   }) : elements = elements ?? [];
 
   Map<String, dynamic> toMap() => {
@@ -106,6 +108,7 @@ class QuestionModel {
         'mark': mark,
         'spans': spans.map((s) => s.toMap()).toList(),
         'elements': elements.map((e) => e.toMap()).toList(),
+        'answerKey': answerKey,
       };
 
   factory QuestionModel.fromMap(Map<String, dynamic> map) => QuestionModel(
@@ -123,6 +126,7 @@ class QuestionModel {
                 ?.map((item) => InsertableElement.fromMap(item))
                 .toList() ??
             [],
+        answerKey: map['answerKey'] ?? '',
       );
 }
 
