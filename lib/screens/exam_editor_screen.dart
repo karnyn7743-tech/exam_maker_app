@@ -1526,6 +1526,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
+  // الدالة المصححة
   Widget _buildBarBtn({
     IconData? icon,
     String? text,
@@ -1540,7 +1541,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         borderRadius: BorderRadius.circular(4),
         child: Container(
           height: 38,
-          minWidth: 38,
+          constraints: const BoxConstraints(minWidth: 38),
           padding: const EdgeInsets.symmetric(horizontal: 8),
           margin: const EdgeInsets.symmetric(horizontal: 2),
           decoration: BoxDecoration(
