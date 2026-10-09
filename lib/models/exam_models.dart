@@ -89,7 +89,8 @@ class QuestionModel {
   double mark;
   List<TextSpanModel> spans;
   List<InsertableElement> elements;
-  String answerKey; // حقل الإجابة النموذجية المضاف
+  String answerKey;
+  bool isTwoColumns; // الخاصية المضافة لتخطيط العمودين
 
   QuestionModel({
     required this.id,
@@ -99,6 +100,7 @@ class QuestionModel {
     required this.spans,
     List<InsertableElement>? elements,
     this.answerKey = '',
+    this.isTwoColumns = false,
   }) : elements = elements ?? [];
 
   Map<String, dynamic> toMap() => {
@@ -109,6 +111,7 @@ class QuestionModel {
         'spans': spans.map((s) => s.toMap()).toList(),
         'elements': elements.map((e) => e.toMap()).toList(),
         'answerKey': answerKey,
+        'isTwoColumns': isTwoColumns,
       };
 
   factory QuestionModel.fromMap(Map<String, dynamic> map) => QuestionModel(
@@ -127,6 +130,7 @@ class QuestionModel {
                 .toList() ??
             [],
         answerKey: map['answerKey'] ?? '',
+        isTwoColumns: map['isTwoColumns'] ?? false,
       );
 }
 
