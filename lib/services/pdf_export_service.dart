@@ -10,7 +10,6 @@ class PdfExportService {
   static Future<String> exportToDownloadsPdf(ExamModel exam) async {
     final pdf = pw.Document();
 
-    // تحميل الخط العربي للـ PDF
     final fontData = await rootBundle.load('assets/fonts/amiri-regular.ttf');
     final ttf = pw.Font.ttf(fontData);
 
@@ -147,7 +146,6 @@ class PdfExportService {
                 2: const pw.FixedColumnWidth(35),
               },
               children: [
-                // صف عناوين الجدول
                 pw.TableRow(
                   decoration: const pw.BoxDecoration(color: PdfColors.grey100),
                   children: [
@@ -177,7 +175,6 @@ class PdfExportService {
                     ),
                   ],
                 ),
-                // صفوف الأسئلة
                 ...exam.questions.map((q) {
                   return pw.TableRow(
                     children: [
@@ -197,15 +194,8 @@ class PdfExportService {
                         child: pw.Column(
                           crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                           children: [
-                            pw.Text(
-                              q.spans.map((s) => s.text).join(''),
-                              textAlign: pw.TextAlign.right,
-                              style: pw.TextStyle(
-                                font: ttf,
-                                fontSize: 11,
-                                lineSpacing: 2,
-                              ),
-                            ),
+                            _buildPdfQuestionContent(q, ttf),
+                            if (q.elements.isNotEmpty) pw.SizedBox(height: 4),
                             ...q.elements.map((el) => _buildPdfElement(el, ttf)),
                           ],
                         ),
@@ -254,7 +244,6 @@ class PdfExportService {
       ),
     );
 
-    // حفظ الملف في مجلد التنزيلات
     Directory? downloadsDir;
     if (Platform.isAndroid) {
       downloadsDir = Directory('/storage/emulated/0/Download');
@@ -273,7 +262,78 @@ class PdfExportService {
     return filePath;
   }
 
-  // رسم العناصر الخاصة (صور، أسطر، مربعات، والعمليات الرياضية والكسور)
+  // بناء نص السؤال (عمود واحد أو عمودين)
+  static pw.Widget _buildPdfQuestionContent(QuestionModel q, pw.Font ttf) {
+    final fullText = q.spans.map((s) => s.text).join('');
+
+    if (!q.isTwoColumns) {
+      return pw.Text(
+        fullText,
+        textAlign: pw.TextAlign.right,
+        style: pw.TextStyle(font: ttf, fontSize: 11, lineSpacing: 2),
+      );
+    }
+
+    final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
+    if (lines.length <= 1) {
+      return pw.Text(
+        fullText,
+        textAlign: pw.TextAlign.right,
+        style: pw.TextStyle(font: ttf, fontSize: 11, lineSpacing: 2),
+      );
+    }
+
+    final intro = lines.first;
+    final items = lines.sublist(1);
+    final int half = (items.length / 2).ceil();
+    final colRight = items.sublist(0, half);
+    final colLeft = items.sublist(half);
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        pw.Text(
+          intro,
+          textAlign: pw.TextAlign.right,
+          style: pw.TextStyle(font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold),
+        ),
+        pw.SizedBox(height: 3),
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                children: colRight
+                    .map((item) => pw.Padding(
+                          padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+                          child: pw.Text(item,
+                              textAlign: pw.TextAlign.right,
+                              style: pw.TextStyle(font: ttf, fontSize: 10)),
+                        ))
+                    .toList(),
+              ),
+            ),
+            pw.SizedBox(width: 8),
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                children: colLeft
+                    .map((item) => pw.Padding(
+                          padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+                          child: pw.Text(item,
+                              textAlign: pw.TextAlign.right,
+                              style: pw.TextStyle(font: ttf, fontSize: 10)),
+                        ))
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   static pw.Widget _buildPdfElement(InsertableElement el, pw.Font ttf) {
     switch (el.type) {
       case ElementType.image:
