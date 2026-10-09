@@ -158,23 +158,25 @@ class HeaderModel {
 
   String adminFont;
   double adminFontSize;
+  bool adminBold;
 
   String detailsFont;
   double detailsFontSize;
+  bool detailsBold;
 
   HeaderModel({
     this.country = 'الجمهورية اليمنية',
-    this.ministry = 'وزارة التربية والتعليم',
-    this.governorate = 'محافظة صنعاء',
-    this.directorate = 'مديرية معين',
-    this.school = 'مدرسة الأمل الحديثة',
+    this.ministry = 'وزارة التربية والتعليم والبحث العلمي',
+    this.governorate = 'مكتب التربية والتعليم بمحافظة ذمار',
+    this.directorate = 'مكتب التربية والتعليم بمديرية عتمة',
+    this.school = 'مدرسة هجرة بني عبد الصمد',
     this.basmalaText = 'بسم الله الرحمن الرحيم',
     this.logoImagePath,
     this.grade = 'التاسع',
     this.subject = 'الرياضيات',
     this.examDate = '1447/08/15 هـ',
     this.examTime = 'ساعتان',
-    this.period = 'الأولى',
+    this.period = 'واحدة',
     this.examTitle = 'اختبار نهاية الفصل الدراسي الأول',
     this.instructionText = 'أجب عن جميع الأسئلة الآتية',
     this.isMultiPage = false,
@@ -190,8 +192,10 @@ class HeaderModel {
     this.titleBold = true,
     this.adminFont = 'Amiri',
     this.adminFontSize = 9.5,
+    this.adminBold = false,
     this.detailsFont = 'Amiri',
     this.detailsFontSize = 10.0,
+    this.detailsBold = false,
   });
 
   Map<String, dynamic> toMap() => {
@@ -222,13 +226,15 @@ class HeaderModel {
         'titleBold': titleBold,
         'adminFont': adminFont,
         'adminFontSize': adminFontSize,
+        'adminBold': adminBold,
         'detailsFont': detailsFont,
         'detailsFontSize': detailsFontSize,
+        'detailsBold': detailsBold,
       };
 
   factory HeaderModel.fromMap(Map<String, dynamic> map) => HeaderModel(
         country: map['country'] ?? 'الجمهورية اليمنية',
-        ministry: map['ministry'] ?? 'وزارة التربية والتعليم',
+        ministry: map['ministry'] ?? 'وزارة التربية والتعليم والبحث العلمي',
         governorate: map['governorate'] ?? '',
         directorate: map['directorate'] ?? '',
         school: map['school'] ?? '',
@@ -254,8 +260,10 @@ class HeaderModel {
         titleBold: map['titleBold'] ?? true,
         adminFont: map['adminFont'] ?? 'Amiri',
         adminFontSize: (map['adminFontSize'] as num?)?.toDouble() ?? 9.5,
+        adminBold: map['adminBold'] ?? false,
         detailsFont: map['detailsFont'] ?? 'Amiri',
         detailsFontSize: (map['detailsFontSize'] as num?)?.toDouble() ?? 10.0,
+        detailsBold: map['detailsBold'] ?? false,
       );
 }
 
