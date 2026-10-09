@@ -27,6 +27,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   late ExamModel _exam;
   late bool _isNew;
 
+  // وضع المعاينة (إظهار الحلول كنموذج إجابة أم إخفاؤها كورقة طالب)
+  bool _showAnswerKeyMode = false;
+
   // أبعاد الترويسة والأعمدة
   double _sideHeaderWidth = 145.0;
   double _questionColWidth = 38.0;
@@ -86,15 +89,29 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
   }
 
+  // تصدير Word مع خيار ورقة الطالب أو نموذج الإجابة
   Future<void> _exportAndOpenOffice() async {
     await ExamStorageService.saveOrUpdateExam(_exam);
-    await DocxGeneratorService.generateAndOpenDocx(_exam);
+    final isAnswerKey = await _showExportChoiceDialog('تصدير إلى Word');
+    if (isAnswerKey == null) return;
+
+    if (isAnswerKey) {
+      final keyExam = _buildAnswerKeyExam();
+      await DocxGeneratorService.generateAndOpenDocx(keyExam);
+    } else {
+      await DocxGeneratorService.generateAndOpenDocx(_exam);
+    }
   }
 
+  // تصدير PDF مع خيار ورقة الطالب أو نموذج الإجابة
   Future<void> _exportPdfToDownloads() async {
     await ExamStorageService.saveOrUpdateExam(_exam);
+    final isAnswerKey = await _showExportChoiceDialog('تصدير إلى PDF');
+    if (isAnswerKey == null) return;
+
     try {
-      final path = await PdfExportService.exportToDownloadsPdf(_exam);
+      final examToExport = isAnswerKey ? _buildAnswerKeyExam() : _exam;
+      final path = await PdfExportService.exportToDownloadsPdf(examToExport);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -116,24 +133,95 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
   }
 
+  // نافذة اختيار نوع النسخة للتصدير
+  Future<bool?> _showExportChoiceDialog(String title) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        content: const Text('يرجى تحديد نوع الوثيقة المراد تصديرها:'),
+        actions: [
+          OutlinedButton.icon(
+            icon: const Icon(Icons.school_outlined),
+            label: const Text('ورقة الاختبار (للطلاب)'),
+            onPressed: () => Navigator.pop(ctx, false),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
+            icon: const Icon(Icons.verified, color: Colors.white),
+            label: const Text('نموذج الإجابة (محلول)', style: TextStyle(color: Colors.white)),
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // توليد كائن نسخة نموذج الإجابة تلقائياً
+  ExamModel _buildAnswerKeyExam() {
+    final keyExam = _exam.copyWith();
+    keyExam.header.examTitle = '${_exam.header.examTitle} (نموذج الإجابة وتوزيع الدرجات)';
+    keyExam.header.singlePageFooterText = 'تم إعداد ومراجعة نموذج الإجابة من قبل لجنة الكنترول والتصحيح';
+    keyExam.header.teacherSignature = 'المصحح / المراجع: ......................';
+
+    keyExam.questions = _exam.questions.map((q) {
+      final newQ = QuestionModel.fromMap(q.toMap());
+      if (newQ.answerKey.trim().isNotEmpty) {
+        newQ.spans.add(TextSpanModel(
+          text: '\n[ الإجابة النموذجية: ${newQ.answerKey} ]',
+          fontSize: 13.0,
+          isBold: true,
+          fontFamily: 'Amiri',
+        ));
+      }
+      return newQ;
+    }).toList();
+
+    return keyExam;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFD6D9E0),
       appBar: AppBar(
-        title: Text(_isNew ? 'اختبار جديد' : _exam.fileName,
-            style: const TextStyle(color: Colors.white, fontSize: 16)),
-        backgroundColor: const Color(0xFF1E3A8A),
+        title: Text(
+          _showAnswerKeyMode
+              ? 'نموذج الإجابة: ${_exam.fileName}'
+              : (_isNew ? 'اختبار جديد' : _exam.fileName),
+          style: const TextStyle(color: Colors.white, fontSize: 15),
+        ),
+        backgroundColor: _showAnswerKeyMode ? const Color(0xFF0F766E) : const Color(0xFF1E3A8A),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
+            icon: Icon(
+              _showAnswerKeyMode ? Icons.visibility : Icons.visibility_off,
+              color: Colors.white,
+            ),
+            tooltip: _showAnswerKeyMode ? 'العودة لورقة الأسئلة' : 'معاينة نموذج الإجابة',
+            onPressed: () {
+              setState(() {
+                _showAnswerKeyMode = !_showAnswerKeyMode;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(_showAnswerKeyMode
+                      ? 'تم تفعيل وضع معاينة نموذج الإجابة'
+                      : 'تم تفعيل وضع معاينة ورقة الطالب'),
+                  duration: const Duration(seconds: 1),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
-            tooltip: 'تصدير PDF وحفظه في مجلد التنزيلات',
+            tooltip: 'تصدير PDF',
             onPressed: _exportPdfToDownloads,
           ),
           IconButton(
             icon: const Icon(Icons.print, color: Colors.white),
-            tooltip: 'تصدير وفتح في تطبيق Word',
+            tooltip: 'تصدير Word',
             onPressed: _exportAndOpenOffice,
           ),
           IconButton(
@@ -225,6 +313,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _buildExamHeader() {
+    final titleText = _showAnswerKeyMode
+        ? '${_exam.header.examTitle} (نموذج الإجابة)'
+        : _exam.header.examTitle;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -236,7 +328,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. الترويسة اليمنى
               SizedBox(
                 width: _sideHeaderWidth,
                 child: InkWell(
@@ -293,7 +384,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                 ),
               ),
-              // 2. الترويسة الوسطى
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -329,7 +419,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ],
                 ),
               ),
-              // 3. الترويسة اليسرى
               SizedBox(
                 width: _sideHeaderWidth,
                 child: InkWell(
@@ -389,14 +478,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 3),
-              color: Colors.grey.shade200,
+              color: _showAnswerKeyMode ? Colors.teal.shade50 : Colors.grey.shade200,
               child: Text(
-                _exam.header.examTitle,
+                titleText,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: _exam.header.titleFont,
                   fontWeight: _exam.header.titleBold ? FontWeight.bold : FontWeight.normal,
                   fontSize: _exam.header.titleFontSize,
+                  color: _showAnswerKeyMode ? const Color(0xFF0F766E) : Colors.black87,
                 ),
               ),
             ),
@@ -406,7 +496,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // --- جدول الأسئلة مع حل مشكلة التراكب جذرياً باستخدام Text.rich ---
   Widget _buildQuestionsTable() {
     return Table(
       border: TableBorder.all(color: Colors.black, width: 1),
@@ -498,7 +587,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // حل مشكلة التراكب: استخدام Text.rich بدلاً من Wrap
                         Text.rich(
                           TextSpan(
                             children: q.spans.map((s) {
@@ -509,7 +597,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                   fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
                                   decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
                                   fontSize: s.fontSize,
-                                  height: 1.5, // مسافة مريحة بين الأسطر لمنع أي تراكب
+                                  height: 1.5,
                                 ),
                               );
                             }).toList(),
@@ -518,6 +606,35 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         ),
                         if (q.elements.isNotEmpty) const SizedBox(height: 6),
                         ...q.elements.map((el) => _buildRenderedElement(el)),
+                        if (_showAnswerKeyMode && q.answerKey.trim().isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              border: Border.all(color: Colors.blue.shade300),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.check_circle_outline, size: 16, color: Colors.blue),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    'الإجابة النموذجية: ${q.answerKey}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: Colors.blue.shade900,
+                                      fontFamily: 'Amiri',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -679,9 +796,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       child: Column(
         children: [
           Text(
-            _exam.header.isMultiPage
-                ? _exam.header.continuationText
-                : _exam.header.singlePageFooterText,
+            _showAnswerKeyMode
+                ? 'نموذج الإجابة الرسمي - لجنة الكنترول والتصحيح'
+                : (_exam.header.isMultiPage
+                    ? _exam.header.continuationText
+                    : _exam.header.singlePageFooterText),
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
             textAlign: TextAlign.center,
           ),
@@ -689,7 +808,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              _exam.header.teacherSignature,
+              _showAnswerKeyMode
+                  ? 'المصحح / المراجع: ......................'
+                  : _exam.header.teacherSignature,
               style: const TextStyle(fontSize: 11),
             ),
           ),
@@ -767,6 +888,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             '٣ - (   ) ......................................................................\n'
             '٤ - (   ) ......................................................................',
         'mark': 8.0,
+        'answer': '١- (✔)   ٢- (✘)   ٣- (✔)   ٤- (✔)',
       },
       {
         'title': 'اختر الإجابة الصحيحة',
@@ -779,6 +901,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             '٣ - ........................................ [ أ- ........... ، ب- ........... ، ج- ........... ]\n'
             '٤ - ........................................ [ أ- ........... ، ب- ........... ، ج- ........... ]',
         'mark': 8.0,
+        'answer': '١- أ   ٢- ج   ٣- ب   ٤- أ',
       },
       {
         'title': 'علل لما يأتي / اذكر السبب',
@@ -791,6 +914,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             '٢ - ..................................................................................\n'
             'جـ/ ..................................................................................',
         'mark': 6.0,
+        'answer': '١- بسبب ...................   ٢- نتيجة لـ ...................',
       },
       {
         'title': 'أكمل الفراغات الآتية',
@@ -802,6 +926,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             '٢ - ..................................................................................\n'
             '٣ - ..................................................................................',
         'mark': 6.0,
+        'answer': '١- ...........   ٢- ...........   ٣- ...........',
       },
     ];
 
@@ -852,6 +977,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             fontFamily: 'Amiri',
                           )
                         ],
+                        answerKey: t['answer'] as String,
                       );
                       setState(() {
                         _exam.questions.add(newQ);
@@ -884,6 +1010,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             title: 'السؤال ${_exam.questions.length + 1}',
             spans: [],
             elements: [],
+            answerKey: '',
           );
 
     final titleCtrl = TextEditingController(text: q.title);
@@ -891,6 +1018,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         TextEditingController(text: q.spans.map((e) => e.text).join(''));
     final markCtrl =
         TextEditingController(text: q.mark > 0 ? q.mark.toString() : '5');
+    final answerCtrl = TextEditingController(text: q.answerKey); // تحرير الإجابة النموذجية
     QuestionTitleOrientation orientation = q.titleOrientation;
     List<InsertableElement> currentElements = List.from(q.elements);
 
@@ -1464,10 +1592,25 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
                 TextField(
                   controller: textCtrl,
-                  maxLines: 5,
+                  maxLines: 4,
                   decoration: const InputDecoration(
                     labelText: 'محتوى نص السؤال (حدد جزءاً ثم اضغط على زر التنسيق أعلاه)',
                     border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // حقل الإجابة النموذجية المضاف
+                TextField(
+                  controller: answerCtrl,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    labelText: 'الإجابة النموذجية / مفتاح التصحيح (اختياري)',
+                    hintText: 'اكتب الحل المعتمد ليظهر في نموذج إجابة الكنترول...',
+                    prefixIcon: const Icon(Icons.verified, color: Color(0xFF0F766E)),
+                    filled: true,
+                    fillColor: Colors.teal.shade50.withOpacity(0.5),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
 
@@ -1516,6 +1659,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       mark: double.tryParse(markCtrl.text) ?? 0.0,
                       spans: spansToSave,
                       elements: currentElements,
+                      answerKey: answerCtrl.text.trim(),
                     );
 
                     setState(() {
@@ -1673,7 +1817,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // --- نافذة الحقول الإدارية اليمين مع شريط الخط والحجم وBold ---
   void _editAdminHeaderDialog() {
     final cCountry = TextEditingController(text: _exam.header.country);
     final cGov = TextEditingController(text: _exam.header.governorate);
@@ -1693,7 +1836,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // شريط التنسيق (خط، حجم، بولد)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -1754,7 +1896,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // --- نافذة بيانات الامتحان اليسار مع شريط الخط والحجم وBold ---
   void _editExamDetailsDialog() {
     final cGrade = TextEditingController(text: _exam.header.grade);
     final cSub = TextEditingController(text: _exam.header.subject);
@@ -1774,7 +1915,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // شريط التنسيق (خط، حجم، بولد)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
