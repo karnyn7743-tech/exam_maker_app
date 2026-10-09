@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import '../models/exam_models.dart';
+import '../services/exam_share_service.dart';
 import '../services/exam_storage_service.dart';
 import '../services/file_manager.dart';
 import 'exam_editor_screen.dart';
@@ -59,7 +62,134 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (result == true) {
-      _loadExams(); // إعادة التحديث بعد أي حفظ
+      _loadExams();
+    }
+  }
+
+  // استيراد ملف مشروع .exam
+  Future<void> _importExamProjectDialog() async {
+    Directory? downloadsDir;
+    if (Platform.isAndroid) {
+      downloadsDir = Directory('/storage/emulated/0/Download');
+      if (!downloadsDir.existsSync()) {
+        downloadsDir = await getExternalStorageDirectory();
+      }
+    } else {
+      downloadsDir = await getApplicationDocumentsDirectory();
+    }
+
+    List<FileSystemEntity> examFiles = [];
+    if (downloadsDir != null && downloadsDir.existsSync()) {
+      examFiles = downloadsDir
+          .listSync()
+          .where((f) => f.path.endsWith('.exam'))
+          .toList();
+    }
+
+    if (!mounted) return;
+
+    if (examFiles.isEmpty) {
+      final pathCtrl = TextEditingController();
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('استيراد ملف اختبار (.exam)'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'لم يتم العثور على ملفات .exam في مجلد التنزيلات.\nيمكنك كتابة مسار الملف مباشرة:',
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: pathCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'مسار الملف الكامل',
+                  hintText: '/storage/emulated/0/Download/exam.exam',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final path = pathCtrl.text.trim();
+                if (path.isNotEmpty) {
+                  Navigator.pop(ctx);
+                  await _processImportedFile(path);
+                }
+              },
+              child: const Text('فتح واستيراد'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // عرض قائمة الملفات المتوفرة في مجلد التنزيلات
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('اختر ملف الاختبار (.exam)'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: examFiles.length,
+            itemBuilder: (context, i) {
+              final file = examFiles[i];
+              final name = file.path.split('/').last;
+              return ListTile(
+                leading: const Icon(Icons.file_present, color: Color(0xFF1E3A8A)),
+                title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _processImportedFile(file.path);
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // معالجة الملف المستورد وفتحه
+  Future<void> _processImportedFile(String path) async {
+    final imported = await ExamShareService.importExamFile(path);
+    if (!mounted) return;
+
+    if (imported != null) {
+      await ExamStorageService.saveOrUpdateExam(imported);
+      _loadExams();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('تم استيراد اختبار "${imported.header.subject}" بنجاح'),
+          backgroundColor: Colors.green.shade800,
+        ),
+      );
+      _openEditor(imported);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('تعذر قراءة ملف الاختبار أو أن الملف تالف'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
     }
   }
 
@@ -101,6 +231,11 @@ class _HomeScreenState extends State<HomeScreen> {
         centerTitle: true,
         actions: [
           IconButton(
+            icon: const Icon(Icons.file_open_outlined),
+            tooltip: 'استيراد اختبار (.exam)',
+            onPressed: _importExamProjectDialog,
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'تحديث القائمة',
             onPressed: _loadExams,
@@ -133,7 +268,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'اضغط على زر (إنشاء اختبار جديد) للبدء في كتابة أول امتحان',
+            'اضغط على زر (إنشاء اختبار جديد) للبدء أو استورد ملف (.exam)',
             style: TextStyle(color: Colors.grey),
           ),
         ],
