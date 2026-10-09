@@ -69,7 +69,6 @@ class DocxGeneratorService {
     buffer.write('<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">');
     buffer.write('<w:body>');
 
-    // ضبط الهامش العلوي
     final topMarginDxa = exam.header.topMargin1cm ? '567' : '283';
 
     // 1. جدول الترويسة
@@ -87,7 +86,7 @@ class DocxGeneratorService {
     buffer.write('</w:tblBorders>');
     buffer.write('</w:tblPr>');
 
-    // الصف الأول في الترويسة (3 خانات)
+    // الصف الأول في الترويسة
     buffer.write('<w:tr>');
 
     // الخانة اليمنى: البيانات الإدارية
@@ -131,10 +130,9 @@ class DocxGeneratorService {
 
     buffer.write('</w:tbl>');
 
-    // مسافة فاصلة بين الترويسة وجدول الأسئلة
     buffer.write('<w:p><w:pPr><w:spacing w:before="120" w:after="120"/></w:pPr></w:p>');
 
-    // 2. جدول الأسئلة مع صف العناوين المدمج
+    // 2. جدول الأسئلة
     buffer.write('<w:tbl>');
     buffer.write('<w:tblPr>');
     buffer.write('<w:tblW w:w="0" w:type="auto"/>');
@@ -173,37 +171,42 @@ class DocxGeneratorService {
 
     buffer.write('</w:tr>');
 
-    // صفوف الأسئلة والفقرات
+    // صفوف الأسئلة
     for (final q in exam.questions) {
       buffer.write('<w:tr>');
 
-      // 1. رقم السؤال
+      // 1. عنوان السؤال
       buffer.write('<w:tc>');
       buffer.write('<w:tcPr><w:tcW w:w="800" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>');
       buffer.write(_buildCellParagraph(q.title, isBold: true, fontSize: 20, align: 'center'));
       buffer.write('</w:tc>');
 
-      // 2. محتوى السؤال والعناصر المرفقة
+      // 2. محتوى السؤال
       buffer.write('<w:tc>');
       buffer.write('<w:tcPr><w:tcW w:w="7900" w:type="dxa"/></w:tcPr>');
 
-      // فقرة نص السؤال
-      buffer.write('<w:p>');
-      buffer.write('<w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:line="320" w:lineRule="auto"/></w:pPr>');
-      for (final s in q.spans) {
-        buffer.write('<w:r>');
-        buffer.write('<w:rPr>');
-        buffer.write('<w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="${s.fontFamily}"/>');
-        buffer.write('<w:rtl/>');
-        if (s.isBold) buffer.write('<w:b/><w:bCs/>');
-        if (s.isUnderline) buffer.write('<w:u w:val="single"/>');
-        buffer.write('<w:sz w:val="${(s.fontSize * 2).toInt()}"/>');
-        buffer.write('<w:szCs w:val="${(s.fontSize * 2).toInt()}"/>');
-        buffer.write('</w:rPr>');
-        buffer.write('<w:t xml:space="preserve">${_xmlEscape(s.text)}</w:t>');
-        buffer.write('</w:r>');
+      if (!q.isTwoColumns) {
+        // عمود واحد عادي
+        buffer.write('<w:p>');
+        buffer.write('<w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:line="320" w:lineRule="auto"/></w:pPr>');
+        for (final s in q.spans) {
+          buffer.write('<w:r>');
+          buffer.write('<w:rPr>');
+          buffer.write('<w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="${s.fontFamily}"/>');
+          buffer.write('<w:rtl/>');
+          if (s.isBold) buffer.write('<w:b/><w:bCs/>');
+          if (s.isUnderline) buffer.write('<w:u w:val="single"/>');
+          buffer.write('<w:sz w:val="${(s.fontSize * 2).toInt()}"/>');
+          buffer.write('<w:szCs w:val="${(s.fontSize * 2).toInt()}"/>');
+          buffer.write('</w:rPr>');
+          buffer.write('<w:t xml:space="preserve">${_xmlEscape(s.text)}</w:t>');
+          buffer.write('</w:r>');
+        }
+        buffer.write('</w:p>');
+      } else {
+        // تخطيط عمودين متجاورين
+        buffer.write(_buildDocxTwoColumnContent(q));
       }
-      buffer.write('</w:p>');
 
       // العناصر المرفقة
       for (final el in q.elements) {
@@ -224,7 +227,7 @@ class DocxGeneratorService {
 
       buffer.write('</w:tc>');
 
-      // 3. درجة السؤال
+      // 3. الدرجة
       buffer.write('<w:tc>');
       buffer.write('<w:tcPr><w:tcW w:w="800" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>');
       final markText = q.mark > 0 ? '${q.mark.toInt()} د' : '-';
@@ -246,7 +249,6 @@ class DocxGeneratorService {
     buffer.write('<w:r><w:rPr><w:rtl/><w:sz w:val="20"/></w:rPr><w:t>${_xmlEscape(exam.header.teacherSignature)}</w:t></w:r>');
     buffer.write('</w:p>');
 
-    // خصائص الصفحة
     buffer.write('<w:sectPr>');
     buffer.write('<w:pgSz w:w="11906" w:h="16838"/>');
     buffer.write('<w:pgMar w:top="$topMarginDxa" w:right="1134" w:bottom="1134" w:left="1134"/>');
@@ -257,6 +259,71 @@ class DocxGeneratorService {
     buffer.write('</w:document>');
 
     return buffer.toString();
+  }
+
+  // بناء محتوى السؤال بتخطيط عمودين في Word
+  static String _buildDocxTwoColumnContent(QuestionModel q) {
+    final fullText = q.spans.map((s) => s.text).join('');
+    final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
+
+    if (lines.length <= 1) {
+      return '<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>'
+          '<w:r><w:rPr><w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="Amiri"/><w:rtl/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>'
+          '<w:t xml:space="preserve">${_xmlEscape(fullText)}</w:t></w:r></w:p>';
+    }
+
+    final intro = lines.first;
+    final items = lines.sublist(1);
+    final int half = (items.length / 2).ceil();
+    final colRight = items.sublist(0, half);
+    final colLeft = items.sublist(half);
+
+    final sb = StringBuffer();
+
+    // السطر التمهيدي
+    sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>');
+    sb.write('<w:r><w:rPr><w:b/><w:bCs/><w:rtl/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>');
+    sb.write('<w:t xml:space="preserve">${_xmlEscape(intro)}</w:t></w:r></w:p>');
+
+    // جدول من عمودين متجاورين بحدود مخفية
+    sb.write('<w:tbl>');
+    sb.write('<w:tblPr>');
+    sb.write('<w:tblW w:w="7800" w:type="dxa"/>');
+    sb.write('<w:bidiVisual/>');
+    sb.write('<w:tblBorders>');
+    sb.write('<w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/>');
+    sb.write('<w:insideH w:val="none"/><w:insideV w:val="none"/>');
+    sb.write('</w:tblBorders>');
+    sb.write('</w:tblPr>');
+
+    final int maxRows = half;
+    for (int i = 0; i < maxRows; i++) {
+      final rightText = i < colRight.length ? colRight[i] : '';
+      final leftText = i < colLeft.length ? colLeft[i] : '';
+
+      sb.write('<w:tr>');
+
+      // الخانة اليمنى
+      sb.write('<w:tc>');
+      sb.write('<w:tcPr><w:tcW w:w="3900" w:type="dxa"/></w:tcPr>');
+      sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>');
+      sb.write('<w:r><w:rPr><w:rtl/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr>');
+      sb.write('<w:t xml:space="preserve">${_xmlEscape(rightText)}</w:t></w:r></w:p>');
+      sb.write('</w:tc>');
+
+      // الخانة اليسرى
+      sb.write('<w:tc>');
+      sb.write('<w:tcPr><w:tcW w:w="3900" w:type="dxa"/></w:tcPr>');
+      sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>');
+      sb.write('<w:r><w:rPr><w:rtl/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr>');
+      sb.write('<w:t xml:space="preserve">${_xmlEscape(leftText)}</w:t></w:r></w:p>');
+      sb.write('</w:tc>');
+
+      sb.write('</w:tr>');
+    }
+
+    sb.write('</w:tbl>');
+    return sb.toString();
   }
 
   static String _buildDocxMathOperation(String jsonStr) {
