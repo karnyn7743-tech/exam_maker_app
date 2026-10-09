@@ -27,10 +27,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   late ExamModel _exam;
   late bool _isNew;
 
-  // وضع المعاينة (إظهار الحلول كنموذج إجابة أم إخفاؤها كورقة طالب)
   bool _showAnswerKeyMode = false;
 
-  // أبعاد الترويسة والأعمدة
   double _sideHeaderWidth = 145.0;
   double _questionColWidth = 38.0;
   double _markColWidth = 38.0;
@@ -89,21 +87,35 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
   }
 
-  // تصدير Word مع خيار ورقة الطالب أو نموذج الإجابة
   Future<void> _exportAndOpenOffice() async {
     await ExamStorageService.saveOrUpdateExam(_exam);
     final isAnswerKey = await _showExportChoiceDialog('تصدير إلى Word');
     if (isAnswerKey == null) return;
 
-    if (isAnswerKey) {
-      final keyExam = _buildAnswerKeyExam();
-      await DocxGeneratorService.generateAndOpenDocx(keyExam);
-    } else {
-      await DocxGeneratorService.generateAndOpenDocx(_exam);
+    try {
+      final examToExport = isAnswerKey ? _buildAnswerKeyExam() : _exam;
+      final path = await DocxGeneratorService.generateAndOpenDocx(examToExport);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تم حفظ ملف Word بنجاح في مجلد التنزيلات:\n$path'),
+            backgroundColor: Colors.green.shade800,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تعذر تصدير Word: $e'),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
     }
   }
 
-  // تصدير PDF مع خيار ورقة الطالب أو نموذج الإجابة
   Future<void> _exportPdfToDownloads() async {
     await ExamStorageService.saveOrUpdateExam(_exam);
     final isAnswerKey = await _showExportChoiceDialog('تصدير إلى PDF');
@@ -133,7 +145,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
   }
 
-  // نافذة اختيار نوع النسخة للتصدير
   Future<bool?> _showExportChoiceDialog(String title) {
     return showDialog<bool>(
       context: context,
@@ -157,7 +168,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // توليد كائن نسخة نموذج الإجابة تلقائياً
   ExamModel _buildAnswerKeyExam() {
     final keyExam = _exam.copyWith();
     keyExam.header.examTitle = '${_exam.header.examTitle} (نموذج الإجابة وتوزيع الدرجات)';
@@ -587,23 +597,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text.rich(
-                          TextSpan(
-                            children: q.spans.map((s) {
-                              return TextSpan(
-                                text: s.text,
-                                style: TextStyle(
-                                  fontFamily: s.fontFamily,
-                                  fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
-                                  decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
-                                  fontSize: s.fontSize,
-                                  height: 1.5,
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                          textAlign: TextAlign.right,
-                        ),
+                        _buildQuestionContent(q),
                         if (q.elements.isNotEmpty) const SizedBox(height: 6),
                         ...q.elements.map((el) => _buildRenderedElement(el)),
                         if (_showAnswerKeyMode && q.answerKey.trim().isNotEmpty) ...[
@@ -658,6 +652,113 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ],
           );
         }),
+      ],
+    );
+  }
+
+  // دالة عرض محتوى السؤال تدعم العمودين والعمود الواحد
+  Widget _buildQuestionContent(QuestionModel q) {
+    if (!q.isTwoColumns) {
+      return Text.rich(
+        TextSpan(
+          children: q.spans.map((s) {
+            return TextSpan(
+              text: s.text,
+              style: TextStyle(
+                fontFamily: s.fontFamily,
+                fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
+                decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
+                fontSize: s.fontSize,
+                height: 1.5,
+              ),
+            );
+          }).toList(),
+        ),
+        textAlign: TextAlign.right,
+      );
+    }
+
+    final fullText = q.spans.map((s) => s.text).join('');
+    final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
+
+    if (lines.length <= 1) {
+      return Text.rich(
+        TextSpan(
+          children: q.spans.map((s) => TextSpan(
+            text: s.text,
+            style: TextStyle(
+              fontFamily: s.fontFamily,
+              fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
+              decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
+              fontSize: s.fontSize,
+              height: 1.5,
+            ),
+          )).toList(),
+        ),
+        textAlign: TextAlign.right,
+      );
+    }
+
+    final intro = lines.first;
+    final items = lines.sublist(1);
+    final int half = (items.length / 2).ceil();
+    final colRight = items.sublist(0, half);
+    final colLeft = items.sublist(half);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          intro,
+          style: TextStyle(
+            fontFamily: q.spans.isNotEmpty ? q.spans.first.fontFamily : 'Amiri',
+            fontWeight: FontWeight.bold,
+            fontSize: q.spans.isNotEmpty ? q.spans.first.fontSize : 14.0,
+            height: 1.5,
+          ),
+          textAlign: TextAlign.right,
+        ),
+        const SizedBox(height: 4),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: colRight.map((item) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Text(
+                    item,
+                    style: TextStyle(
+                      fontFamily: q.spans.isNotEmpty ? q.spans.first.fontFamily : 'Amiri',
+                      fontSize: q.spans.isNotEmpty ? q.spans.first.fontSize : 13.0,
+                      height: 1.4,
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                )).toList(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: colLeft.map((item) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Text(
+                    item,
+                    style: TextStyle(
+                      fontFamily: q.spans.isNotEmpty ? q.spans.first.fontFamily : 'Amiri',
+                      fontSize: q.spans.isNotEmpty ? q.spans.first.fontSize : 13.0,
+                      height: 1.4,
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                )).toList(),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -889,19 +990,21 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             '٤ - (   ) ......................................................................',
         'mark': 8.0,
         'answer': '١- (✔)   ٢- (✘)   ٣- (✔)   ٤- (✔)',
+        'twoCols': false,
       },
       {
-        'title': 'اختر الإجابة الصحيحة',
-        'subtitle': 'توجيه اختيارات مع خيارات بين أقواس',
+        'title': 'اختر الإجابة الصحيحة (عمودان)',
+        'subtitle': 'توجيه اختيارات في عمودين متجاورين لتوفير الورق',
         'qTitle': 'السؤال ${_exam.questions.length + 1}',
         'content':
             'اختر الإجابة الصحيحة من بين الأقواس لما يأتي:\n'
-            '١ - ........................................ [ أ- ........... ، ب- ........... ، ج- ........... ]\n'
-            '٢ - ........................................ [ أ- ........... ، ب- ........... ، ج- ........... ]\n'
-            '٣ - ........................................ [ أ- ........... ، ب- ........... ، ج- ........... ]\n'
-            '٤ - ........................................ [ أ- ........... ، ب- ........... ، ج- ........... ]',
+            '١ - ............ [ أ- .. ، ب- .. ]\n'
+            '٢ - ............ [ أ- .. ، ب- .. ]\n'
+            '٣ - ............ [ أ- .. ، ب- .. ]\n'
+            '٤ - ............ [ أ- .. ، ب- .. ]',
         'mark': 8.0,
-        'answer': '١- أ   ٢- ج   ٣- ب   ٤- أ',
+        'answer': '١- أ   ٢- ب   ٣- أ   ٤- ب',
+        'twoCols': true,
       },
       {
         'title': 'علل لما يأتي / اذكر السبب',
@@ -915,6 +1018,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             'جـ/ ..................................................................................',
         'mark': 6.0,
         'answer': '١- بسبب ...................   ٢- نتيجة لـ ...................',
+        'twoCols': false,
       },
       {
         'title': 'أكمل الفراغات الآتية',
@@ -927,6 +1031,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             '٣ - ..................................................................................',
         'mark': 6.0,
         'answer': '١- ...........   ٢- ...........   ٣- ...........',
+        'twoCols': false,
       },
     ];
 
@@ -978,6 +1083,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           )
                         ],
                         answerKey: t['answer'] as String,
+                        isTwoColumns: t['twoCols'] as bool,
                       );
                       setState(() {
                         _exam.questions.add(newQ);
@@ -1011,6 +1117,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             spans: [],
             elements: [],
             answerKey: '',
+            isTwoColumns: false,
           );
 
     final titleCtrl = TextEditingController(text: q.title);
@@ -1018,8 +1125,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         TextEditingController(text: q.spans.map((e) => e.text).join(''));
     final markCtrl =
         TextEditingController(text: q.mark > 0 ? q.mark.toString() : '5');
-    final answerCtrl = TextEditingController(text: q.answerKey); // تحرير الإجابة النموذجية
+    final answerCtrl = TextEditingController(text: q.answerKey);
     QuestionTitleOrientation orientation = q.titleOrientation;
+    bool isTwoCols = q.isTwoColumns;
     List<InsertableElement> currentElements = List.from(q.elements);
 
     List<TextSpanModel> workingSpans = q.spans.isNotEmpty
@@ -1359,7 +1467,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 const SizedBox(height: 6),
 
-                Row(
+                // اتجاه كتابة السؤال وخيار العمودين
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 4,
                   children: [
                     const Text('الاتجاه: ',
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
@@ -1369,19 +1480,25 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       onSelected: (val) => setModalState(
                           () => orientation = QuestionTitleOrientation.horizontal),
                     ),
-                    const SizedBox(width: 4),
                     ChoiceChip(
                       label: const Text('رأسي ◄', style: TextStyle(fontSize: 11)),
                       selected: orientation == QuestionTitleOrientation.verticalBottomToTop,
                       onSelected: (val) => setModalState(() =>
                           orientation = QuestionTitleOrientation.verticalBottomToTop),
                     ),
-                    const SizedBox(width: 4),
                     ChoiceChip(
                       label: const Text('رأسي ►', style: TextStyle(fontSize: 11)),
                       selected: orientation == QuestionTitleOrientation.verticalTopToBottom,
                       onSelected: (val) => setModalState(() =>
                           orientation = QuestionTitleOrientation.verticalTopToBottom),
+                    ),
+                    const SizedBox(width: 6),
+                    FilterChip(
+                      avatar: Icon(Icons.view_column, size: 14, color: isTwoCols ? Colors.white : Colors.black87),
+                      label: Text('عمودان (توفير مساحة)', style: TextStyle(fontSize: 11, color: isTwoCols ? Colors.white : Colors.black87)),
+                      selected: isTwoCols,
+                      selectedColor: const Color(0xFF0F766E),
+                      onSelected: (v) => setModalState(() => isTwoCols = v),
                     ),
                   ],
                 ),
@@ -1600,7 +1717,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                // حقل الإجابة النموذجية المضاف
                 TextField(
                   controller: answerCtrl,
                   maxLines: 2,
@@ -1660,6 +1776,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       spans: spansToSave,
                       elements: currentElements,
                       answerKey: answerCtrl.text.trim(),
+                      isTwoColumns: isTwoCols,
                     );
 
                     setState(() {
