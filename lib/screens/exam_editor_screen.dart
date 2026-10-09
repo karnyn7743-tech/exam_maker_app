@@ -8,6 +8,7 @@ import '../utils/save_dialog_helper.dart';
 import '../services/docx_generator_service.dart';
 import '../services/exam_storage_service.dart';
 import '../services/pdf_export_service.dart';
+import '../services/exam_share_service.dart';
 
 class ExamEditorScreen extends StatefulWidget {
   final ExamModel initialExam;
@@ -84,6 +85,32 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     if (saved && mounted) {
       Navigator.pop(context, true);
+    }
+  }
+
+  // تصدير كملف مشروع .exam للمشاركة
+  Future<void> _exportExamProjectFile() async {
+    await ExamStorageService.saveOrUpdateExam(_exam);
+    try {
+      final path = await ExamShareService.exportExamFile(_exam);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تم تصدير ملف المشروع (.exam) بنجاح:\n$path'),
+            backgroundColor: Colors.green.shade800,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تعذر تصدير ملف المشروع: $e'),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
     }
   }
 
@@ -223,6 +250,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
               );
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.share_outlined, color: Colors.white),
+            tooltip: 'مشاركة ملف المشروع (.exam)',
+            onPressed: _exportExamProjectFile,
           ),
           IconButton(
             icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
@@ -656,7 +688,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // دالة عرض محتوى السؤال تدعم العمودين والعمود الواحد
   Widget _buildQuestionContent(QuestionModel q) {
     if (!q.isTwoColumns) {
       return Text.rich(
@@ -1467,7 +1498,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 const SizedBox(height: 6),
 
-                // اتجاه كتابة السؤال وخيار العمودين
                 Wrap(
                   crossAxisAlignment: WrapCrossAlignment.center,
                   spacing: 4,
