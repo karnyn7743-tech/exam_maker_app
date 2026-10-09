@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:archive/archive.dart';
-import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/exam_models.dart';
 
 class DocxGeneratorService {
-  static Future<void> generateAndOpenDocx(ExamModel exam) async {
+  static Future<String> generateAndOpenDocx(ExamModel exam) async {
     final docxBytes = await _buildDocxBytes(exam);
 
     Directory? downloadsDir;
@@ -24,7 +23,7 @@ class DocxGeneratorService {
     final file = File(filePath);
     await file.writeAsBytes(docxBytes);
 
-    await OpenFile.open(filePath);
+    return filePath;
   }
 
   static Future<List<int>> _buildDocxBytes(ExamModel exam) async {
@@ -70,8 +69,8 @@ class DocxGeneratorService {
     buffer.write('<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">');
     buffer.write('<w:body>');
 
-    // ضبط الهامش العلوي والصفحة RTL
-    final topMarginDxa = exam.header.topMargin1cm ? '567' : '283'; // 1 سم = 567 dxa
+    // ضبط الهامش العلوي
+    final topMarginDxa = exam.header.topMargin1cm ? '567' : '283';
 
     // 1. جدول الترويسة
     buffer.write('<w:tbl>');
@@ -206,7 +205,7 @@ class DocxGeneratorService {
       }
       buffer.write('</w:p>');
 
-      // العناصر المرفقة (مربعات إرشاد، أسطر إجابة، عمليات رياضية)
+      // العناصر المرفقة
       for (final el in q.elements) {
         if (el.type == ElementType.textBox) {
           buffer.write('<w:p>');
@@ -249,7 +248,7 @@ class DocxGeneratorService {
 
     // خصائص الصفحة
     buffer.write('<w:sectPr>');
-    buffer.write('<w:pgSz w:w="11906" w:h="16838"/>'); // A4
+    buffer.write('<w:pgSz w:w="11906" w:h="16838"/>');
     buffer.write('<w:pgMar w:top="$topMarginDxa" w:right="1134" w:bottom="1134" w:left="1134"/>');
     buffer.write('<w:bidi/>');
     buffer.write('</w:sectPr>');
@@ -260,7 +259,6 @@ class DocxGeneratorService {
     return buffer.toString();
   }
 
-  // بناء العملية الرياضية الرأسية أو الكسر داخل جدول Word مدمج
   static String _buildDocxMathOperation(String jsonStr) {
     try {
       final data = jsonDecode(jsonStr);
@@ -310,7 +308,6 @@ class DocxGeneratorService {
           sb.write('</w:tr>');
         }
 
-        // صف فارغ للناتج
         sb.write('<w:tr><w:tc><w:tcPr><w:tcW w:w="1800" w:type="dxa"/></w:tcPr>');
         sb.write('<w:p><w:pPr><w:bidi/><w:spacing w:before="100" w:after="100"/></w:pPr></w:p>');
         sb.write('</w:tc></w:tr>');
@@ -329,7 +326,6 @@ class DocxGeneratorService {
         sb.write('<w:tblBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/><w:insideH w:val="none"/><w:insideV w:val="none"/></w:tblBorders>');
         sb.write('</w:tblPr>');
 
-        // البسط مع خط سفلي
         sb.write('<w:tr><w:tc><w:tcPr><w:tcW w:w="1200" w:type="dxa"/>');
         sb.write('<w:tcBorders><w:bottom w:val="single" w:sz="8" w:space="0" w:color="000000"/></w:tcBorders>');
         sb.write('</w:tcPr>');
@@ -337,7 +333,6 @@ class DocxGeneratorService {
         sb.write('<w:r><w:rPr><w:b/><w:rtl/><w:sz w:val="22"/></w:rPr><w:t>${_xmlEscape(num)}</w:t></w:r>');
         sb.write('</w:p></w:tc></w:tr>');
 
-        // المقام
         sb.write('<w:tr><w:tc><w:tcPr><w:tcW w:w="1200" w:type="dxa"/></w:tcPr>');
         sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="center"/></w:pPr>');
         sb.write('<w:r><w:rPr><w:b/><w:rtl/><w:sz w:val="22"/></w:rPr><w:t>${_xmlEscape(den)}</w:t></w:r>');
