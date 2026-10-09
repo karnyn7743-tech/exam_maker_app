@@ -10,12 +10,13 @@ enum ElementType {
   image,
   textBox,
   dottedLine,
+  mathOperation, // النوع المضاف للعمليات الرأسية وقوالب الرياضيات العربية
 }
 
 class InsertableElement {
   final String id;
   final ElementType type;
-  String content; // مسار الصورة أو نص مربع الإرشاد أو محتوى السطر
+  String content; // مسار الصورة، نص الإرشاد، محتوى السطر، أو بيانات العملية الرياضية (JSON)
   double width;
   double height;
   String alignment;
@@ -146,7 +147,7 @@ class HeaderModel {
   String teacherSignature;
   bool topMargin1cm;
 
-  // خصائص الخطوط وتنسيقات حقول الترويسة المضافة
+  // خصائص الخطوط وتنسيقات حقول الترويسة
   String basmalaFont;
   double basmalaFontSize;
   bool basmalaBold;
@@ -163,10 +164,10 @@ class HeaderModel {
 
   HeaderModel({
     this.country = 'الجمهورية اليمنية',
-    this.ministry = ' وزارة التربية والتعليم والبحث العلمي',
-    this.governorate = 'مكنب التربية والتعليم بمحافظة ذمار',
-    this.directorate = 'مكتب التربية والتعليم بمديرية عتمة',
-    this.school = 'مدرسة هجرة بني عبد الصمد',
+    this.ministry = 'وزارة التربية والتعليم',
+    this.governorate = 'محافظة صنعاء',
+    this.directorate = 'مديرية معين',
+    this.school = 'مدرسة الأمل الحديثة',
     this.basmalaText = 'بسم الله الرحمن الرحيم',
     this.logoImagePath,
     this.grade = 'التاسع',
