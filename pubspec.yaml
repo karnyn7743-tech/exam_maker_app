@@ -46,6 +46,7 @@ flutter:
   # مجلد الأصول الافتراضية
   assets:
     - assets/images/
+    - assets/fonts/
 
   # إعدادات الخطوط الرسمية
   fonts:
