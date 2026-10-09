@@ -236,6 +236,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // 1. الترويسة اليمنى
               SizedBox(
                 width: _sideHeaderWidth,
                 child: InkWell(
@@ -247,8 +248,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         _exam.header.country,
                         style: TextStyle(
                           fontFamily: _exam.header.adminFont,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
+                          fontWeight: _exam.header.adminBold ? FontWeight.bold : FontWeight.normal,
+                          fontSize: _exam.header.adminFontSize + 1.5,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -256,6 +257,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         _exam.header.ministry,
                         style: TextStyle(
                           fontFamily: _exam.header.adminFont,
+                          fontWeight: _exam.header.adminBold ? FontWeight.bold : FontWeight.normal,
                           fontSize: _exam.header.adminFontSize,
                         ),
                         textAlign: TextAlign.center,
@@ -264,6 +266,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         _exam.header.governorate,
                         style: TextStyle(
                           fontFamily: _exam.header.adminFont,
+                          fontWeight: _exam.header.adminBold ? FontWeight.bold : FontWeight.normal,
                           fontSize: _exam.header.adminFontSize - 0.5,
                         ),
                         textAlign: TextAlign.center,
@@ -272,6 +275,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         _exam.header.directorate,
                         style: TextStyle(
                           fontFamily: _exam.header.adminFont,
+                          fontWeight: _exam.header.adminBold ? FontWeight.bold : FontWeight.normal,
                           fontSize: _exam.header.adminFontSize - 0.5,
                         ),
                         textAlign: TextAlign.center,
@@ -289,6 +293,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                 ),
               ),
+              // 2. الترويسة الوسطى
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -324,6 +329,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ],
                 ),
               ),
+              // 3. الترويسة اليسرى
               SizedBox(
                 width: _sideHeaderWidth,
                 child: InkWell(
@@ -335,22 +341,23 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         'الصف : ${_exam.header.grade}',
                         style: TextStyle(
                           fontFamily: _exam.header.detailsFont,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
+                          fontWeight: _exam.header.detailsBold ? FontWeight.bold : FontWeight.normal,
+                          fontSize: _exam.header.detailsFontSize + 1,
                         ),
                       ),
                       Text(
                         'الماده : ${_exam.header.subject}',
                         style: TextStyle(
                           fontFamily: _exam.header.detailsFont,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
+                          fontWeight: _exam.header.detailsBold ? FontWeight.bold : FontWeight.normal,
+                          fontSize: _exam.header.detailsFontSize + 1,
                         ),
                       ),
                       Text(
                         'التاريخ: ${_exam.header.examDate}',
                         style: TextStyle(
                           fontFamily: _exam.header.detailsFont,
+                          fontWeight: _exam.header.detailsBold ? FontWeight.bold : FontWeight.normal,
                           fontSize: _exam.header.detailsFontSize,
                         ),
                       ),
@@ -358,6 +365,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         'الزمن: ${_exam.header.examTime}',
                         style: TextStyle(
                           fontFamily: _exam.header.detailsFont,
+                          fontWeight: _exam.header.detailsBold ? FontWeight.bold : FontWeight.normal,
                           fontSize: _exam.header.detailsFontSize - 0.5,
                         ),
                       ),
@@ -365,6 +373,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         'الفتره: ${_exam.header.period}',
                         style: TextStyle(
                           fontFamily: _exam.header.detailsFont,
+                          fontWeight: _exam.header.detailsBold ? FontWeight.bold : FontWeight.normal,
                           fontSize: _exam.header.detailsFontSize - 0.5,
                         ),
                       ),
@@ -397,6 +406,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
+  // --- جدول الأسئلة مع حل مشكلة التراكب جذرياً باستخدام Text.rich ---
   Widget _buildQuestionsTable() {
     return Table(
       border: TableBorder.all(color: Colors.black, width: 1),
@@ -488,19 +498,23 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Wrap(
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: q.spans.map((s) {
-                            return Text(
-                              s.text,
-                              style: TextStyle(
-                                fontFamily: s.fontFamily,
-                                fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
-                                decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
-                                fontSize: s.fontSize,
-                              ),
-                            );
-                          }).toList(),
+                        // حل مشكلة التراكب: استخدام Text.rich بدلاً من Wrap
+                        Text.rich(
+                          TextSpan(
+                            children: q.spans.map((s) {
+                              return TextSpan(
+                                text: s.text,
+                                style: TextStyle(
+                                  fontFamily: s.fontFamily,
+                                  fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
+                                  decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
+                                  fontSize: s.fontSize,
+                                  height: 1.5, // مسافة مريحة بين الأسطر لمنع أي تراكب
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                          textAlign: TextAlign.right,
                         ),
                         if (q.elements.isNotEmpty) const SizedBox(height: 6),
                         ...q.elements.map((el) => _buildRenderedElement(el)),
@@ -740,7 +754,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // --- نافذة اختيار القوالب الجاهزة بنقرة زر ---
   void _showQuestionTemplatesDialog() {
     final templates = [
       {
@@ -748,7 +761,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         'subtitle': 'توجيه صح وخطأ مع ٤ فقرات وأقواس في البداية',
         'qTitle': 'السؤال ${_exam.questions.length + 1}',
         'content':
-            'ضع علامة (✔) أمام العبارة الصحيحة وعلامة (✘) أمام العبارة الخطأ فيما يأتي:\n\n'
+            'ضع علامة (✔) أمام العبارة الصحيحة وعلامة (✘) أمام العبارة الخطأ فيما يأتي:\n'
             '١ - (   ) ......................................................................\n'
             '٢ - (   ) ......................................................................\n'
             '٣ - (   ) ......................................................................\n'
@@ -760,7 +773,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         'subtitle': 'توجيه اختيارات مع خيارات بين أقواس',
         'qTitle': 'السؤال ${_exam.questions.length + 1}',
         'content':
-            'اختر الإجابة الصحيحة من بين الأقواس لما يأتي:\n\n'
+            'اختر الإجابة الصحيحة من بين الأقواس لما يأتي:\n'
             '١ - ........................................ [ أ- ........... ، ب- ........... ، ج- ........... ]\n'
             '٢ - ........................................ [ أ- ........... ، ب- ........... ، ج- ........... ]\n'
             '٣ - ........................................ [ أ- ........... ، ب- ........... ، ج- ........... ]\n'
@@ -772,9 +785,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         'subtitle': 'فقرات تعليل مع أسطر إجابة',
         'qTitle': 'السؤال ${_exam.questions.length + 1}',
         'content':
-            'علل لما يأتي (اذكر السبب):\n\n'
+            'علل لما يأتي (اذكر السبب):\n'
             '١ - ..................................................................................\n'
-            'جـ/ ..................................................................................\n\n'
+            'جـ/ ..................................................................................\n'
             '٢ - ..................................................................................\n'
             'جـ/ ..................................................................................',
         'mark': 6.0,
@@ -784,7 +797,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         'subtitle': 'جمل بكلمات ناقصة وأسطر منقطة',
         'qTitle': 'السؤال ${_exam.questions.length + 1}',
         'content':
-            'أكمل الفراغات الآتية بما يناسبها:\n\n'
+            'أكمل الفراغات الآتية بما يناسبها:\n'
             '١ - ..................................................................................\n'
             '٢ - ..................................................................................\n'
             '٣ - ..................................................................................',
@@ -862,7 +875,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // --- نافذة كتابة وتنسيق السؤال المزودة بشريط الرياضيات والأوامر ---
   void _openQuestionDialog({int? questionIndex}) {
     final bool isEdit = questionIndex != null;
     final q = isEdit
@@ -1526,7 +1538,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // الدالة المصححة
   Widget _buildBarBtn({
     IconData? icon,
     String? text,
@@ -1662,6 +1673,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
+  // --- نافذة الحقول الإدارية اليمين مع شريط الخط والحجم وBold ---
   void _editAdminHeaderDialog() {
     final cCountry = TextEditingController(text: _exam.header.country);
     final cGov = TextEditingController(text: _exam.header.governorate);
@@ -1669,6 +1681,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     final cSchool = TextEditingController(text: _exam.header.school);
     final cMinistry = TextEditingController(text: _exam.header.ministry);
     String font = _exam.header.adminFont;
+    double size = _exam.header.adminFontSize;
+    bool bold = _exam.header.adminBold;
 
     showDialog(
       context: context,
@@ -1679,16 +1693,35 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                DropdownButton<String>(
-                  value: font,
-                  isExpanded: true,
-                  items: ['Amiri', 'Sultan', 'Thuluth', 'Traditional Arabic']
-                      .map((f) => DropdownMenuItem(value: f, child: Text('الخط: $f')))
-                      .toList(),
-                  onChanged: (v) {
-                    if (v != null) setDlgState(() => font = v);
-                  },
+                // شريط التنسيق (خط، حجم، بولد)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    DropdownButton<String>(
+                      value: font,
+                      items: ['Amiri', 'Sultan', 'Thuluth', 'Traditional Arabic']
+                          .map((f) => DropdownMenuItem(value: f, child: Text(f)))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) setDlgState(() => font = v);
+                      },
+                    ),
+                    DropdownButton<double>(
+                      value: size,
+                      items: [8.5, 9.0, 9.5, 10.0, 11.0, 12.0]
+                          .map((s) => DropdownMenuItem(value: s, child: Text('$s pt')))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) setDlgState(() => size = v);
+                      },
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.format_bold, color: bold ? Colors.blue : Colors.grey),
+                      onPressed: () => setDlgState(() => bold = !bold),
+                    ),
+                  ],
                 ),
+                const Divider(),
                 TextField(controller: cCountry, decoration: const InputDecoration(labelText: 'اسم الدولة')),
                 TextField(controller: cMinistry, decoration: const InputDecoration(labelText: 'اسم الوزارة')),
                 TextField(controller: cGov, decoration: const InputDecoration(labelText: 'اسم مكتب المحافظة')),
@@ -1708,6 +1741,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   _exam.header.directorate = cDir.text;
                   _exam.header.school = cSchool.text;
                   _exam.header.adminFont = font;
+                  _exam.header.adminFontSize = size;
+                  _exam.header.adminBold = bold;
                 });
                 Navigator.pop(ctx);
               },
@@ -1719,6 +1754,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
+  // --- نافذة بيانات الامتحان اليسار مع شريط الخط والحجم وBold ---
   void _editExamDetailsDialog() {
     final cGrade = TextEditingController(text: _exam.header.grade);
     final cSub = TextEditingController(text: _exam.header.subject);
@@ -1726,6 +1762,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     final cTime = TextEditingController(text: _exam.header.examTime);
     final cPeriod = TextEditingController(text: _exam.header.period);
     String font = _exam.header.detailsFont;
+    double size = _exam.header.detailsFontSize;
+    bool bold = _exam.header.detailsBold;
 
     showDialog(
       context: context,
@@ -1736,16 +1774,35 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                DropdownButton<String>(
-                  value: font,
-                  isExpanded: true,
-                  items: ['Amiri', 'Sultan', 'Thuluth', 'Traditional Arabic']
-                      .map((f) => DropdownMenuItem(value: f, child: Text('الخط: $f')))
-                      .toList(),
-                  onChanged: (v) {
-                    if (v != null) setDlgState(() => font = v);
-                  },
+                // شريط التنسيق (خط، حجم، بولد)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    DropdownButton<String>(
+                      value: font,
+                      items: ['Amiri', 'Sultan', 'Thuluth', 'Traditional Arabic']
+                          .map((f) => DropdownMenuItem(value: f, child: Text(f)))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) setDlgState(() => font = v);
+                      },
+                    ),
+                    DropdownButton<double>(
+                      value: size,
+                      items: [9.0, 9.5, 10.0, 10.5, 11.0, 12.0]
+                          .map((s) => DropdownMenuItem(value: s, child: Text('$s pt')))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) setDlgState(() => size = v);
+                      },
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.format_bold, color: bold ? Colors.blue : Colors.grey),
+                      onPressed: () => setDlgState(() => bold = !bold),
+                    ),
+                  ],
                 ),
+                const Divider(),
                 TextField(controller: cGrade, decoration: const InputDecoration(labelText: 'اسم الصف')),
                 TextField(controller: cSub, decoration: const InputDecoration(labelText: 'اسم المادة')),
                 TextField(controller: cDate, decoration: const InputDecoration(labelText: 'التاريخ')),
@@ -1765,6 +1822,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   _exam.header.examTime = cTime.text;
                   _exam.header.period = cPeriod.text;
                   _exam.header.detailsFont = font;
+                  _exam.header.detailsFontSize = size;
+                  _exam.header.detailsBold = bold;
                 });
                 Navigator.pop(ctx);
               },
