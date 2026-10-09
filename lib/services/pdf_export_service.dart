@@ -10,7 +10,7 @@ class PdfExportService {
   static Future<String> exportToDownloadsPdf(ExamModel exam) async {
     final pdf = pw.Document();
 
-    final fontData = await rootBundle.load('assets/fonts/amiri-regular.ttf');
+    final fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
     final ttf = pw.Font.ttf(fontData);
 
     pw.MemoryImage? logoImage;
