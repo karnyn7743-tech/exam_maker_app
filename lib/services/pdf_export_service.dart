@@ -10,18 +10,14 @@ class PdfExportService {
   static Future<String> exportToDownloadsPdf(ExamModel exam) async {
     final pdf = pw.Document();
 
-    pw.Font ttf;
+    // تحميل الخط من الأصول المحلية مباشرة
+    ByteData fontData;
     try {
-      final fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
-      ttf = pw.Font.ttf(fontData);
+      fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
     } catch (_) {
-      try {
-        final fontData = await rootBundle.load('assets/fonts/amiri-regular.ttf');
-        ttf = pw.Font.ttf(fontData);
-      } catch (_) {
-        ttf = await pw.fontFromGoogleFontsFamily(fontFamily: 'Amiri');
-      }
+      fontData = await rootBundle.load('assets/fonts/amiri-regular.ttf');
     }
+    final ttf = pw.Font.ttf(fontData);
 
     pw.MemoryImage? logoImage;
     if (exam.header.logoImagePath != null &&
