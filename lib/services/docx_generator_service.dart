@@ -8,20 +8,17 @@ class DocxGeneratorService {
   static Future<String> generateAndOpenDocx(ExamModel exam) async {
     final docxBytes = await _buildDocxBytes(exam);
 
-    Directory? downloadsDir;
+    Directory dir;
     if (Platform.isAndroid) {
-      downloadsDir = Directory('/storage/emulated/0/Download');
-      if (!downloadsDir.existsSync()) {
-        downloadsDir = await getExternalStorageDirectory();
-      }
+      dir = (await getExternalStorageDirectory()) ?? await getApplicationDocumentsDirectory();
     } else {
-      downloadsDir = await getApplicationDocumentsDirectory();
+      dir = await getApplicationDocumentsDirectory();
     }
 
     final safeName = exam.fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
-    final filePath = '${downloadsDir!.path}/$safeName.docx';
+    final filePath = '${dir.path}/$safeName.docx';
     final file = File(filePath);
-    await file.writeAsBytes(docxBytes);
+    await file.writeAsBytes(docxBytes, flush: true);
 
     return filePath;
   }
@@ -29,28 +26,24 @@ class DocxGeneratorService {
   static Future<List<int>> _buildDocxBytes(ExamModel exam) async {
     final archive = Archive();
 
-    // 1. [Content_Types].xml
     archive.addFile(ArchiveFile(
       '[Content_Types].xml',
       _contentTypesXml.length,
       utf8.encode(_contentTypesXml),
     ));
 
-    // 2. _rels/.rels
     archive.addFile(ArchiveFile(
       '_rels/.rels',
       _rootRelsXml.length,
       utf8.encode(_rootRelsXml),
     ));
 
-    // 3. word/_rels/document.xml.rels
     archive.addFile(ArchiveFile(
       'word/_rels/document.xml.rels',
       _docRelsXml.length,
       utf8.encode(_docRelsXml),
     ));
 
-    // 4. word/document.xml
     final documentXml = _buildDocumentXml(exam);
     archive.addFile(ArchiveFile(
       'word/document.xml',
@@ -151,19 +144,16 @@ class DocxGeneratorService {
     buffer.write('<w:tr>');
     buffer.write('<w:trPr><w:shd w:val="clear" w:color="auto" w:fill="F2F2F2"/></w:trPr>');
 
-    // عمود السؤال
     buffer.write('<w:tc>');
     buffer.write('<w:tcPr><w:tcW w:w="800" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>');
     buffer.write(_buildCellParagraph('السؤال', isBold: true, fontSize: 19, align: 'center'));
     buffer.write('</w:tc>');
 
-    // عمود عبارة التوجيه
     buffer.write('<w:tc>');
     buffer.write('<w:tcPr><w:tcW w:w="7900" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>');
     buffer.write(_buildCellParagraph(exam.header.instructionText, isBold: true, fontSize: 20, align: 'center', color: 'C00000'));
     buffer.write('</w:tc>');
 
-    // عمود الدرجة
     buffer.write('<w:tc>');
     buffer.write('<w:tcPr><w:tcW w:w="800" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>');
     buffer.write(_buildCellParagraph('الدرجة', isBold: true, fontSize: 19, align: 'center'));
@@ -175,18 +165,17 @@ class DocxGeneratorService {
     for (final q in exam.questions) {
       buffer.write('<w:tr>');
 
-      // 1. عنوان السؤال
+      // عمود العنوان
       buffer.write('<w:tc>');
       buffer.write('<w:tcPr><w:tcW w:w="800" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>');
       buffer.write(_buildCellParagraph(q.title, isBold: true, fontSize: 20, align: 'center'));
       buffer.write('</w:tc>');
 
-      // 2. محتوى السؤال
+      // عمود المحتوى
       buffer.write('<w:tc>');
       buffer.write('<w:tcPr><w:tcW w:w="7900" w:type="dxa"/></w:tcPr>');
 
       if (!q.isTwoColumns) {
-        // عمود واحد عادي
         buffer.write('<w:p>');
         buffer.write('<w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:line="320" w:lineRule="auto"/></w:pPr>');
         for (final s in q.spans) {
@@ -204,11 +193,9 @@ class DocxGeneratorService {
         }
         buffer.write('</w:p>');
       } else {
-        // تخطيط عمودين متجاورين
         buffer.write(_buildDocxTwoColumnContent(q));
       }
 
-      // العناصر المرفقة
       for (final el in q.elements) {
         if (el.type == ElementType.textBox) {
           buffer.write('<w:p>');
@@ -227,7 +214,7 @@ class DocxGeneratorService {
 
       buffer.write('</w:tc>');
 
-      // 3. الدرجة
+      // عمود الدرجة
       buffer.write('<w:tc>');
       buffer.write('<w:tcPr><w:tcW w:w="800" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>');
       final markText = q.mark > 0 ? '${q.mark.toInt()} د' : '-';
@@ -261,7 +248,6 @@ class DocxGeneratorService {
     return buffer.toString();
   }
 
-  // بناء محتوى السؤال بتخطيط عمودين في Word
   static String _buildDocxTwoColumnContent(QuestionModel q) {
     final fullText = q.spans.map((s) => s.text).join('');
     final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
@@ -280,12 +266,10 @@ class DocxGeneratorService {
 
     final sb = StringBuffer();
 
-    // السطر التمهيدي
     sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>');
     sb.write('<w:r><w:rPr><w:b/><w:bCs/><w:rtl/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>');
     sb.write('<w:t xml:space="preserve">${_xmlEscape(intro)}</w:t></w:r></w:p>');
 
-    // جدول من عمودين متجاورين بحدود مخفية
     sb.write('<w:tbl>');
     sb.write('<w:tblPr>');
     sb.write('<w:tblW w:w="7800" w:type="dxa"/>');
@@ -303,7 +287,6 @@ class DocxGeneratorService {
 
       sb.write('<w:tr>');
 
-      // الخانة اليمنى
       sb.write('<w:tc>');
       sb.write('<w:tcPr><w:tcW w:w="3900" w:type="dxa"/></w:tcPr>');
       sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>');
@@ -311,7 +294,6 @@ class DocxGeneratorService {
       sb.write('<w:t xml:space="preserve">${_xmlEscape(rightText)}</w:t></w:r></w:p>');
       sb.write('</w:tc>');
 
-      // الخانة اليسرى
       sb.write('<w:tc>');
       sb.write('<w:tcPr><w:tcW w:w="3900" w:type="dxa"/></w:tcPr>');
       sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>');
@@ -384,23 +366,28 @@ class DocxGeneratorService {
       } else if (kind == 'fraction') {
         final num = data['num'] ?? '';
         final den = data['den'] ?? '';
+        final int maxLen = num.length > den.length ? num.length : den.length;
+        final int colWidth = (maxLen * 160) + 300;
 
         final sb = StringBuffer();
         sb.write('<w:tbl>');
         sb.write('<w:tblPr>');
-        sb.write('<w:tblW w:w="0" w:type="auto"/>');
+        sb.write('<w:tblW w:w="$colWidth" w:type="dxa"/>');
+        sb.write('<w:jc w:val="center"/>');
         sb.write('<w:bidiVisual/>');
         sb.write('<w:tblBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/><w:insideH w:val="none"/><w:insideV w:val="none"/></w:tblBorders>');
         sb.write('</w:tblPr>');
 
-        sb.write('<w:tr><w:tc><w:tcPr><w:tcW w:w="1200" w:type="dxa"/>');
+        // البسط مع خط فاصل سفلي يمثل شرطة الكسر
+        sb.write('<w:tr><w:tc><w:tcPr><w:tcW w:w="$colWidth" w:type="dxa"/>');
         sb.write('<w:tcBorders><w:bottom w:val="single" w:sz="8" w:space="0" w:color="000000"/></w:tcBorders>');
         sb.write('</w:tcPr>');
         sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="center"/></w:pPr>');
         sb.write('<w:r><w:rPr><w:b/><w:rtl/><w:sz w:val="22"/></w:rPr><w:t>${_xmlEscape(num)}</w:t></w:r>');
         sb.write('</w:p></w:tc></w:tr>');
 
-        sb.write('<w:tr><w:tc><w:tcPr><w:tcW w:w="1200" w:type="dxa"/></w:tcPr>');
+        // المقام
+        sb.write('<w:tr><w:tc><w:tcPr><w:tcW w:w="$colWidth" w:type="dxa"/></w:tcPr>');
         sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="center"/></w:pPr>');
         sb.write('<w:r><w:rPr><w:b/><w:rtl/><w:sz w:val="22"/></w:rPr><w:t>${_xmlEscape(den)}</w:t></w:r>');
         sb.write('</w:p></w:tc></w:tr>');
