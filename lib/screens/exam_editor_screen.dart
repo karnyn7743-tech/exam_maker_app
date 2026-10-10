@@ -88,7 +88,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
   }
 
-  // تصدير كملف مشروع .exam للمشاركة
   Future<void> _exportExamProjectFile() async {
     await ExamStorageService.saveOrUpdateExam(_exam);
     try {
@@ -904,15 +903,33 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       } else if (kind == 'fraction') {
         final num = data['num'] ?? '';
         final den = data['den'] ?? '';
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        return Center(
           child: IntrinsicWidth(
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(num, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                Container(height: 1.2, color: Colors.black, margin: const EdgeInsets.symmetric(vertical: 1)),
-                Text(den, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Text(
+                    num,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Container(
+                  height: 1.5,
+                  color: Colors.black,
+                  margin: const EdgeInsets.symmetric(vertical: 2),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Text(
+                    den,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1353,8 +1370,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showArabicMathTemplates(void Function(void Function()) setParentState) {
-      final numCtrl = TextEditingController(text: 'س + ١');
-      final denCtrl = TextEditingController(text: 'س - ٢');
+      final numCtrl = TextEditingController(text: 'س');
+      final denCtrl = TextEditingController(text: 'س + ٢ص');
 
       showDialog(
         context: context,
