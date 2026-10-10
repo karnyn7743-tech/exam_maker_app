@@ -10,8 +10,18 @@ class PdfExportService {
   static Future<String> exportToDownloadsPdf(ExamModel exam) async {
     final pdf = pw.Document();
 
-    final fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
-    final ttf = pw.Font.ttf(fontData);
+    pw.Font ttf;
+    try {
+      final fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
+      ttf = pw.Font.ttf(fontData);
+    } catch (_) {
+      try {
+        final fontData = await rootBundle.load('assets/fonts/amiri-regular.ttf');
+        ttf = pw.Font.ttf(fontData);
+      } catch (_) {
+        ttf = await pw.fontFromGoogleFontsFamily(fontFamily: 'Amiri');
+      }
+    }
 
     pw.MemoryImage? logoImage;
     if (exam.header.logoImagePath != null &&
@@ -43,7 +53,6 @@ class PdfExportService {
                   pw.Row(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      // الترويسة اليمنى
                       pw.Container(
                         width: 135,
                         child: pw.Column(
@@ -73,7 +82,6 @@ class PdfExportService {
                           ],
                         ),
                       ),
-                      // الترويسة الوسطى
                       pw.Expanded(
                         child: pw.Column(
                           crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -92,7 +100,6 @@ class PdfExportService {
                           ],
                         ),
                       ),
-                      // الترويسة اليسرى
                       pw.Container(
                         width: 135,
                         child: pw.Column(
@@ -120,7 +127,6 @@ class PdfExportService {
                     ],
                   ),
                   pw.SizedBox(height: 3),
-                  // عنوان الاختبار
                   pw.Container(
                     width: double.infinity,
                     color: PdfColors.grey200,
@@ -137,7 +143,7 @@ class PdfExportService {
             ),
             pw.SizedBox(height: 6),
 
-            // 2. جدول الأسئلة مع صف العناوين المدمج
+            // 2. جدول الأسئلة
             pw.Table(
               border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
               columnWidths: {
@@ -244,25 +250,21 @@ class PdfExportService {
       ),
     );
 
-    Directory? downloadsDir;
+    Directory dir;
     if (Platform.isAndroid) {
-      downloadsDir = Directory('/storage/emulated/0/Download');
-      if (!downloadsDir.existsSync()) {
-        downloadsDir = await getExternalStorageDirectory();
-      }
+      dir = (await getExternalStorageDirectory()) ?? await getApplicationDocumentsDirectory();
     } else {
-      downloadsDir = await getApplicationDocumentsDirectory();
+      dir = await getApplicationDocumentsDirectory();
     }
 
     final safeName = exam.fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
-    final filePath = '${downloadsDir!.path}/$safeName.pdf';
+    final filePath = '${dir.path}/$safeName.pdf';
     final file = File(filePath);
-    await file.writeAsBytes(await pdf.save());
+    await file.writeAsBytes(await pdf.save(), flush: true);
 
     return filePath;
   }
 
-  // بناء نص السؤال (عمود واحد أو عمودين)
   static pw.Widget _buildPdfQuestionContent(QuestionModel q, pw.Font ttf) {
     final fullText = q.spans.map((s) => s.text).join('');
 
@@ -431,18 +433,28 @@ class PdfExportService {
           } else if (kind == 'fraction') {
             final num = data['num'] ?? '';
             final den = data['den'] ?? '';
-            return pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(vertical: 2),
+            final int maxLen = num.length > den.length ? num.length : den.length;
+            final double lineWidth = (maxLen * 8.5) + 12.0;
+
+            return pw.Center(
               child: pw.Column(
                 mainAxisSize: pw.MainAxisSize.min,
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
                 children: [
-                  pw.Text(num,
-                      style: pw.TextStyle(
-                          font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold)),
-                  pw.Container(width: 40, height: 0.8, color: PdfColors.black),
-                  pw.Text(den,
-                      style: pw.TextStyle(
-                          font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(
+                    num,
+                    style: pw.TextStyle(font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                  ),
+                  pw.Container(
+                    width: lineWidth,
+                    height: 1.0,
+                    color: PdfColors.black,
+                    margin: const pw.EdgeInsets.symmetric(vertical: 1.5),
+                  ),
+                  pw.Text(
+                    den,
+                    style: pw.TextStyle(font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                  ),
                 ],
               ),
             );
