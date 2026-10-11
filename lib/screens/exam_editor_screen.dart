@@ -2118,7 +2118,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           title: const Text('تعديل الحقول الإدارية (اليمين)'),
           content: SingleChildScrollView(
             child: Column(
-              mainAxisSize: min,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
