@@ -9,6 +9,7 @@ import '../services/docx_generator_service.dart';
 import '../services/exam_storage_service.dart';
 import '../services/pdf_export_service.dart';
 import '../services/exam_share_service.dart';
+import '../widgets/exam_custom_keyboard.dart';
 
 class ExamEditorScreen extends StatefulWidget {
   final ExamModel initialExam;
@@ -1048,7 +1049,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             'اختر الإجابة الصحيحة من بين الأقواس لما يأتي:\n'
             '١ - ............ [ أ- .. ، ب- .. ]\n'
             '٢ - ............ [ أ- .. ، ب- .. ]\n'
-            '٣ - ............ [ أ- .. ، ب- .. ]\n'
+            '٣ - ............ [ أ- .. ]\n'
             '٤ - ............ [ أ- .. ، ب- .. ]',
         'mark': 8.0,
         'answer': '١- أ   ٢- ب   ٣- أ   ٤- ب',
@@ -1178,6 +1179,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     bool isTwoCols = q.isTwoColumns;
     List<InsertableElement> currentElements = List.from(q.elements);
 
+    // إدارة لوحة المفاتيح المدمجة
+    bool showCustomKeyboard = true;
+    TextEditingController activeFieldController = textCtrl;
+
     List<TextSpanModel> workingSpans = q.spans.isNotEmpty
         ? q.spans.map((s) => TextSpanModel(
               text: s.text,
@@ -1200,14 +1205,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     bool isUnderlineActive = false;
 
     void insertAtCursor(String symbol) {
-      final pos = textCtrl.selection.start;
+      final target = activeFieldController;
+      final pos = target.selection.start;
       if (pos >= 0) {
-        textCtrl.text =
-            textCtrl.text.replaceRange(pos, textCtrl.selection.end, symbol);
-        textCtrl.selection =
+        target.text =
+            target.text.replaceRange(pos, target.selection.end, symbol);
+        target.selection =
             TextSelection.collapsed(offset: pos + symbol.length);
       } else {
-        textCtrl.text += symbol;
+        target.text += symbol;
       }
     }
 
@@ -1483,363 +1489,415 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setModalState) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            left: 12,
-            right: 12,
-            top: 12,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: TextField(
-                          controller: titleCtrl,
-                          decoration: const InputDecoration(labelText: 'اسم السؤال (س١)')),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      flex: 1,
-                      child: TextField(
-                          controller: markCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: 'الدرجة')),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 4,
-                  children: [
-                    const Text('الاتجاه: ',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                    ChoiceChip(
-                      label: const Text('أفقي', style: TextStyle(fontSize: 11)),
-                      selected: orientation == QuestionTitleOrientation.horizontal,
-                      onSelected: (val) => setModalState(
-                          () => orientation = QuestionTitleOrientation.horizontal),
-                    ),
-                    ChoiceChip(
-                      label: const Text('رأسي ◄', style: TextStyle(fontSize: 11)),
-                      selected: orientation == QuestionTitleOrientation.verticalBottomToTop,
-                      onSelected: (val) => setModalState(() =>
-                          orientation = QuestionTitleOrientation.verticalBottomToTop),
-                    ),
-                    ChoiceChip(
-                      label: const Text('رأسي ►', style: TextStyle(fontSize: 11)),
-                      selected: orientation == QuestionTitleOrientation.verticalTopToBottom,
-                      onSelected: (val) => setModalState(() =>
-                          orientation = QuestionTitleOrientation.verticalTopToBottom),
-                    ),
-                    const SizedBox(width: 6),
-                    FilterChip(
-                      avatar: Icon(Icons.view_column, size: 14, color: isTwoCols ? Colors.white : Colors.black87),
-                      label: Text('عمودان (توفير مساحة)', style: TextStyle(fontSize: 11, color: isTwoCols ? Colors.white : Colors.black87)),
-                      selected: isTwoCols,
-                      selectedColor: const Color(0xFF0F766E),
-                      onSelected: (v) => setModalState(() => isTwoCols = v),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                Container(
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Row(
-                      children: [
-                        _buildBarBtn(
-                          text: 'عمودي ±',
-                          color: const Color(0xFFE11D48),
-                          tooltip: 'جمع / طرح عمودي متعدد الصفوف',
-                          onTap: () => showVerticalMathDialog(setModalState),
-                        ),
-                        _buildBarBtn(
-                          text: 'بسط/مقام',
-                          color: const Color(0xFF7C3AED),
-                          tooltip: 'كسر عربي اعتيادي',
-                          onTap: () => showArabicMathTemplates(setModalState),
-                        ),
-                        _buildBarBtn(
-                          icon: Icons.image_outlined,
-                          color: Colors.blueGrey.shade700,
-                          tooltip: 'إدراج صورة',
-                          onTap: () async {
-                            final img = await _picker.pickImage(source: ImageSource.gallery);
-                            if (img != null) {
-                              setModalState(() {
-                                currentElements.add(InsertableElement(
-                                  id: const Uuid().v4(),
-                                  type: ElementType.image,
-                                  content: img.path,
-                                  width: 90,
-                                  height: 90,
-                                ));
-                              });
-                            }
-                          },
-                        ),
-                        _buildBarBtn(
-                          icon: Icons.border_horizontal,
-                          color: Colors.blueGrey.shade700,
-                          tooltip: 'سطر إجابة',
-                          onTap: () {
-                            setModalState(() {
-                              currentElements.add(InsertableElement(
-                                id: const Uuid().v4(),
-                                type: ElementType.dottedLine,
-                                content: '......................................................................',
-                              ));
-                            });
-                          },
-                        ),
-                        _buildBarBtn(
-                          text: '( )',
-                          color: Colors.blueGrey.shade700,
-                          tooltip: 'أقواس خالية',
-                          onTap: () => setModalState(() => insertAtCursor('(   )')),
-                        ),
-                        _buildBarBtn(
-                          icon: Icons.check,
-                          color: const Color(0xFF0F766E),
-                          tooltip: 'علامة صح',
-                          onTap: () => setModalState(() => insertAtCursor('✔')),
-                        ),
-                        _buildBarBtn(
-                          icon: Icons.close,
-                          color: const Color(0xFFB91C1C),
-                          tooltip: 'علامة خطأ',
-                          onTap: () => setModalState(() => insertAtCursor('✘')),
-                        ),
-                        _buildBarBtn(
-                          icon: Icons.edit_note,
-                          color: const Color(0xFFD97706),
-                          tooltip: 'مربع إرشاد',
-                          onTap: () {
-                            _showTextBoxEntryDialog(context, (txt) {
-                              setModalState(() {
-                                currentElements.add(InsertableElement(
-                                  id: const Uuid().v4(),
-                                  type: ElementType.textBox,
-                                  content: txt,
-                                ));
-                              });
-                            });
-                          },
-                        ),
-                        _buildBarBtn(
-                          text: 'B',
-                          color: isBoldActive ? Colors.blue : Colors.blueGrey.shade800,
-                          tooltip: 'خط عريض للمحدد',
-                          onTap: () {
-                            setModalState(() {
-                              isBoldActive = !isBoldActive;
-                              applyFormatToSelection(bold: isBoldActive);
-                            });
-                          },
-                        ),
-                        _buildBarBtn(
-                          text: 'U',
-                          color: isUnderlineActive ? Colors.blue : Colors.blueGrey.shade800,
-                          tooltip: 'تسطير للمحدد',
-                          onTap: () {
-                            setModalState(() {
-                              isUnderlineActive = !isUnderlineActive;
-                              applyFormatToSelection(underline: isUnderlineActive);
-                            });
-                          },
-                        ),
-                        _buildBarBtn(
-                          text: 'x²',
-                          color: const Color(0xFF0284C7),
-                          tooltip: 'أس علوي',
-                          onTap: () => setModalState(() => insertAtCursor('²')),
-                        ),
-                        _buildBarBtn(
-                          text: 'x₂',
-                          color: const Color(0xFF0284C7),
-                          tooltip: 'صيغة كيميائية',
-                          onTap: () => setModalState(() => insertAtCursor('₂')),
-                        ),
-                        _buildBarBtn(
-                          text: 'ـ',
-                          color: Colors.blueGrey.shade800,
-                          tooltip: 'كشيدة تمديد',
-                          onTap: () => _insertTatweel(textCtrl),
-                        ),
-                        PopupMenuButton<String>(
-                          tooltip: 'نوع الخط للمحدد',
-                          child: Container(
-                            height: 38,
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            margin: const EdgeInsets.symmetric(horizontal: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF6366F1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Center(
-                              child: Text('خط',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12)),
+        builder: (context, setModalState) => SizedBox(
+          height: MediaQuery.of(ctx).size.height * 0.94,
+          child: Column(
+            children: [
+              // منطقة الحقول وأزرار التنسيق القابلة للتمرير
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              controller: titleCtrl,
+                              decoration: const InputDecoration(labelText: 'اسم السؤال (س١)'),
                             ),
                           ),
-                          onSelected: (val) {
-                            setModalState(() {
-                              currentFont = val;
-                              applyFormatToSelection(font: val);
-                            });
-                          },
-                          itemBuilder: (ctx) => [
-                            'Amiri',
-                            'Sultan',
-                            'Thuluth',
-                            'Traditional Arabic',
-                            'Arial'
-                          ].map((f) => PopupMenuItem(value: f, child: Text(f))).toList(),
-                        ),
-                        PopupMenuButton<double>(
-                          tooltip: 'حجم الخط للمحدد',
-                          child: Container(
-                            height: 38,
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            margin: const EdgeInsets.symmetric(horizontal: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF8B5CF6),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Center(
-                              child: Text('حجم',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 1,
+                            child: TextField(
+                              controller: markCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: 'الدرجة'),
                             ),
                           ),
-                          onSelected: (val) {
-                            setModalState(() {
-                              currentFontSize = val;
-                              applyFormatToSelection(size: val);
-                            });
-                          },
-                          itemBuilder: (ctx) => [12.0, 14.0, 16.0, 18.0, 20.0, 22.0]
-                              .map((s) => PopupMenuItem(
-                                  value: s, child: Text('${s.toInt()} نقطة')))
-                              .toList(),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 4,
+                        children: [
+                          const Text('الاتجاه: ',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          ChoiceChip(
+                            label: const Text('أفقي', style: TextStyle(fontSize: 11)),
+                            selected: orientation == QuestionTitleOrientation.horizontal,
+                            onSelected: (val) => setModalState(
+                                () => orientation = QuestionTitleOrientation.horizontal),
+                          ),
+                          ChoiceChip(
+                            label: const Text('رأسي ◄', style: TextStyle(fontSize: 11)),
+                            selected: orientation == QuestionTitleOrientation.verticalBottomToTop,
+                            onSelected: (val) => setModalState(() =>
+                                orientation = QuestionTitleOrientation.verticalBottomToTop),
+                          ),
+                          ChoiceChip(
+                            label: const Text('رأسي ►', style: TextStyle(fontSize: 11)),
+                            selected: orientation == QuestionTitleOrientation.verticalTopToBottom,
+                            onSelected: (val) => setModalState(() =>
+                                orientation = QuestionTitleOrientation.verticalTopToBottom),
+                          ),
+                          const SizedBox(width: 6),
+                          FilterChip(
+                            avatar: Icon(Icons.view_column, size: 14, color: isTwoCols ? Colors.white : Colors.black87),
+                            label: Text('عمودان (توفير مساحة)', style: TextStyle(fontSize: 11, color: isTwoCols ? Colors.white : Colors.black87)),
+                            selected: isTwoCols,
+                            selectedColor: const Color(0xFF0F766E),
+                            onSelected: (v) => setModalState(() => isTwoCols = v),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E293B),
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                        _buildBarBtn(
-                          text: 'رموز',
-                          color: const Color(0xFF0D9488),
-                          tooltip: 'لوحة الرموز والدوال',
-                          onTap: () => showSymbolsModal(setModalState),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Row(
+                            children: [
+                              _buildBarBtn(
+                                text: 'عمودي ±',
+                                color: const Color(0xFFE11D48),
+                                tooltip: 'جمع / طرح عمودي متعدد الصفوف',
+                                onTap: () => showVerticalMathDialog(setModalState),
+                              ),
+                              _buildBarBtn(
+                                text: 'بسط/مقام',
+                                color: const Color(0xFF7C3AED),
+                                tooltip: 'كسر عربي اعتيادي',
+                                onTap: () => showArabicMathTemplates(setModalState),
+                              ),
+                              _buildBarBtn(
+                                icon: Icons.image_outlined,
+                                color: Colors.blueGrey.shade700,
+                                tooltip: 'إدراج صورة',
+                                onTap: () async {
+                                  final img = await _picker.pickImage(source: ImageSource.gallery);
+                                  if (img != null) {
+                                    setModalState(() {
+                                      currentElements.add(InsertableElement(
+                                        id: const Uuid().v4(),
+                                        type: ElementType.image,
+                                        content: img.path,
+                                        width: 90,
+                                        height: 90,
+                                      ));
+                                    });
+                                  }
+                                },
+                              ),
+                              _buildBarBtn(
+                                icon: Icons.border_horizontal,
+                                color: Colors.blueGrey.shade700,
+                                tooltip: 'سطر إجابة',
+                                onTap: () {
+                                  setModalState(() {
+                                    currentElements.add(InsertableElement(
+                                      id: const Uuid().v4(),
+                                      type: ElementType.dottedLine,
+                                      content: '......................................................................',
+                                    ));
+                                  });
+                                },
+                              ),
+                              _buildBarBtn(
+                                text: '( )',
+                                color: Colors.blueGrey.shade700,
+                                tooltip: 'أقواس خالية',
+                                onTap: () => setModalState(() => insertAtCursor('(   )')),
+                              ),
+                              _buildBarBtn(
+                                icon: Icons.check,
+                                color: const Color(0xFF0F766E),
+                                tooltip: 'علامة صح',
+                                onTap: () => setModalState(() => insertAtCursor('✔')),
+                              ),
+                              _buildBarBtn(
+                                icon: Icons.close,
+                                color: const Color(0xFFB91C1C),
+                                tooltip: 'علامة خطأ',
+                                onTap: () => setModalState(() => insertAtCursor('✘')),
+                              ),
+                              _buildBarBtn(
+                                icon: Icons.edit_note,
+                                color: const Color(0xFFD97706),
+                                tooltip: 'مربع إرشاد',
+                                onTap: () {
+                                  _showTextBoxEntryDialog(context, (txt) {
+                                    setModalState(() {
+                                      currentElements.add(InsertableElement(
+                                        id: const Uuid().v4(),
+                                        type: ElementType.textBox,
+                                        content: txt,
+                                      ));
+                                    });
+                                  });
+                                },
+                              ),
+                              _buildBarBtn(
+                                text: 'B',
+                                color: isBoldActive ? Colors.blue : Colors.blueGrey.shade800,
+                                tooltip: 'خط عريض للمحدد',
+                                onTap: () {
+                                  setModalState(() {
+                                    isBoldActive = !isBoldActive;
+                                    applyFormatToSelection(bold: isBoldActive);
+                                  });
+                                },
+                              ),
+                              _buildBarBtn(
+                                text: 'U',
+                                color: isUnderlineActive ? Colors.blue : Colors.blueGrey.shade800,
+                                tooltip: 'تسطير للمحدد',
+                                onTap: () {
+                                  setModalState(() {
+                                    isUnderlineActive = !isUnderlineActive;
+                                    applyFormatToSelection(underline: isUnderlineActive);
+                                  });
+                                },
+                              ),
+                              _buildBarBtn(
+                                text: 'x²',
+                                color: const Color(0xFF0284C7),
+                                tooltip: 'أس علوي',
+                                onTap: () => setModalState(() => insertAtCursor('²')),
+                              ),
+                              _buildBarBtn(
+                                text: 'x₂',
+                                color: const Color(0xFF0284C7),
+                                tooltip: 'صيغة كيميائية',
+                                onTap: () => setModalState(() => insertAtCursor('₂')),
+                              ),
+                              _buildBarBtn(
+                                text: 'ـ',
+                                color: Colors.blueGrey.shade800,
+                                tooltip: 'كشيدة تمديد',
+                                onTap: () => _insertTatweel(activeFieldController),
+                              ),
+                              PopupMenuButton<String>(
+                                tooltip: 'نوع الخط للمحدد',
+                                child: Container(
+                                  height: 38,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF6366F1),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Center(
+                                    child: Text('خط',
+                                        style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12)),
+                                  ),
+                                ),
+                                onSelected: (val) {
+                                  setModalState(() {
+                                    currentFont = val;
+                                    applyFormatToSelection(font: val);
+                                  });
+                                },
+                                itemBuilder: (ctx) => [
+                                  'Amiri',
+                                  'Sultan',
+                                  'Thuluth',
+                                  'Traditional Arabic',
+                                  'Arial'
+                                ].map((f) => PopupMenuItem(value: f, child: Text(f))).toList(),
+                              ),
+                              PopupMenuButton<double>(
+                                tooltip: 'حجم الخط للمحدد',
+                                child: Container(
+                                  height: 38,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF8B5CF6),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Center(
+                                    child: Text('حجم',
+                                        style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12)),
+                                  ),
+                                ),
+                                onSelected: (val) {
+                                  setModalState(() {
+                                    currentFontSize = val;
+                                    applyFormatToSelection(size: val);
+                                  });
+                                },
+                                itemBuilder: (ctx) => [12.0, 14.0, 16.0, 18.0, 20.0, 22.0]
+                                    .map((s) => PopupMenuItem(
+                                        value: s, child: Text('${s.toInt()} نقطة')))
+                                    .toList(),
+                              ),
+                              _buildBarBtn(
+                                text: 'رموز',
+                                color: const Color(0xFF0D9488),
+                                tooltip: 'لوحة الرموز والدوال',
+                                onTap: () => showSymbolsModal(setModalState),
+                              ),
+                              _buildBarBtn(
+                                icon: showCustomKeyboard ? Icons.keyboard_hide : Icons.keyboard,
+                                color: const Color(0xFF475569),
+                                tooltip: showCustomKeyboard ? 'إخفاء لوحة المفاتيح' : 'إظهار لوحة المفاتيح',
+                                onTap: () => setModalState(() => showCustomKeyboard = !showCustomKeyboard),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // حقل كتابة نص السؤال (مدمج مع لوحة التطبيق بدون لوحة مفاتيح النظام)
+                      TextField(
+                        controller: textCtrl,
+                        readOnly: true,
+                        showCursor: true,
+                        maxLines: 4,
+                        onTap: () {
+                          setModalState(() {
+                            activeFieldController = textCtrl;
+                            showCustomKeyboard = true;
+                          });
+                        },
+                        decoration: InputDecoration(
+                          labelText: 'محتوى نص السؤال (اكتب مباشرة باستخدام لوحة المفاتيح أدناه)',
+                          border: const OutlineInputBorder(),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: activeFieldController == textCtrl ? const Color(0xFF1E3A8A) : Colors.grey,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // حقل كتابة الإجابة النموذجية (مدمج مع لوحة التطبيق)
+                      TextField(
+                        controller: answerCtrl,
+                        readOnly: true,
+                        showCursor: true,
+                        maxLines: 2,
+                        onTap: () {
+                          setModalState(() {
+                            activeFieldController = answerCtrl;
+                            showCustomKeyboard = true;
+                          });
+                        },
+                        decoration: InputDecoration(
+                          labelText: 'الإجابة النموذجية / مفتاح التصحيح (اختياري)',
+                          hintText: 'اضغط هنا للكتابة باستخدام لوحة المفاتيح أدناه...',
+                          prefixIcon: const Icon(Icons.verified, color: Color(0xFF0F766E)),
+                          filled: true,
+                          fillColor: Colors.teal.shade50.withOpacity(0.5),
+                          border: const OutlineInputBorder(),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: activeFieldController == answerCtrl ? const Color(0xFF0F766E) : Colors.grey,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      if (currentElements.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          children: currentElements.asMap().entries.map((entry) {
+                            final i = entry.key;
+                            final el = entry.value;
+                            String lbl = 'عنصر';
+                            if (el.type == ElementType.image) lbl = 'صورة مدرجة';
+                            if (el.type == ElementType.textBox) lbl = 'مربع إرشاد';
+                            if (el.type == ElementType.dottedLine) lbl = 'سطر إجابة';
+                            if (el.type == ElementType.mathOperation) lbl = 'عملية رياضية / كسر';
+
+                            return Chip(
+                              label: Text(lbl),
+                              onDeleted: () =>
+                                  setModalState(() => currentElements.removeAt(i)),
+                            );
+                          }).toList(),
                         ),
                       ],
-                    ),
+                      const SizedBox(height: 10),
+
+                      ElevatedButton(
+                        onPressed: () {
+                          final spansToSave = workingSpans.isNotEmpty &&
+                                  workingSpans.map((s) => s.text).join('') == textCtrl.text
+                              ? workingSpans
+                              : [
+                                  TextSpanModel(
+                                    text: textCtrl.text,
+                                    isBold: isBoldActive,
+                                    isUnderline: isUnderlineActive,
+                                    fontSize: currentFontSize,
+                                    fontFamily: currentFont,
+                                  )
+                                ];
+
+                          final newQ = QuestionModel(
+                            id: q.id,
+                            title: titleCtrl.text,
+                            titleOrientation: orientation,
+                            mark: double.tryParse(markCtrl.text) ?? 0.0,
+                            spans: spansToSave,
+                            elements: currentElements,
+                            answerKey: answerCtrl.text.trim(),
+                            isTwoColumns: isTwoCols,
+                          );
+
+                          setState(() {
+                            if (isEdit) {
+                              _exam.questions[questionIndex] = newQ;
+                            } else {
+                              _exam.questions.add(newQ);
+                            }
+                          });
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text('تأكيد السؤال وحفظ التنسيق'),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
+              ),
 
-                TextField(
-                  controller: textCtrl,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'محتوى نص السؤال (حدد جزءاً ثم اضغط على زر التنسيق أعلاه)',
-                    border: OutlineInputBorder(),
-                  ),
+              // لوحة المفاتيح الرياضية واللغوية المدمجة في أسفل النافذة
+              if (showCustomKeyboard)
+                ExamCustomKeyboard(
+                  controller: activeFieldController,
+                  onClose: () => setModalState(() => showCustomKeyboard = false),
                 ),
-                const SizedBox(height: 8),
-
-                TextField(
-                  controller: answerCtrl,
-                  maxLines: 2,
-                  decoration: InputDecoration(
-                    labelText: 'الإجابة النموذجية / مفتاح التصحيح (اختياري)',
-                    hintText: 'اكتب الحل المعتمد ليظهر في نموذج إجابة الكنترول...',
-                    prefixIcon: const Icon(Icons.verified, color: Color(0xFF0F766E)),
-                    filled: true,
-                    fillColor: Colors.teal.shade50.withOpacity(0.5),
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-
-                if (currentElements.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: currentElements.asMap().entries.map((entry) {
-                      final i = entry.key;
-                      final el = entry.value;
-                      String lbl = 'عنصر';
-                      if (el.type == ElementType.image) lbl = 'صورة مدرجة';
-                      if (el.type == ElementType.textBox) lbl = 'مربع إرشاد';
-                      if (el.type == ElementType.dottedLine) lbl = 'سطر إجابة';
-                      if (el.type == ElementType.mathOperation) lbl = 'عملية رياضية / كسر';
-
-                      return Chip(
-                        label: Text(lbl),
-                        onDeleted: () =>
-                            setModalState(() => currentElements.removeAt(i)),
-                      );
-                    }).toList(),
-                  ),
-                ],
-                const SizedBox(height: 12),
-
-                ElevatedButton(
-                  onPressed: () {
-                    final spansToSave = workingSpans.isNotEmpty &&
-                            workingSpans.map((s) => s.text).join('') == textCtrl.text
-                        ? workingSpans
-                        : [
-                            TextSpanModel(
-                              text: textCtrl.text,
-                              isBold: isBoldActive,
-                              isUnderline: isUnderlineActive,
-                              fontSize: currentFontSize,
-                              fontFamily: currentFont,
-                            )
-                          ];
-
-                    final newQ = QuestionModel(
-                      id: q.id,
-                      title: titleCtrl.text,
-                      titleOrientation: orientation,
-                      mark: double.tryParse(markCtrl.text) ?? 0.0,
-                      spans: spansToSave,
-                      elements: currentElements,
-                      answerKey: answerCtrl.text.trim(),
-                      isTwoColumns: isTwoCols,
-                    );
-
-                    setState(() {
-                      if (isEdit) {
-                        _exam.questions[questionIndex] = newQ;
-                      } else {
-                        _exam.questions.add(newQ);
-                      }
-                    });
-                    Navigator.pop(ctx);
-                  },
-                  child: const Text('تأكيد السؤال وحفظ التنسيق'),
-                ),
-                const SizedBox(height: 12),
-              ],
-            ),
+            ],
           ),
         ),
       ),
