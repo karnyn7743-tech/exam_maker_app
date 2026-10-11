@@ -261,24 +261,17 @@ class PdfExportService {
     return filePath;
   }
 
+  // بناء نص السؤال مع دعم الكسور المضمنة داخل السطر
   static pw.Widget _buildPdfQuestionContent(QuestionModel q, pw.Font ttf) {
     final fullText = q.spans.map((s) => s.text).join('');
 
     if (!q.isTwoColumns) {
-      return pw.Text(
-        fullText,
-        textAlign: pw.TextAlign.right,
-        style: pw.TextStyle(font: ttf, fontSize: 11, lineSpacing: 2),
-      );
+      return _renderInlineFractionText(fullText, ttf, fontSize: 11, lineSpacing: 2);
     }
 
     final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
     if (lines.length <= 1) {
-      return pw.Text(
-        fullText,
-        textAlign: pw.TextAlign.right,
-        style: pw.TextStyle(font: ttf, fontSize: 11, lineSpacing: 2),
-      );
+      return _renderInlineFractionText(fullText, ttf, fontSize: 11, lineSpacing: 2);
     }
 
     final intro = lines.first;
@@ -290,11 +283,7 @@ class PdfExportService {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
-        pw.Text(
-          intro,
-          textAlign: pw.TextAlign.right,
-          style: pw.TextStyle(font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold),
-        ),
+        _renderInlineFractionText(intro, ttf, fontSize: 11, isBold: true),
         pw.SizedBox(height: 3),
         pw.Row(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -305,9 +294,7 @@ class PdfExportService {
                 children: colRight
                     .map((item) => pw.Padding(
                           padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-                          child: pw.Text(item,
-                              textAlign: pw.TextAlign.right,
-                              style: pw.TextStyle(font: ttf, fontSize: 10)),
+                          child: _renderInlineFractionText(item, ttf, fontSize: 10),
                         ))
                     .toList(),
               ),
@@ -319,9 +306,7 @@ class PdfExportService {
                 children: colLeft
                     .map((item) => pw.Padding(
                           padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-                          child: pw.Text(item,
-                              textAlign: pw.TextAlign.right,
-                              style: pw.TextStyle(font: ttf, fontSize: 10)),
+                          child: _renderInlineFractionText(item, ttf, fontSize: 10),
                         ))
                     .toList(),
               ),
@@ -329,6 +314,95 @@ class PdfExportService {
           ],
         ),
       ],
+    );
+  }
+
+  // دالة تحويل وسوم [كسر:بسط/مقام] إلى عناصر رأسية مدمجة في نفس السطر
+  static pw.Widget _renderInlineFractionText(
+    String text,
+    pw.Font ttf, {
+    double fontSize = 11,
+    bool isBold = false,
+    double lineSpacing = 1.5,
+  }) {
+    final regExp = RegExp(r'\[كسر:(.*?)/(.*?)\]');
+    final matches = regExp.allMatches(text);
+
+    if (matches.isEmpty) {
+      return pw.Text(
+        text,
+        textAlign: pw.TextAlign.right,
+        style: pw.TextStyle(
+          font: ttf,
+          fontSize: fontSize,
+          fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
+          lineSpacing: lineSpacing,
+        ),
+      );
+    }
+
+    final List<pw.InlineSpan> spans = [];
+    int lastIdx = 0;
+
+    for (final m in matches) {
+      if (m.start > lastIdx) {
+        spans.add(pw.TextSpan(text: text.substring(lastIdx, m.start)));
+      }
+
+      final num = m.group(1) ?? '';
+      final den = m.group(2) ?? '';
+      final int maxLen = num.length > den.length ? num.length : den.length;
+      final double lineWidth = (maxLen * 7.0) + 6.0;
+
+      spans.add(
+        pw.WidgetSpan(
+          alignment: pw.PlaceholderAlignment.middle,
+          child: pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 2.5),
+            child: pw.Column(
+              mainAxisSize: pw.MainAxisSize.min,
+              children: [
+                pw.Text(
+                  num,
+                  style: pw.TextStyle(
+                    font: ttf,
+                    fontSize: fontSize * 0.85,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.Container(width: lineWidth, height: 0.8, color: PdfColors.black),
+                pw.Text(
+                  den,
+                  style: pw.TextStyle(
+                    font: ttf,
+                    fontSize: fontSize * 0.85,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      lastIdx = m.end;
+    }
+
+    if (lastIdx < text.length) {
+      spans.add(pw.TextSpan(text: text.substring(lastIdx)));
+    }
+
+    return pw.Text.rich(
+      pw.TextSpan(
+        children: spans,
+        style: pw.TextStyle(
+          font: ttf,
+          fontSize: fontSize,
+          fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
+          lineSpacing: lineSpacing,
+        ),
+      ),
+      textAlign: pw.TextAlign.right,
     );
   }
 
