@@ -179,17 +179,7 @@ class DocxGeneratorService {
         buffer.write('<w:p>');
         buffer.write('<w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:line="320" w:lineRule="auto"/></w:pPr>');
         for (final s in q.spans) {
-          buffer.write('<w:r>');
-          buffer.write('<w:rPr>');
-          buffer.write('<w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="${s.fontFamily}"/>');
-          buffer.write('<w:rtl/>');
-          if (s.isBold) buffer.write('<w:b/><w:bCs/>');
-          if (s.isUnderline) buffer.write('<w:u w:val="single"/>');
-          buffer.write('<w:sz w:val="${(s.fontSize * 2).toInt()}"/>');
-          buffer.write('<w:szCs w:val="${(s.fontSize * 2).toInt()}"/>');
-          buffer.write('</w:rPr>');
-          buffer.write('<w:t xml:space="preserve">${_xmlEscape(s.text)}</w:t>');
-          buffer.write('</w:r>');
+          buffer.write(_renderDocxInlineRunsWithFractions(s));
         }
         buffer.write('</w:p>');
       } else {
@@ -248,14 +238,61 @@ class DocxGeneratorService {
     return buffer.toString();
   }
 
+  // دعم تحويل النصوص ووسوم [كسر:بسط/مقام] إلى عناصر Word في نفس السطر
+  static String _renderDocxInlineRunsWithFractions(TextSpanModel s) {
+    final text = s.text;
+    final regExp = RegExp(r'\[كسر:(.*?)/(.*?)\]');
+    final matches = regExp.allMatches(text);
+
+    final fontXml = '<w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="${s.fontFamily}"/>';
+    final boldXml = s.isBold ? '<w:b/><w:bCs/>' : '';
+    final underlineXml = s.isUnderline ? '<w:u w:val="single"/>' : '';
+    final szVal = (s.fontSize * 2).toInt();
+    final rPr = '<w:rPr>$fontXml<w:rtl/>$boldXml$underlineXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr>';
+
+    if (matches.isEmpty) {
+      return '<w:r>$rPr<w:t xml:space="preserve">${_xmlEscape(text)}</w:t></w:r>';
+    }
+
+    final sb = StringBuffer();
+    int lastIdx = 0;
+
+    for (final m in matches) {
+      if (m.start > lastIdx) {
+        final part = text.substring(lastIdx, m.start);
+        sb.write('<w:r>$rPr<w:t xml:space="preserve">${_xmlEscape(part)}</w:t></w:r>');
+      }
+
+      final num = m.group(1) ?? '';
+      final den = m.group(2) ?? '';
+
+      // حقل الكسر الرأسي القياسي في Word المدمج في نفس السطر
+      sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>');
+      sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:instrText xml:space="preserve"> EQ \\f(${_xmlEscape(num)},${_xmlEscape(den)}) </w:instrText></w:r>');
+      sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r>');
+      sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:t xml:space="preserve">${_xmlEscape(num)}/${_xmlEscape(den)}</w:t></w:r>');
+      sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>');
+
+      lastIdx = m.end;
+    }
+
+    if (lastIdx < text.length) {
+      final part = text.substring(lastIdx);
+      sb.write('<w:r>$rPr<w:t xml:space="preserve">${_xmlEscape(part)}</w:t></w:r>');
+    }
+
+    return sb.toString();
+  }
+
   static String _buildDocxTwoColumnContent(QuestionModel q) {
     final fullText = q.spans.map((s) => s.text).join('');
     final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
 
     if (lines.length <= 1) {
-      return '<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>'
-          '<w:r><w:rPr><w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="Amiri"/><w:rtl/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>'
-          '<w:t xml:space="preserve">${_xmlEscape(fullText)}</w:t></w:r></w:p>';
+      final dummySpan = q.spans.isNotEmpty
+          ? q.spans.first
+          : TextSpanModel(text: fullText, fontSize: 11, fontFamily: 'Amiri');
+      return '<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>${_renderDocxInlineRunsWithFractions(dummySpan)}</w:p>';
     }
 
     final intro = lines.first;
@@ -266,9 +303,8 @@ class DocxGeneratorService {
 
     final sb = StringBuffer();
 
-    sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>');
-    sb.write('<w:r><w:rPr><w:b/><w:bCs/><w:rtl/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>');
-    sb.write('<w:t xml:space="preserve">${_xmlEscape(intro)}</w:t></w:r></w:p>');
+    final introSpan = TextSpanModel(text: intro, fontSize: 11, isBold: true, fontFamily: 'Amiri');
+    sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>${_renderDocxInlineRunsWithFractions(introSpan)}</w:p>');
 
     sb.write('<w:tbl>');
     sb.write('<w:tblPr>');
@@ -285,20 +321,19 @@ class DocxGeneratorService {
       final rightText = i < colRight.length ? colRight[i] : '';
       final leftText = i < colLeft.length ? colLeft[i] : '';
 
+      final rSpan = TextSpanModel(text: rightText, fontSize: 10.5, fontFamily: 'Amiri');
+      final lSpan = TextSpanModel(text: leftText, fontSize: 10.5, fontFamily: 'Amiri');
+
       sb.write('<w:tr>');
 
       sb.write('<w:tc>');
       sb.write('<w:tcPr><w:tcW w:w="3900" w:type="dxa"/></w:tcPr>');
-      sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>');
-      sb.write('<w:r><w:rPr><w:rtl/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr>');
-      sb.write('<w:t xml:space="preserve">${_xmlEscape(rightText)}</w:t></w:r></w:p>');
+      sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>${_renderDocxInlineRunsWithFractions(rSpan)}</w:p>');
       sb.write('</w:tc>');
 
       sb.write('<w:tc>');
       sb.write('<w:tcPr><w:tcW w:w="3900" w:type="dxa"/></w:tcPr>');
-      sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>');
-      sb.write('<w:r><w:rPr><w:rtl/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr>');
-      sb.write('<w:t xml:space="preserve">${_xmlEscape(leftText)}</w:t></w:r></w:p>');
+      sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>${_renderDocxInlineRunsWithFractions(lSpan)}</w:p>');
       sb.write('</w:tc>');
 
       sb.write('</w:tr>');
