@@ -688,21 +688,93 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
+  // دعم رسم الكسور مضمنة داخل السطر في موضع المؤشر تماماً
+  InlineSpan _buildInlineSpanWithFractions(String text, TextStyle baseStyle) {
+    final regExp = RegExp(r'\[كسر:(.*?)/(.*?)\]');
+    final matches = regExp.allMatches(text);
+
+    if (matches.isEmpty) {
+      return TextSpan(text: text, style: baseStyle);
+    }
+
+    List<InlineSpan> children = [];
+    int lastIndex = 0;
+
+    for (final match in matches) {
+      if (match.start > lastIndex) {
+        children.add(TextSpan(
+          text: text.substring(lastIndex, match.start),
+          style: baseStyle,
+        ));
+      }
+
+      final num = match.group(1) ?? '';
+      final den = match.group(2) ?? '';
+
+      children.add(
+        WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4.0),
+            child: IntrinsicWidth(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    num,
+                    textAlign: TextAlign.center,
+                    style: baseStyle.copyWith(
+                      fontSize: (baseStyle.fontSize ?? 14) * 0.85,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Container(
+                    height: 1.2,
+                    color: Colors.black87,
+                    margin: const EdgeInsets.symmetric(vertical: 1.0),
+                  ),
+                  Text(
+                    den,
+                    textAlign: TextAlign.center,
+                    style: baseStyle.copyWith(
+                      fontSize: (baseStyle.fontSize ?? 14) * 0.85,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < text.length) {
+      children.add(TextSpan(
+        text: text.substring(lastIndex),
+        style: baseStyle,
+      ));
+    }
+
+    return TextSpan(children: children);
+  }
+
   Widget _buildQuestionContent(QuestionModel q) {
     if (!q.isTwoColumns) {
       return Text.rich(
         TextSpan(
           children: q.spans.map((s) {
-            return TextSpan(
-              text: s.text,
-              style: TextStyle(
-                fontFamily: s.fontFamily,
-                fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
-                decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
-                fontSize: s.fontSize,
-                height: 1.5,
-              ),
+            final style = TextStyle(
+              fontFamily: s.fontFamily,
+              fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
+              decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
+              fontSize: s.fontSize,
+              height: 1.5,
             );
+            return _buildInlineSpanWithFractions(s.text, style);
           }).toList(),
         ),
         textAlign: TextAlign.right,
@@ -715,16 +787,16 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     if (lines.length <= 1) {
       return Text.rich(
         TextSpan(
-          children: q.spans.map((s) => TextSpan(
-            text: s.text,
-            style: TextStyle(
+          children: q.spans.map((s) {
+            final style = TextStyle(
               fontFamily: s.fontFamily,
               fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
               decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
               fontSize: s.fontSize,
               height: 1.5,
-            ),
-          )).toList(),
+            );
+            return _buildInlineSpanWithFractions(s.text, style);
+          }).toList(),
         ),
         textAlign: TextAlign.right,
       );
@@ -736,17 +808,24 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     final colRight = items.sublist(0, half);
     final colLeft = items.sublist(half);
 
+    final introStyle = TextStyle(
+      fontFamily: q.spans.isNotEmpty ? q.spans.first.fontFamily : 'Amiri',
+      fontWeight: FontWeight.bold,
+      fontSize: q.spans.isNotEmpty ? q.spans.first.fontSize : 14.0,
+      height: 1.5,
+    );
+
+    final itemStyle = TextStyle(
+      fontFamily: q.spans.isNotEmpty ? q.spans.first.fontFamily : 'Amiri',
+      fontSize: q.spans.isNotEmpty ? q.spans.first.fontSize : 13.0,
+      height: 1.4,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          intro,
-          style: TextStyle(
-            fontFamily: q.spans.isNotEmpty ? q.spans.first.fontFamily : 'Amiri',
-            fontWeight: FontWeight.bold,
-            fontSize: q.spans.isNotEmpty ? q.spans.first.fontSize : 14.0,
-            height: 1.5,
-          ),
+        Text.rich(
+          _buildInlineSpanWithFractions(intro, introStyle),
           textAlign: TextAlign.right,
         ),
         const SizedBox(height: 4),
@@ -758,13 +837,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: colRight.map((item) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text(
-                    item,
-                    style: TextStyle(
-                      fontFamily: q.spans.isNotEmpty ? q.spans.first.fontFamily : 'Amiri',
-                      fontSize: q.spans.isNotEmpty ? q.spans.first.fontSize : 13.0,
-                      height: 1.4,
-                    ),
+                  child: Text.rich(
+                    _buildInlineSpanWithFractions(item, itemStyle),
                     textAlign: TextAlign.right,
                   ),
                 )).toList(),
@@ -776,13 +850,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: colLeft.map((item) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text(
-                    item,
-                    style: TextStyle(
-                      fontFamily: q.spans.isNotEmpty ? q.spans.first.fontFamily : 'Amiri',
-                      fontSize: q.spans.isNotEmpty ? q.spans.first.fontSize : 13.0,
-                      height: 1.4,
-                    ),
+                  child: Text.rich(
+                    _buildInlineSpanWithFractions(item, itemStyle),
                     textAlign: TextAlign.right,
                   ),
                 )).toList(),
@@ -1375,14 +1444,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       );
     }
 
+    // إدراج الكسر مباشرة في نفس موضع المؤشر داخل السطر
     void showArabicMathTemplates(void Function(void Function()) setParentState) {
-      final numCtrl = TextEditingController(text: 'س');
-      final denCtrl = TextEditingController(text: 'س + ٢ص');
+      final numCtrl = TextEditingController(text: '١');
+      final denCtrl = TextEditingController(text: '٣');
 
       showDialog(
         context: context,
         builder: (dCtx) => AlertDialog(
-          title: const Text('إدراج كسر عربي اعتيادي (بسط / مقام)'),
+          title: const Text('إدراج كسر عربي في موضع المؤشر'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1395,21 +1465,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
             ElevatedButton(
               onPressed: () {
-                final jsonPayload = jsonEncode({
-                  'kind': 'fraction',
-                  'num': numCtrl.text,
-                  'den': denCtrl.text,
-                });
+                final tag = '[كسر:${numCtrl.text}/${denCtrl.text}]';
                 setParentState(() {
-                  currentElements.add(InsertableElement(
-                    id: const Uuid().v4(),
-                    type: ElementType.mathOperation,
-                    content: jsonPayload,
-                  ));
+                  insertAtCursor(' $tag ');
                 });
                 Navigator.pop(dCtx);
               },
-              child: const Text('إدراج الكسر'),
+              child: const Text('إدراج عند المؤشر'),
             ),
           ],
         ),
@@ -1583,7 +1645,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               _buildBarBtn(
                                 text: 'بسط/مقام',
                                 color: const Color(0xFF7C3AED),
-                                tooltip: 'كسر عربي اعتيادي',
+                                tooltip: 'كسر عربي اعتيادي في موضع المؤشر',
                                 onTap: () => showArabicMathTemplates(setModalState),
                               ),
                               _buildBarBtn(
@@ -2056,7 +2118,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           title: const Text('تعديل الحقول الإدارية (اليمين)'),
           content: SingleChildScrollView(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: min,
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
