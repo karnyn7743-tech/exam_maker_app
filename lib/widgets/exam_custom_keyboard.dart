@@ -74,16 +74,20 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFF1E293B),
-      padding: const EdgeInsets.only(top: 4, bottom: 6, left: 4, right: 4),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildTopBar(),
-          const SizedBox(height: 4),
-          _buildActiveLayout(),
-        ],
+    // إجبار لوحة المفاتيح بالكامل على اتجاه LTR لمنع قلب المفاتيح 180 درجة
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Container(
+        color: const Color(0xFF1E293B),
+        padding: const EdgeInsets.only(top: 4, bottom: 6, left: 4, right: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildTopBar(),
+            const SizedBox(height: 4),
+            _buildActiveLayout(),
+          ],
+        ),
       ),
     );
   }
@@ -92,6 +96,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           _buildModeTab('عربي', KeyboardMode.arabic),
           _buildModeTab('English', KeyboardMode.english),
@@ -113,7 +118,14 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
       child: ChoiceChip(
-        label: Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.black87)),
+        label: Text(
+          title,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: isSelected ? Colors.white : Colors.black87,
+          ),
+        ),
         selected: isSelected,
         selectedColor: const Color(0xFF2563EB),
         backgroundColor: Colors.grey.shade300,
@@ -140,13 +152,13 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     }
   }
 
-  // 1. لوحة الحروف والأرقام العربية
+  // 1. لوحة الحروف والأرقام العربية مرتبة قياسياً
   Widget _buildArabicLayout() {
     final rows = [
       ['١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '٠'],
-      ['ض', 'ص', 'ث', 'ق', 'ف', 'غ', 'ع', 'ه', 'خ', 'ح', 'ج', 'د'],
-      ['ش', 'س', 'ي', 'ب', 'ل', 'ا', 'ت', 'ن', 'م', 'ك', 'ط'],
-      ['ئ', 'ء', 'ؤ', 'ر', 'لا', 'ى', 'ة', 'و', 'ز', 'ظ', 'ذ'],
+      ['د', 'ج', 'ح', 'خ', 'ه', 'ع', 'غ', 'ف', 'ق', 'ث', 'ص', 'ض'],
+      ['ط', 'ك', 'م', 'ن', 'ت', 'ا', 'ل', 'ب', 'ي', 'س', 'ش'],
+      ['ذ', 'ظ', 'ز', 'و', 'ة', 'ى', 'لا', 'ر', 'ؤ', 'ء', 'ئ'],
     ];
 
     return Column(
@@ -157,7 +169,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     );
   }
 
-  // 2. لوحة الحروف والأرقام الإنجليزية
+  // 2. لوحة الحروف والأرقام الإنجليزية QWERTY
   Widget _buildEnglishLayout() {
     final nums = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
     final r1 = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'];
@@ -210,7 +222,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     );
   }
 
-  // 4. لوحة الرياضيات الإنجليزية (Scientific Math)
+  // 4. لوحة الرياضيات الإنجليزية
   Widget _buildMathEnglishLayout() {
     final rows = [
       ['x', 'y', 'z', 'a', 'b', 'c', 'f(x)', 'lim', 'log', 'ln'],
@@ -227,12 +239,12 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     );
   }
 
-  // 5. لوحة الأسس والصيغ الكيميائية والرموز
+  // 5. لوحة الأسس والصيغ الكيميائية
   Widget _buildSymbolsLayout() {
     final rows = [
-      ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'], // أسس
-      ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉'], // صيغ كيميائية
-      ['∈', '∉', '⊂', '⊄', '∪', '∩', '∅', '←', '→', '↔'], // مجموعات وأسهم
+      ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'],
+      ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉'],
+      ['∈', '∉', '⊂', '⊄', '∪', '∩', '∅', '←', '→', '↔'],
       ['✔', '✘', '°', '·', ':', '؟', '!', '"', '«', '»'],
     ];
 
@@ -308,7 +320,14 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
             alignment: Alignment.center,
             child: icon != null
                 ? Icon(icon, color: Colors.white, size: 18)
-                : Text(label ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                : Text(
+                    label ?? '',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
           ),
         ),
       ),
