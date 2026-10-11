@@ -10,7 +10,6 @@ class PdfExportService {
   static Future<String> exportToDownloadsPdf(ExamModel exam) async {
     final pdf = pw.Document();
 
-    // تحميل الخط من الأصول المحلية مباشرة
     ByteData fontData;
     try {
       fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
@@ -261,7 +260,7 @@ class PdfExportService {
     return filePath;
   }
 
-  // بناء نص السؤال مع دعم الكسور المضمنة داخل السطر
+  // بناء نص السؤال مع دعم الكسور المضمنة
   static pw.Widget _buildPdfQuestionContent(QuestionModel q, pw.Font ttf) {
     final fullText = q.spans.map((s) => s.text).join('');
 
@@ -317,7 +316,7 @@ class PdfExportService {
     );
   }
 
-  // دالة تحويل وسوم [كسر:بسط/مقام] إلى عناصر رأسية مدمجة في نفس السطر
+  // دالة تحويل وسوم [كسر:بسط/مقام] متوافقة 100% مع حزمة pdf (استخدام pw.RichText)
   static pw.Widget _renderInlineFractionText(
     String text,
     pw.Font ttf, {
@@ -356,7 +355,6 @@ class PdfExportService {
 
       spans.add(
         pw.WidgetSpan(
-          alignment: pw.PlaceholderAlignment.middle,
           child: pw.Padding(
             padding: const pw.EdgeInsets.symmetric(horizontal: 2.5),
             child: pw.Column(
@@ -392,8 +390,9 @@ class PdfExportService {
       spans.add(pw.TextSpan(text: text.substring(lastIdx)));
     }
 
-    return pw.Text.rich(
-      pw.TextSpan(
+    return pw.RichText(
+      textAlign: pw.TextAlign.right,
+      text: pw.TextSpan(
         children: spans,
         style: pw.TextStyle(
           font: ttf,
@@ -402,7 +401,6 @@ class PdfExportService {
           lineSpacing: lineSpacing,
         ),
       ),
-      textAlign: pw.TextAlign.right,
     );
   }
 
