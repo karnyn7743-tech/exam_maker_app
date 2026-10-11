@@ -74,7 +74,6 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
 
   @override
   Widget build(BuildContext context) {
-    // إجبار لوحة المفاتيح بالكامل على اتجاه LTR لمنع قلب المفاتيح 180 درجة
     return Directionality(
       textDirection: TextDirection.ltr,
       child: Container(
@@ -152,24 +151,35 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     }
   }
 
-  // 1. لوحة الحروف والأرقام العربية مرتبة قياسياً
+  // 1. لوحة الحروف العربية القياسية (مطابقة تماماً للوحة مفاتيح الجوال والكمبيوتر من اليسار لليمين)
   Widget _buildArabicLayout() {
-    final rows = [
-      ['١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '٠'],
-      ['د', 'ج', 'ح', 'خ', 'ه', 'ع', 'غ', 'ف', 'ق', 'ث', 'ص', 'ض'],
-      ['ط', 'ك', 'م', 'ن', 'ت', 'ا', 'ل', 'ب', 'ي', 'س', 'ش'],
-      ['ذ', 'ظ', 'ز', 'و', 'ة', 'ى', 'لا', 'ر', 'ؤ', 'ء', 'ئ'],
-    ];
+    final nums = ['١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '٠'];
+    final r1 = ['ض', 'ص', 'ث', 'ق', 'ف', 'غ', 'ع', 'ه', 'خ', 'ح', 'ج', 'د'];
+    final r2 = ['ش', 'س', 'ي', 'ب', 'ل', 'ا', 'ت', 'ن', 'م', 'ك', 'ط'];
+    final r3 = ['ئ', 'ء', 'ؤ', 'ر', 'لا', 'ى', 'ة', 'و', 'ز', 'ظ', 'ذ'];
 
     return Column(
       children: [
-        ...rows.map((row) => _buildRow(row)),
-        _buildBottomControlRow(),
+        _buildRow(nums),
+        _buildRow(r1),
+        _buildRow(r2),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ...r3.map((k) => _buildKey(k)),
+            _buildSpecialKey(
+              icon: Icons.backspace_outlined,
+              color: Colors.red.shade900,
+              onTap: _backspace,
+            ),
+          ],
+        ),
+        _buildBottomControlRow(excludeBackspace: true),
       ],
     );
   }
 
-  // 2. لوحة الحروف والأرقام الإنجليزية QWERTY
+  // 2. لوحة الإنجليزية القياسية QWERTY
   Widget _buildEnglishLayout() {
     final nums = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
     final r1 = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'];
@@ -207,51 +217,84 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
 
   // 3. لوحة الرياضيات العربية
   Widget _buildMathArabicLayout() {
-    final rows = [
-      ['س', 'ص', 'ع', 'د', 'ن', 'ل', 'ك', 'ق', 'ط', 'هـ'],
-      ['نهـا', 'مجـ', 'جا', 'جتا', 'ظا', 'ظتا', 'قا', 'قتا', 'لو', '∆'],
-      ['⎷', '½', '¼', '¾', 'س²', 'ص²', 'س³', 'ص³', 'ـ', '(   )'],
-      ['+', '-', '×', '÷', '=', '≠', '≈', '<', '>', '±'],
-    ];
+    final r1 = ['س', 'ص', 'ع', 'د', 'ن', 'ل', 'ك', 'ق', 'ط', 'هـ'];
+    final r2 = ['نهـا', 'مجـ', 'جا', 'جتا', 'ظا', 'ظتا', 'قا', 'قتا', 'لو', '∆'];
+    final r3 = ['⎷', '½', '¼', '¾', 'س²', 'ص²', 'س³', 'ص³', 'ـ', '(   )'];
+    final r4 = ['+', '-', '×', '÷', '=', '≠', '≈', '<', '>', '±'];
 
     return Column(
       children: [
-        ...rows.map((row) => _buildRow(row)),
-        _buildBottomControlRow(),
+        _buildRow(r1),
+        _buildRow(r2),
+        _buildRow(r3),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ...r4.map((k) => _buildKey(k)),
+            _buildSpecialKey(
+              icon: Icons.backspace_outlined,
+              color: Colors.red.shade900,
+              onTap: _backspace,
+            ),
+          ],
+        ),
+        _buildBottomControlRow(excludeBackspace: true),
       ],
     );
   }
 
-  // 4. لوحة الرياضيات الإنجليزية
+  // 4. لوحة الرياضيات الإنجليزية (Scientific Math)
   Widget _buildMathEnglishLayout() {
-    final rows = [
-      ['x', 'y', 'z', 'a', 'b', 'c', 'f(x)', 'lim', 'log', 'ln'],
-      ['sin', 'cos', 'tan', 'π', 'θ', 'α', 'β', 'λ', 'μ', 'Δ'],
-      ['√', '∫', '∑', '∞', 'x²', 'y²', 'xⁿ', '(', ')', '[   ]'],
-      ['+', '-', '×', '÷', '=', '≠', '≤', '≥', '±', '%'],
-    ];
+    final r1 = ['x', 'y', 'z', 'a', 'b', 'c', 'f(x)', 'lim', 'log', 'ln'];
+    final r2 = ['sin', 'cos', 'tan', 'π', 'θ', 'α', 'β', 'λ', 'μ', 'Δ'];
+    final r3 = ['√', '∫', '∑', '∞', 'x²', 'y²', 'xⁿ', '(', ')', '[   ]'];
+    final r4 = ['+', '-', '×', '÷', '=', '≠', '≤', '≥', '±', '%'];
 
     return Column(
       children: [
-        ...rows.map((row) => _buildRow(row)),
-        _buildBottomControlRow(),
+        _buildRow(r1),
+        _buildRow(r2),
+        _buildRow(r3),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ...r4.map((k) => _buildKey(k)),
+            _buildSpecialKey(
+              icon: Icons.backspace_outlined,
+              color: Colors.red.shade900,
+              onTap: _backspace,
+            ),
+          ],
+        ),
+        _buildBottomControlRow(excludeBackspace: true),
       ],
     );
   }
 
-  // 5. لوحة الأسس والصيغ الكيميائية
+  // 5. لوحة الرموز والأسس
   Widget _buildSymbolsLayout() {
-    final rows = [
-      ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'],
-      ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉'],
-      ['∈', '∉', '⊂', '⊄', '∪', '∩', '∅', '←', '→', '↔'],
-      ['✔', '✘', '°', '·', ':', '؟', '!', '"', '«', '»'],
-    ];
+    final r1 = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
+    final r2 = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉'];
+    final r3 = ['∈', '∉', '⊂', '⊄', '∪', '∩', '∅', '←', '→', '↔'];
+    final r4 = ['✔', '✘', '°', '·', ':', '؟', '!', '"', '«', '»'];
 
     return Column(
       children: [
-        ...rows.map((row) => _buildRow(row)),
-        _buildBottomControlRow(),
+        _buildRow(r1),
+        _buildRow(r2),
+        _buildRow(r3),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ...r4.map((k) => _buildKey(k)),
+            _buildSpecialKey(
+              icon: Icons.backspace_outlined,
+              color: Colors.red.shade900,
+              onTap: _backspace,
+            ),
+          ],
+        ),
+        _buildBottomControlRow(excludeBackspace: true),
       ],
     );
   }
