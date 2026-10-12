@@ -688,9 +688,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // دعم رسم الكسور والجذور الممتدة هندسياً (عربي RTL وإنجليزي LTR) مباشرة عند موضع المؤشر
+  // دعم رسم الكسور والجذور الممتدة لجميع الرتب (تربيعي، تكعيبي، نوني) هندسياً (RTL و LTR)
   InlineSpan _buildInlineSpanWithFractions(String text, TextStyle baseStyle) {
-    final regExp = RegExp(r'\[(كسر|جذر|sqrt):(.*?)(?:/(.*?))?\]');
+    final regExp = RegExp(r'\[(كسر|جذر|sqrt):(.*?)\]');
     final matches = regExp.allMatches(text);
 
     if (matches.isEmpty) {
@@ -709,10 +709,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       }
 
       final type = match.group(1);
-      final param1 = match.group(2) ?? '';
-      final param2 = match.group(3) ?? '';
+      final rawContent = match.group(2) ?? '';
 
       if (type == 'كسر') {
+        final parts = rawContent.split('/');
+        final num = parts.isNotEmpty ? parts[0] : '';
+        final den = parts.length > 1 ? parts[1] : '';
+
         children.add(
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
@@ -724,7 +727,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      param1,
+                      num,
                       textAlign: TextAlign.center,
                       style: baseStyle.copyWith(
                         fontSize: (baseStyle.fontSize ?? 14) * 0.85,
@@ -737,7 +740,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       margin: const EdgeInsets.symmetric(vertical: 1.0),
                     ),
                     Text(
-                      param2,
+                      den,
                       textAlign: TextAlign.center,
                       style: baseStyle.copyWith(
                         fontSize: (baseStyle.fontSize ?? 14) * 0.85,
@@ -751,50 +754,92 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
         );
       } else if (type == 'جذر') {
-        // جذر عربي RTL هندسي متصل: يبدأ من اليمين ويمتد سقفه لليسار فوق المقدار كاملاً
+        final parts = rawContent.split(':');
+        final String degree = parts.length > 1 ? parts[0] : '';
+        final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
+
         children.add(
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
             child: Directionality(
               textDirection: TextDirection.rtl,
               child: IntrinsicWidth(
-                child: CustomPaint(
-                  painter: _ArabicRadicalPainter(color: baseStyle.color ?? Colors.black87),
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 4.0, right: 10.0, left: 4.0, bottom: 2.0),
-                    child: Text(
-                      param1,
-                      style: baseStyle.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: (baseStyle.fontSize ?? 14) * 0.95,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (degree.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 0.0, left: 1.5),
+                        child: Text(
+                          degree,
+                          style: baseStyle.copyWith(
+                            fontSize: (baseStyle.fontSize ?? 14) * 0.70,
+                            fontWeight: FontWeight.bold,
+                            height: 0.9,
+                          ),
+                        ),
+                      ),
+                    CustomPaint(
+                      painter: _ArabicRadicalPainter(color: baseStyle.color ?? Colors.black87),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4.0, right: 10.0, left: 4.0, bottom: 2.0),
+                        child: Text(
+                          radicand,
+                          style: baseStyle.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: (baseStyle.fontSize ?? 14) * 0.95,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
           ),
         );
       } else if (type == 'sqrt') {
-        // جذر إنجليزي LTR هندسي متصل: يبدأ من اليسار ويمتد سقفه لليمين
+        final parts = rawContent.split(':');
+        final String degree = parts.length > 1 ? parts[0] : '';
+        final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
+
         children.add(
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
             child: Directionality(
               textDirection: TextDirection.ltr,
               child: IntrinsicWidth(
-                child: CustomPaint(
-                  painter: _EnglishRadicalPainter(color: baseStyle.color ?? Colors.black87),
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 4.0, left: 10.0, right: 4.0, bottom: 2.0),
-                    child: Text(
-                      param1,
-                      style: baseStyle.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: (baseStyle.fontSize ?? 14) * 0.95,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (degree.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 0.0, right: 1.5),
+                        child: Text(
+                          degree,
+                          style: baseStyle.copyWith(
+                            fontSize: (baseStyle.fontSize ?? 14) * 0.70,
+                            fontWeight: FontWeight.bold,
+                            height: 0.9,
+                          ),
+                        ),
+                      ),
+                    CustomPaint(
+                      painter: _EnglishRadicalPainter(color: baseStyle.color ?? Colors.black87),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4.0, left: 10.0, right: 4.0, bottom: 2.0),
+                        child: Text(
+                          radicand,
+                          style: baseStyle.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: (baseStyle.fontSize ?? 14) * 0.95,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
@@ -1531,13 +1576,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     void showSymbolsModal(void Function(void Function()) setParentState) {
       final Map<String, List<String>> categories = {
-        'رياضيات عربية RTL': ['[جذر:س]', '[جذر:٢٥]', 'نهـا', 'مجـ', 'تـ', 'ط', 'هـ', '∆', 'س', 'ص', 'ع', 'د', 'ل', 'ك', 'ن', 'ق'],
+        'رياضيات عربية RTL': ['[جذر:س]', '[جذر:٢٥]', '[جذر:٣:٢٧]', 'نهـا', 'مجـ', 'تـ', 'ط', 'هـ', '∆', 'س', 'ص', 'ع', 'د', 'ل', 'ك', 'ن', 'ق'],
         'إحصاء وفيزياء': ['س̄', 'ع', 'ر', 'ف', 'كجم', 'نيوتن', 'جول', 'م/ث', 'أوم', 'فولت', 'أمبير', 'سم³', 'م²'],
         'تقييم وأقواس': ['✔', '✘', '✓', '✗', '(   )', '[   ]', '○', '●', '□', '■', '« »'],
         'أسس علوية (س²)': ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹', '⁺', '⁻', 'ⁿ', 'ˣ', 'ʸ'],
         'صيغ كيميائية (H₂O)': ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉', '₊', '₋', 'ₐ', 'ₑ', 'ₒ', 'ₓ'],
         'عمليات ومقارنات': ['×', '÷', '+', '-', '=', '≠', '≈', '<', '>', '≤', '≥', '±'],
-        'دوال وجذور': ['[sqrt:x]', '[sqrt:25]', '∛', '∜', 'π', '∞', '%', '°', '½', '¼', '¾', '∑', '∫'],
+        'دوال وجذور': ['[sqrt:x]', '[sqrt:25]', '[sqrt:3:27]', 'π', '∞', '%', '°', '½', '¼', '¾', '∑', '∫'],
         'أسهم وتوجيه': ['←', '→', '↑', '↓', '↔', '⇐', '⇒', '⇔'],
       };
 
