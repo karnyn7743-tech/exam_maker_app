@@ -47,6 +47,34 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     }
   }
 
+  // إدراج قالب وسومي ووضع المؤشر في المنتصف داخله للكتابة الفورية
+  void _insertTemplateTag(String prefix, String suffix) {
+    final c = widget.controller;
+    final selection = c.selection;
+    final currentText = c.text;
+    final fullInserted = prefix + suffix;
+
+    if (!selection.isValid || selection.isCollapsed) {
+      final pos = selection.isValid ? selection.start : currentText.length;
+      final newText = currentText.substring(0, pos) + fullInserted + currentText.substring(pos);
+      c.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: pos + prefix.length),
+      );
+    } else {
+      final selectedContent = currentText.substring(selection.start, selection.end);
+      final newText = currentText.replaceRange(
+        selection.start,
+        selection.end,
+        prefix + selectedContent + suffix,
+      );
+      c.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: selection.start + prefix.length + selectedContent.length),
+      );
+    }
+  }
+
   void _backspace() {
     final c = widget.controller;
     final selection = c.selection;
@@ -151,7 +179,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     }
   }
 
-  // 1. لوحة الحروف العربية القياسية (مطابقة تماماً للوحة مفاتيح الجوال والكمبيوتر من اليسار لليمين)
+  // 1. لوحة الحروف العربية القياسية
   Widget _buildArabicLayout() {
     final nums = ['١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '٠'];
     final r1 = ['ض', 'ص', 'ث', 'ق', 'ف', 'غ', 'ع', 'ه', 'خ', 'ح', 'ج', 'د'];
@@ -215,18 +243,52 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     );
   }
 
-  // 3. لوحة الرياضيات العربية
+  // 3. لوحة الرياضيات العربية مع إدراج الجذر الممتد [جذر: ]
   Widget _buildMathArabicLayout() {
     final r1 = ['س', 'ص', 'ع', 'د', 'ن', 'ل', 'ك', 'ق', 'ط', 'هـ'];
     final r2 = ['نهـا', 'مجـ', 'جا', 'جتا', 'ظا', 'ظتا', 'قا', 'قتا', 'لو', '∆'];
-    final r3 = ['⎷', '½', '¼', '¾', 'س²', 'ص²', 'س³', 'ص³', 'ـ', '(   )'];
+    final r3 = ['½', '¼', '¾', 'س²', 'ص²', 'س³', 'ص³', 'ـ', '(   )'];
     final r4 = ['+', '-', '×', '÷', '=', '≠', '≈', '<', '>', '±'];
 
     return Column(
       children: [
         _buildRow(r1),
         _buildRow(r2),
-        _buildRow(r3),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // زر الجذر العربي الممتد
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                child: InkWell(
+                  onTap: () => _insertTemplateTag('[جذر:', ']'),
+                  borderRadius: BorderRadius.circular(4),
+                  child: Container(
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0284C7),
+                      borderRadius: BorderRadius.circular(4),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black26, offset: Offset(0, 1), blurRadius: 1),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: const Text(
+                      '⎷ـ',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            ...r3.map((k) => _buildKey(k)),
+          ],
+        ),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -243,18 +305,52 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     );
   }
 
-  // 4. لوحة الرياضيات الإنجليزية (Scientific Math)
+  // 4. لوحة الرياضيات الإنجليزية مع إدراج الجذر الممتد [sqrt: ]
   Widget _buildMathEnglishLayout() {
     final r1 = ['x', 'y', 'z', 'a', 'b', 'c', 'f(x)', 'lim', 'log', 'ln'];
     final r2 = ['sin', 'cos', 'tan', 'π', 'θ', 'α', 'β', 'λ', 'μ', 'Δ'];
-    final r3 = ['√', '∫', '∑', '∞', 'x²', 'y²', 'xⁿ', '(', ')', '[   ]'];
+    final r3 = ['∫', '∑', '∞', 'x²', 'y²', 'xⁿ', '(', ')', '[   ]'];
     final r4 = ['+', '-', '×', '÷', '=', '≠', '≤', '≥', '±', '%'];
 
     return Column(
       children: [
         _buildRow(r1),
         _buildRow(r2),
-        _buildRow(r3),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // زر الجذر اللاتيني الممتد
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                child: InkWell(
+                  onTap: () => _insertTemplateTag('[sqrt:', ']'),
+                  borderRadius: BorderRadius.circular(4),
+                  child: Container(
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0284C7),
+                      borderRadius: BorderRadius.circular(4),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black26, offset: Offset(0, 1), blurRadius: 1),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: const Text(
+                      '√x',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            ...r3.map((k) => _buildKey(k)),
+          ],
+        ),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -363,14 +459,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
             alignment: Alignment.center,
             child: icon != null
                 ? Icon(icon, color: Colors.white, size: 18)
-                : Text(
-                    label ?? '',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
+                : Text(label ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
           ),
         ),
       ),
