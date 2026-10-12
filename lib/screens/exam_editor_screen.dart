@@ -688,7 +688,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // دعم رسم الكسور والجذور الممتدة (عربي RTL وإنجليزي LTR) مباشرة عند موضع المؤشر
+  // دعم رسم الكسور والجذور الممتدة هندسياً (عربي RTL وإنجليزي LTR) مباشرة عند موضع المؤشر
   InlineSpan _buildInlineSpanWithFractions(String text, TextStyle baseStyle) {
     final regExp = RegExp(r'\[(كسر|جذر|sqrt):(.*?)(?:/(.*?))?\]');
     final matches = regExp.allMatches(text);
@@ -751,44 +751,24 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
         );
       } else if (type == 'جذر') {
-        // جذر عربي RTL: يفتح لليمين وسقفه يمتد يساراً فوق المقدار بالكامل
+        // جذر عربي RTL هندسي متصل: يبدأ من اليمين ويمتد سقفه لليسار فوق المقدار كاملاً
         children.add(
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 3.0),
-              child: Directionality(
-                textDirection: TextDirection.rtl,
-                child: IntrinsicWidth(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '⎷',
-                        style: baseStyle.copyWith(
-                          fontSize: (baseStyle.fontSize ?? 14) * 1.35,
-                          fontWeight: FontWeight.bold,
-                          height: 0.9,
-                        ),
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: IntrinsicWidth(
+                child: CustomPaint(
+                  painter: _ArabicRadicalPainter(color: baseStyle.color ?? Colors.black87),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 4.0, right: 10.0, left: 4.0, bottom: 2.0),
+                    child: Text(
+                      param1,
+                      style: baseStyle.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize: (baseStyle.fontSize ?? 14) * 0.95,
                       ),
-                      Container(
-                        margin: const EdgeInsets.only(top: 2),
-                        decoration: const BoxDecoration(
-                          border: Border(
-                            top: BorderSide(color: Colors.black87, width: 1.3),
-                          ),
-                        ),
-                        padding: const EdgeInsets.only(top: 1, left: 3, right: 3),
-                        child: Text(
-                          param1,
-                          style: baseStyle.copyWith(
-                            fontWeight: FontWeight.bold,
-                            fontSize: (baseStyle.fontSize ?? 14) * 0.95,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -796,44 +776,24 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
         );
       } else if (type == 'sqrt') {
-        // جذر إنجليزي LTR: يفتح لليسار وسقفه يمتد يميناً فوق المقدار بالكامل
+        // جذر إنجليزي LTR هندسي متصل: يبدأ من اليسار ويمتد سقفه لليمين
         children.add(
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 3.0),
-              child: Directionality(
-                textDirection: TextDirection.ltr,
-                child: IntrinsicWidth(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '√',
-                        style: baseStyle.copyWith(
-                          fontSize: (baseStyle.fontSize ?? 14) * 1.35,
-                          fontWeight: FontWeight.bold,
-                          height: 0.9,
-                        ),
+            child: Directionality(
+              textDirection: TextDirection.ltr,
+              child: IntrinsicWidth(
+                child: CustomPaint(
+                  painter: _EnglishRadicalPainter(color: baseStyle.color ?? Colors.black87),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 4.0, left: 10.0, right: 4.0, bottom: 2.0),
+                    child: Text(
+                      param1,
+                      style: baseStyle.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize: (baseStyle.fontSize ?? 14) * 0.95,
                       ),
-                      Container(
-                        margin: const EdgeInsets.only(top: 2),
-                        decoration: const BoxDecoration(
-                          border: Border(
-                            top: BorderSide(color: Colors.black87, width: 1.3),
-                          ),
-                        ),
-                        padding: const EdgeInsets.only(top: 1, left: 3, right: 3),
-                        child: Text(
-                          param1,
-                          style: baseStyle.copyWith(
-                            fontWeight: FontWeight.bold,
-                            fontSize: (baseStyle.fontSize ?? 14) * 0.95,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -2521,4 +2481,77 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       ),
     );
   }
+}
+
+// أداة رسم خط الجذر العربي المتصل هندسياً (RTL)
+class _ArabicRadicalPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+
+  _ArabicRadicalPainter({
+    this.color = Colors.black87,
+    this.strokeWidth = 1.6,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final path = Path();
+    final startX = size.width;
+    final bottomY = size.height - 2;
+
+    // بداية الجذر من اليمين
+    path.moveTo(startX, bottomY - 6);
+    path.lineTo(startX - 3, bottomY);
+    path.lineTo(startX - 7, 2);
+    // سقف الجذر ممتد يساراً فوق المقدار
+    path.lineTo(0, 2);
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// أداة رسم خط الجذر الإنجليزي المتصل هندسياً (LTR)
+class _EnglishRadicalPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+
+  _EnglishRadicalPainter({
+    this.color = Colors.black87,
+    this.strokeWidth = 1.6,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final path = Path();
+    final bottomY = size.height - 2;
+
+    // بداية الجذر من اليسار
+    path.moveTo(0, bottomY - 6);
+    path.lineTo(3, bottomY);
+    path.lineTo(7, 2);
+    // سقف الجذر ممتد يميناً فوق المقدار
+    path.lineTo(size.width, 2);
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
