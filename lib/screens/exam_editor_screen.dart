@@ -688,7 +688,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // دعم رسم الكسور والجذور والعمليات العمودية المضمنة في السطر
+  // دعم رسم الكسور والجذور والعمليات العمودية المضمنة في السطر ومحاذاة المنازل لليمين مع وضع الإشارة قبل الآحاد
   InlineSpan _buildInlineSpanWithFractions(String text, TextStyle baseStyle) {
     final regExp = RegExp(r'\[(كسر|جذر|sqrt|عمودي):(.*?)\]');
     final matches = regExp.allMatches(text);
@@ -854,49 +854,61 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
-              child: IntrinsicWidth(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    ...numbers.asMap().entries.map((entry) {
-                      final idx = entry.key;
-                      final val = entry.value;
-                      final isLast = idx == numbers.length - 1;
+              padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 3.0),
+              child: Directionality(
+                textDirection: TextDirection.rtl,
+                child: IntrinsicWidth(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ...numbers.asMap().entries.map((entry) {
+                        final idx = entry.key;
+                        final val = entry.value;
+                        final isLast = idx == numbers.length - 1;
 
-                      return Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (isLast)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 4.0),
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            // 1. عمود يمين: رمز العملية قبل الآحاد في آخر سطر فقط
+                            SizedBox(
+                              width: 16,
+                              child: isLast
+                                  ? Text(
+                                      op,
+                                      textAlign: TextAlign.center,
+                                      style: baseStyle.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: (baseStyle.fontSize ?? 14) * 1.15,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(width: 4),
+                            // 2. عمود يسار: الأعداد محاذاة لليمين لتتطابق خانات الآحاد تحت الآحاد
+                            Expanded(
                               child: Text(
-                                op,
+                                val,
+                                textAlign: TextAlign.right,
                                 style: baseStyle.copyWith(
                                   fontWeight: FontWeight.bold,
                                   fontSize: (baseStyle.fontSize ?? 14) * 1.1,
+                                  letterSpacing: 2.0,
+                                  fontFamily: 'Amiri',
                                 ),
                               ),
                             ),
-                          Text(
-                            val,
-                            style: baseStyle.copyWith(
-                              fontWeight: FontWeight.bold,
-                              fontSize: (baseStyle.fontSize ?? 14) * 1.05,
-                              letterSpacing: 1.5,
-                              fontFamily: 'Amiri',
-                            ),
-                          ),
-                        ],
-                      );
-                    }),
-                    Container(
-                      margin: const EdgeInsets.only(top: 2.0, bottom: 6.0),
-                      height: 1.5,
-                      color: Colors.black87,
-                    ),
-                  ],
+                          ],
+                        );
+                      }),
+                      Container(
+                        margin: const EdgeInsets.only(top: 3.0, bottom: 6.0),
+                        height: 1.5,
+                        color: Colors.black87,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
