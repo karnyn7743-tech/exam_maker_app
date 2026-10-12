@@ -518,7 +518,6 @@ class PdfExportService {
 
         spans.add(
           pw.WidgetSpan(
-            alignment: pw.PlaceholderAlignment.middle,
             child: pw.Padding(
               padding: const pw.EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
               child: pw.Column(
