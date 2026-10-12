@@ -340,7 +340,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             const SizedBox(width: 8),
             OutlinedButton.icon(
               icon: const Icon(Icons.auto_awesome, color: Color(0xFF1E3A8A)),
-              label: const Text('قوالب جاهزة', style: TextStyle(Color(0xFF1E3A8A))),
+              label: const Text('قوالب جاهزة', style: TextStyle(color: Color(0xFF1E3A8A))),
               onPressed: () => _showQuestionTemplatesDialog(),
             ),
             const SizedBox(width: 12),
@@ -2364,7 +2364,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         builder: (context, setDlgState) => AlertDialog(
           title: const Text('تعديل عنوان الاختبار الرئيسي'),
           content: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: min,
             children: [
               TextField(
                 controller: cTitle,
