@@ -340,7 +340,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             const SizedBox(width: 8),
             OutlinedButton.icon(
               icon: const Icon(Icons.auto_awesome, color: Color(0xFF1E3A8A)),
-              label: const Text('قوالب جاهزة', style: TextStyle(color: Color(0xFF1E3A8A))),
+              label: const Text('قوالب جاهزة', style: TextStyle(Color(0xFF1E3A8A))),
               onPressed: () => _showQuestionTemplatesDialog(),
             ),
             const SizedBox(width: 12),
@@ -688,9 +688,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // دعم رسم الكسور مضمنة داخل السطر في موضع المؤشر تماماً
+  // دعم رسم الكسور والجذور الممتدة (عربي RTL وإنجليزي LTR) مباشرة عند موضع المؤشر
   InlineSpan _buildInlineSpanWithFractions(String text, TextStyle baseStyle) {
-    final regExp = RegExp(r'\[كسر:(.*?)/(.*?)\]');
+    final regExp = RegExp(r'\[(كسر|جذر|sqrt):(.*?)(?:/(.*?))?\]');
     final matches = regExp.allMatches(text);
 
     if (matches.isEmpty) {
@@ -708,46 +708,139 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         ));
       }
 
-      final num = match.group(1) ?? '';
-      final den = match.group(2) ?? '';
+      final type = match.group(1);
+      final param1 = match.group(2) ?? '';
+      final param2 = match.group(3) ?? '';
 
-      children.add(
-        WidgetSpan(
-          alignment: PlaceholderAlignment.middle,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4.0),
-            child: IntrinsicWidth(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    num,
-                    textAlign: TextAlign.center,
-                    style: baseStyle.copyWith(
-                      fontSize: (baseStyle.fontSize ?? 14) * 0.85,
-                      fontWeight: FontWeight.bold,
+      if (type == 'كسر') {
+        children.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+              child: IntrinsicWidth(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      param1,
+                      textAlign: TextAlign.center,
+                      style: baseStyle.copyWith(
+                        fontSize: (baseStyle.fontSize ?? 14) * 0.85,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  Container(
-                    height: 1.2,
-                    color: Colors.black87,
-                    margin: const EdgeInsets.symmetric(vertical: 1.0),
-                  ),
-                  Text(
-                    den,
-                    textAlign: TextAlign.center,
-                    style: baseStyle.copyWith(
-                      fontSize: (baseStyle.fontSize ?? 14) * 0.85,
-                      fontWeight: FontWeight.bold,
+                    Container(
+                      height: 1.2,
+                      color: Colors.black87,
+                      margin: const EdgeInsets.symmetric(vertical: 1.0),
                     ),
-                  ),
-                ],
+                    Text(
+                      param2,
+                      textAlign: TextAlign.center,
+                      style: baseStyle.copyWith(
+                        fontSize: (baseStyle.fontSize ?? 14) * 0.85,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
+      } else if (type == 'جذر') {
+        // جذر عربي RTL: يفتح لليمين وسقفه يمتد يساراً فوق المقدار بالكامل
+        children.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3.0),
+              child: Directionality(
+                textDirection: TextDirection.rtl,
+                child: IntrinsicWidth(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '⎷',
+                        style: baseStyle.copyWith(
+                          fontSize: (baseStyle.fontSize ?? 14) * 1.35,
+                          fontWeight: FontWeight.bold,
+                          height: 0.9,
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(top: 2),
+                        decoration: const BoxDecoration(
+                          border: Border(
+                            top: BorderSide(color: Colors.black87, width: 1.3),
+                          ),
+                        ),
+                        padding: const EdgeInsets.only(top: 1, left: 3, right: 3),
+                        child: Text(
+                          param1,
+                          style: baseStyle.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: (baseStyle.fontSize ?? 14) * 0.95,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      } else if (type == 'sqrt') {
+        // جذر إنجليزي LTR: يفتح لليسار وسقفه يمتد يميناً فوق المقدار بالكامل
+        children.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3.0),
+              child: Directionality(
+                textDirection: TextDirection.ltr,
+                child: IntrinsicWidth(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '√',
+                        style: baseStyle.copyWith(
+                          fontSize: (baseStyle.fontSize ?? 14) * 1.35,
+                          fontWeight: FontWeight.bold,
+                          height: 0.9,
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(top: 2),
+                        decoration: const BoxDecoration(
+                          border: Border(
+                            top: BorderSide(color: Colors.black87, width: 1.3),
+                          ),
+                        ),
+                        padding: const EdgeInsets.only(top: 1, left: 3, right: 3),
+                        child: Text(
+                          param1,
+                          style: baseStyle.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: (baseStyle.fontSize ?? 14) * 0.95,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
 
       lastIndex = match.end;
     }
@@ -1248,7 +1341,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     bool isTwoCols = q.isTwoColumns;
     List<InsertableElement> currentElements = List.from(q.elements);
 
-    // إدارة لوحة المفاتيح المدمجة
     bool showCustomKeyboard = true;
     TextEditingController activeFieldController = textCtrl;
 
@@ -1444,7 +1536,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       );
     }
 
-    // إدراج الكسر مباشرة في نفس موضع المؤشر داخل السطر
     void showArabicMathTemplates(void Function(void Function()) setParentState) {
       final numCtrl = TextEditingController(text: '١');
       final denCtrl = TextEditingController(text: '٣');
@@ -1480,13 +1571,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     void showSymbolsModal(void Function(void Function()) setParentState) {
       final Map<String, List<String>> categories = {
-        'رياضيات عربية RTL': ['⎷', 'نهـا', 'مجـ', 'تـ', 'ط', 'هـ', '∆', 'س', 'ص', 'ع', 'د', 'ل', 'ك', 'ن', 'ق'],
+        'رياضيات عربية RTL': ['[جذر:س]', '[جذر:٢٥]', 'نهـا', 'مجـ', 'تـ', 'ط', 'هـ', '∆', 'س', 'ص', 'ع', 'د', 'ل', 'ك', 'ن', 'ق'],
         'إحصاء وفيزياء': ['س̄', 'ع', 'ر', 'ف', 'كجم', 'نيوتن', 'جول', 'م/ث', 'أوم', 'فولت', 'أمبير', 'سم³', 'م²'],
         'تقييم وأقواس': ['✔', '✘', '✓', '✗', '(   )', '[   ]', '○', '●', '□', '■', '« »'],
         'أسس علوية (س²)': ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹', '⁺', '⁻', 'ⁿ', 'ˣ', 'ʸ'],
         'صيغ كيميائية (H₂O)': ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉', '₊', '₋', 'ₐ', 'ₑ', 'ₒ', 'ₓ'],
         'عمليات ومقارنات': ['×', '÷', '+', '-', '=', '≠', '≈', '<', '>', '≤', '≥', '±'],
-        'دوال وجذور': ['√', '∛', '∜', 'π', '∞', '%', '°', '½', '¼', '¾', '∑', '∫'],
+        'دوال وجذور': ['[sqrt:x]', '[sqrt:25]', '∛', '∜', 'π', '∞', '%', '°', '½', '¼', '¾', '∑', '∫'],
         'أسهم وتوجيه': ['←', '→', '↑', '↓', '↔', '⇐', '⇒', '⇔'],
       };
 
@@ -1532,7 +1623,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               child: Center(
                                 child: Text(sym,
                                     style: const TextStyle(
-                                        fontSize: 18, fontWeight: FontWeight.bold)),
+                                        fontSize: 16, fontWeight: FontWeight.bold)),
                               ),
                             ),
                           );
@@ -1560,7 +1651,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           height: MediaQuery.of(ctx).size.height * 0.94,
           child: Column(
             children: [
-              // منطقة الحقول وأزرار التنسيق القابلة للتمرير
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(12),
@@ -1647,6 +1737,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 color: const Color(0xFF7C3AED),
                                 tooltip: 'كسر عربي اعتيادي في موضع المؤشر',
                                 onTap: () => showArabicMathTemplates(setModalState),
+                              ),
+                              _buildBarBtn(
+                                text: '⎷ـ',
+                                color: const Color(0xFF0284C7),
+                                tooltip: 'إدراج جذر عربي ممتد',
+                                onTap: () => setModalState(() => insertAtCursor('[جذر:٢٥]')),
                               ),
                               _buildBarBtn(
                                 icon: Icons.image_outlined,
@@ -1834,7 +1930,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ),
                       const SizedBox(height: 8),
 
-                      // حقل كتابة نص السؤال (مدمج مع لوحة التطبيق بدون لوحة مفاتيح النظام)
                       TextField(
                         controller: textCtrl,
                         readOnly: true,
@@ -1859,7 +1954,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ),
                       const SizedBox(height: 8),
 
-                      // حقل كتابة الإجابة النموذجية (مدمج مع لوحة التطبيق)
                       TextField(
                         controller: answerCtrl,
                         readOnly: true,
@@ -1953,7 +2047,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
               ),
 
-              // لوحة المفاتيح الرياضية واللغوية المدمجة في أسفل النافذة
               if (showCustomKeyboard)
                 ExamCustomKeyboard(
                   controller: activeFieldController,
