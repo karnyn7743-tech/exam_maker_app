@@ -179,7 +179,7 @@ class DocxGeneratorService {
         buffer.write('<w:p>');
         buffer.write('<w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:line="320" w:lineRule="auto"/></w:pPr>');
         for (final s in q.spans) {
-          buffer.write(_renderDocxInlineRunsWithFractions(s));
+          buffer.write(_renderDocxInlineRunsWithMath(s));
         }
         buffer.write('</w:p>');
       } else {
@@ -238,10 +238,10 @@ class DocxGeneratorService {
     return buffer.toString();
   }
 
-  // دعم تحويل النصوص ووسوم [كسر:بسط/مقام] إلى عناصر Word في نفس السطر
-  static String _renderDocxInlineRunsWithFractions(TextSpanModel s) {
+  // دعم تحويل النصوص ووسوم [كسر:بسط/مقام] و [جذر:المقدار] و [sqrt:expr] إلى عناصر Word في نفس السطر
+  static String _renderDocxInlineRunsWithMath(TextSpanModel s) {
     final text = s.text;
-    final regExp = RegExp(r'\[كسر:(.*?)/(.*?)\]');
+    final regExp = RegExp(r'\[(كسر|جذر|sqrt):(.*?)(?:/(.*?))?\]');
     final matches = regExp.allMatches(text);
 
     final fontXml = '<w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="${s.fontFamily}"/>';
@@ -263,15 +263,26 @@ class DocxGeneratorService {
         sb.write('<w:r>$rPr<w:t xml:space="preserve">${_xmlEscape(part)}</w:t></w:r>');
       }
 
-      final num = m.group(1) ?? '';
-      final den = m.group(2) ?? '';
+      final type = m.group(1);
+      final param1 = m.group(2) ?? '';
+      final param2 = m.group(3) ?? '';
 
-      // حقل الكسر الرأسي القياسي في Word المدمج في نفس السطر
-      sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>');
-      sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:instrText xml:space="preserve"> EQ \\f(${_xmlEscape(num)},${_xmlEscape(den)}) </w:instrText></w:r>');
-      sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r>');
-      sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:t xml:space="preserve">${_xmlEscape(num)}/${_xmlEscape(den)}</w:t></w:r>');
-      sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>');
+      if (type == 'كسر') {
+        // حقل الكسر الرأسي القياسي في Word
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:instrText xml:space="preserve"> EQ \\f(${_xmlEscape(param1)},${_xmlEscape(param2)}) </w:instrText></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:t xml:space="preserve">${_xmlEscape(param1)}/${_xmlEscape(param2)}</w:t></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>');
+      } else if (type == 'جذر' || type == 'sqrt') {
+        // حقل الجذر الممتد القياسي في Word: EQ \r(المقدار) ليمتد السقف تلقائياً فوق ما تحته
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:instrText xml:space="preserve"> EQ \\r(${_xmlEscape(param1)}) </w:instrText></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r>');
+        final prefix = type == 'جذر' ? '⎷' : '√';
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:t xml:space="preserve">$prefix${_xmlEscape(param1)}</w:t></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>');
+      }
 
       lastIdx = m.end;
     }
@@ -292,7 +303,7 @@ class DocxGeneratorService {
       final dummySpan = q.spans.isNotEmpty
           ? q.spans.first
           : TextSpanModel(text: fullText, fontSize: 11, fontFamily: 'Amiri');
-      return '<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>${_renderDocxInlineRunsWithFractions(dummySpan)}</w:p>';
+      return '<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>${_renderDocxInlineRunsWithMath(dummySpan)}</w:p>';
     }
 
     final intro = lines.first;
@@ -304,7 +315,7 @@ class DocxGeneratorService {
     final sb = StringBuffer();
 
     final introSpan = TextSpanModel(text: intro, fontSize: 11, isBold: true, fontFamily: 'Amiri');
-    sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>${_renderDocxInlineRunsWithFractions(introSpan)}</w:p>');
+    sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>${_renderDocxInlineRunsWithMath(introSpan)}</w:p>');
 
     sb.write('<w:tbl>');
     sb.write('<w:tblPr>');
@@ -328,12 +339,12 @@ class DocxGeneratorService {
 
       sb.write('<w:tc>');
       sb.write('<w:tcPr><w:tcW w:w="3900" w:type="dxa"/></w:tcPr>');
-      sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>${_renderDocxInlineRunsWithFractions(rSpan)}</w:p>');
+      sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>${_renderDocxInlineRunsWithMath(rSpan)}</w:p>');
       sb.write('</w:tc>');
 
       sb.write('<w:tc>');
       sb.write('<w:tcPr><w:tcW w:w="3900" w:type="dxa"/></w:tcPr>');
-      sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>${_renderDocxInlineRunsWithFractions(lSpan)}</w:p>');
+      sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>${_renderDocxInlineRunsWithMath(lSpan)}</w:p>');
       sb.write('</w:tc>');
 
       sb.write('</w:tr>');
