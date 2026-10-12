@@ -262,7 +262,7 @@ class DocxGeneratorService {
     return sb.toString();
   }
 
-  // رصف أسطر العمليات العمودية المتجاورة داخل جدول غير مرئي في Word
+  // رصف أسطر العمليات العمودية المتجاورة داخل جدول غير مرئي في Word ومحاذاة الآحاد لليمين مع وضع الإشارة قبلها
   static String _renderDocxLineWithVerticalOps(String line) {
     final regExp = RegExp(r'\[عمودي:(.*?)\]');
     final matches = regExp.allMatches(line).toList();
@@ -295,10 +295,11 @@ class DocxGeneratorService {
       for (int i = 0; i < numbers.length; i++) {
         final isLast = i == numbers.length - 1;
         final val = numbers[i];
-        final lineStr = isLast ? '$op $val' : val;
+        // وضع الإشارة قبل الآحاد في السطر الأخير مع ترك فراغ مساوٍ في الأسطر السابقة
+        final lineStr = isLast ? '$op  $val' : '    $val';
 
         sb.write('<w:p>');
-        sb.write('<w:pPr><w:bidi/><w:jc w:val="center"/>');
+        sb.write('<w:pPr><w:bidi/><w:jc w:val="right"/>');
         if (isLast) {
           sb.write('<w:pBdr><w:bottom w:val="single" w:sz="8" w:space="1" w:color="000000"/></w:pBdr>');
         }
@@ -308,7 +309,7 @@ class DocxGeneratorService {
       }
 
       // سطر فارغ تحت العملية للإجابة
-      sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="center"/><w:spacing w:before="60"/></w:pPr></w:p>');
+      sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:before="60"/></w:pPr></w:p>');
       sb.write('</w:tc>');
     }
 
@@ -486,8 +487,8 @@ class DocxGeneratorService {
           }
           sb.write('</w:tcPr>');
 
-          final prefix = (!opOnRight && isLast) ? '$op ' : '';
-          final suffix = (opOnRight && isLast) ? ' $op' : '';
+          final prefix = (opOnRight && isLast) ? '$op ' : '';
+          final suffix = (!opOnRight && isLast) ? ' $op' : '';
           final line = '$prefix$val$suffix';
 
           sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>');
