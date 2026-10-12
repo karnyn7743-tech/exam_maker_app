@@ -238,10 +238,10 @@ class DocxGeneratorService {
     return buffer.toString();
   }
 
-  // دعم تحويل النصوص ووسوم [كسر:بسط/مقام] و [جذر:المقدار] و [sqrt:expr] إلى عناصر Word في نفس السطر
+  // دعم تحويل النصوص ووسوم [كسر:بسط/مقام] و [جذر:المقدار] و [جذر:رتبة:مقدار] و [sqrt:...] إلى عناصر Word القياسية
   static String _renderDocxInlineRunsWithMath(TextSpanModel s) {
     final text = s.text;
-    final regExp = RegExp(r'\[(كسر|جذر|sqrt):(.*?)(?:/(.*?))?\]');
+    final regExp = RegExp(r'\[(كسر|جذر|sqrt):(.*?)\]');
     final matches = regExp.allMatches(text);
 
     final fontXml = '<w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="${s.fontFamily}"/>';
@@ -264,23 +264,35 @@ class DocxGeneratorService {
       }
 
       final type = m.group(1);
-      final param1 = m.group(2) ?? '';
-      final param2 = m.group(3) ?? '';
+      final rawContent = m.group(2) ?? '';
 
       if (type == 'كسر') {
+        final parts = rawContent.split('/');
+        final num = parts.isNotEmpty ? parts[0] : '';
+        final den = parts.length > 1 ? parts[1] : '';
+
         // حقل الكسر الرأسي القياسي في Word
         sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>');
-        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:instrText xml:space="preserve"> EQ \\f(${_xmlEscape(param1)},${_xmlEscape(param2)}) </w:instrText></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:instrText xml:space="preserve"> EQ \\f(${_xmlEscape(num)},${_xmlEscape(den)}) </w:instrText></w:r>');
         sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r>');
-        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:t xml:space="preserve">${_xmlEscape(param1)}/${_xmlEscape(param2)}</w:t></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:t xml:space="preserve">${_xmlEscape(num)}/${_xmlEscape(den)}</w:t></w:r>');
         sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>');
       } else if (type == 'جذر' || type == 'sqrt') {
-        // حقل الجذر الممتد القياسي في Word: EQ \r(المقدار) ليمتد السقف تلقائياً فوق ما تحته
+        final parts = rawContent.split(':');
+        final String degree = parts.length > 1 ? parts[0] : '';
+        final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
+
+        // في Word: إذا وجدت رتبة تكون EQ \r(degree, radicand) وإذا لم توجد تكون EQ \r(radicand)
+        final eqInstruction = degree.isNotEmpty
+            ? ' EQ \\r(${_xmlEscape(degree)},${_xmlEscape(radicand)}) '
+            : ' EQ \\r(${_xmlEscape(radicand)}) ';
+
         sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>');
-        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:instrText xml:space="preserve"> EQ \\r(${_xmlEscape(param1)}) </w:instrText></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:instrText xml:space="preserve">$eqInstruction</w:instrText></w:r>');
         sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r>');
         final prefix = type == 'جذر' ? '⎷' : '√';
-        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:t xml:space="preserve">$prefix${_xmlEscape(param1)}</w:t></w:r>');
+        final fallback = degree.isNotEmpty ? '$prefix($degree)$radicand' : '$prefix$radicand';
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:t xml:space="preserve">${_xmlEscape(fallback)}</w:t></w:r>');
         sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>');
       }
 
