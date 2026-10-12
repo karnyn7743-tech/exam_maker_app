@@ -2467,7 +2467,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         builder: (context, setDlgState) => AlertDialog(
           title: const Text('تنسيق وتحرير البسملة'),
           content: Column(
-            mainAxisSize: min,
+            mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: cBasmala,
