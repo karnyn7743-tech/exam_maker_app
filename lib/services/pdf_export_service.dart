@@ -260,17 +260,17 @@ class PdfExportService {
     return filePath;
   }
 
-  // بناء نص السؤال مع دعم الكسور المضمنة
+  // بناء نص السؤال مع دعم الكسور والجذور المضمنة
   static pw.Widget _buildPdfQuestionContent(QuestionModel q, pw.Font ttf) {
     final fullText = q.spans.map((s) => s.text).join('');
 
     if (!q.isTwoColumns) {
-      return _renderInlineFractionText(fullText, ttf, fontSize: 11, lineSpacing: 2);
+      return _renderInlineMathText(fullText, ttf, fontSize: 11, lineSpacing: 2);
     }
 
     final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
     if (lines.length <= 1) {
-      return _renderInlineFractionText(fullText, ttf, fontSize: 11, lineSpacing: 2);
+      return _renderInlineMathText(fullText, ttf, fontSize: 11, lineSpacing: 2);
     }
 
     final intro = lines.first;
@@ -282,7 +282,7 @@ class PdfExportService {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
-        _renderInlineFractionText(intro, ttf, fontSize: 11, isBold: true),
+        _renderInlineMathText(intro, ttf, fontSize: 11, isBold: true),
         pw.SizedBox(height: 3),
         pw.Row(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -293,7 +293,7 @@ class PdfExportService {
                 children: colRight
                     .map((item) => pw.Padding(
                           padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-                          child: _renderInlineFractionText(item, ttf, fontSize: 10),
+                          child: _renderInlineMathText(item, ttf, fontSize: 10),
                         ))
                     .toList(),
               ),
@@ -305,7 +305,7 @@ class PdfExportService {
                 children: colLeft
                     .map((item) => pw.Padding(
                           padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-                          child: _renderInlineFractionText(item, ttf, fontSize: 10),
+                          child: _renderInlineMathText(item, ttf, fontSize: 10),
                         ))
                     .toList(),
               ),
@@ -316,15 +316,15 @@ class PdfExportService {
     );
   }
 
-  // دالة تحويل وسوم [كسر:بسط/مقام] متوافقة 100% مع حزمة pdf (استخدام pw.RichText)
-  static pw.Widget _renderInlineFractionText(
+  // دالة تحويل وسوم [كسر:بسط/مقام] و [جذر:المقدار] و [sqrt:expr] إلى عناصر PDF مدمجة في نفس السطر
+  static pw.Widget _renderInlineMathText(
     String text,
     pw.Font ttf, {
     double fontSize = 11,
     bool isBold = false,
     double lineSpacing = 1.5,
   }) {
-    final regExp = RegExp(r'\[كسر:(.*?)/(.*?)\]');
+    final regExp = RegExp(r'\[(كسر|جذر|sqrt):(.*?)(?:/(.*?))?\]');
     final matches = regExp.allMatches(text);
 
     if (matches.isEmpty) {
@@ -348,40 +348,130 @@ class PdfExportService {
         spans.add(pw.TextSpan(text: text.substring(lastIdx, m.start)));
       }
 
-      final num = m.group(1) ?? '';
-      final den = m.group(2) ?? '';
-      final int maxLen = num.length > den.length ? num.length : den.length;
-      final double lineWidth = (maxLen * 7.0) + 6.0;
+      final type = m.group(1);
+      final param1 = m.group(2) ?? '';
+      final param2 = m.group(3) ?? '';
 
-      spans.add(
-        pw.WidgetSpan(
-          child: pw.Padding(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 2.5),
-            child: pw.Column(
-              mainAxisSize: pw.MainAxisSize.min,
-              children: [
-                pw.Text(
-                  num,
-                  style: pw.TextStyle(
-                    font: ttf,
-                    fontSize: fontSize * 0.85,
-                    fontWeight: pw.FontWeight.bold,
+      if (type == 'كسر') {
+        final int maxLen = param1.length > param2.length ? param1.length : param2.length;
+        final double lineWidth = (maxLen * 7.0) + 6.0;
+
+        spans.add(
+          pw.WidgetSpan(
+            child: pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 2.5),
+              child: pw.Column(
+                mainAxisSize: pw.MainAxisSize.min,
+                children: [
+                  pw.Text(
+                    param1,
+                    style: pw.TextStyle(
+                      font: ttf,
+                      fontSize: fontSize * 0.85,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
                   ),
-                ),
-                pw.Container(width: lineWidth, height: 0.8, color: PdfColors.black),
-                pw.Text(
-                  den,
-                  style: pw.TextStyle(
-                    font: ttf,
-                    fontSize: fontSize * 0.85,
-                    fontWeight: pw.FontWeight.bold,
+                  pw.Container(width: lineWidth, height: 0.8, color: PdfColors.black),
+                  pw.Text(
+                    param2,
+                    style: pw.TextStyle(
+                      font: ttf,
+                      fontSize: fontSize * 0.85,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      );
+        );
+      } else if (type == 'جذر') {
+        // جذر عربي RTL: علامة الجذر يميناً وسقف ممتد يساراً فوق المقدار
+        spans.add(
+          pw.WidgetSpan(
+            child: pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 2.0),
+              child: pw.Directionality(
+                textDirection: pw.TextDirection.rtl,
+                child: pw.Row(
+                  mainAxisSize: pw.MainAxisSize.min,
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      '⎷',
+                      style: pw.TextStyle(
+                        font: ttf,
+                        fontSize: fontSize * 1.35,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Container(
+                      margin: const pw.EdgeInsets.only(top: 2),
+                      decoration: const pw.BoxDecoration(
+                        border: pw.Border(
+                          top: pw.BorderSide(color: PdfColors.black, width: 0.9),
+                        ),
+                      ),
+                      padding: const pw.EdgeInsets.only(top: 1, left: 2, right: 2),
+                      child: pw.Text(
+                        param1,
+                        style: pw.TextStyle(
+                          font: ttf,
+                          fontSize: fontSize * 0.95,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      } else if (type == 'sqrt') {
+        // جذر إنجليزي LTR: علامة الجذر يساراً وسقف ممتد يميناً فوق المقدار
+        spans.add(
+          pw.WidgetSpan(
+            child: pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 2.0),
+              child: pw.Directionality(
+                textDirection: pw.TextDirection.ltr,
+                child: pw.Row(
+                  mainAxisSize: pw.MainAxisSize.min,
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      '√',
+                      style: pw.TextStyle(
+                        font: ttf,
+                        fontSize: fontSize * 1.35,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Container(
+                      margin: const pw.EdgeInsets.only(top: 2),
+                      decoration: const pw.BoxDecoration(
+                        border: pw.Border(
+                          top: pw.BorderSide(color: PdfColors.black, width: 0.9),
+                        ),
+                      ),
+                      padding: const pw.EdgeInsets.only(top: 1, left: 2, right: 2),
+                      child: pw.Text(
+                        param1,
+                        style: pw.TextStyle(
+                          font: ttf,
+                          fontSize: fontSize * 0.95,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }
 
       lastIdx = m.end;
     }
