@@ -260,7 +260,7 @@ class PdfExportService {
     return filePath;
   }
 
-  // بناء نص السؤال مع دعم الكسور والجذور المضمنة
+  // بناء نص السؤال مع دعم الكسور والجذور والعمليات العمودية المضمنة
   static pw.Widget _buildPdfQuestionContent(QuestionModel q, pw.Font ttf) {
     final fullText = q.spans.map((s) => s.text).join('');
 
@@ -316,7 +316,7 @@ class PdfExportService {
     );
   }
 
-  // دالة تحويل وسوم [كسر:بسط/مقام] و [جذر:المقدار] و [جذر:رتبة:مقدار] إلى عناصر PDF مدمجة في نفس السطر
+  // دالة تحويل وسوم [كسر] و [جذر] و [sqrt] و [عمودي] إلى عناصر PDF مدمجة في نفس السطر ومتجانبة
   static pw.Widget _renderInlineMathText(
     String text,
     pw.Font ttf, {
@@ -324,7 +324,7 @@ class PdfExportService {
     bool isBold = false,
     double lineSpacing = 1.5,
   }) {
-    final regExp = RegExp(r'\[(كسر|جذر|sqrt):(.*?)\]');
+    final regExp = RegExp(r'\[(كسر|جذر|sqrt|عمودي):(.*?)\]');
     final matches = regExp.allMatches(text);
 
     if (matches.isEmpty) {
@@ -393,7 +393,6 @@ class PdfExportService {
         final String degree = parts.length > 1 ? parts[0] : '';
         final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
 
-        // رسم الجذر العربي متضمناً الرتبة العلوية إن وجدت
         spans.add(
           pw.WidgetSpan(
             child: pw.Padding(
@@ -452,7 +451,6 @@ class PdfExportService {
         final String degree = parts.length > 1 ? parts[0] : '';
         final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
 
-        // رسم الجذر الإنجليزي متضمناً الرتبة العلوية إن وجدت
         spans.add(
           pw.WidgetSpan(
             child: pw.Padding(
@@ -502,6 +500,69 @@ class PdfExportService {
                     ),
                   ],
                 ),
+              ),
+            ),
+          ),
+        );
+      } else if (type == 'عمودي') {
+        // رسم الجمع/الطرح العمودي المضمن في السطر مع خط النتيجة
+        final parts = rawContent.split(':');
+        final op = parts.isNotEmpty ? parts[0] : '+';
+        final numbers = parts.length > 1 ? parts.sublist(1) : <String>[];
+
+        int maxDigits = 0;
+        for (final num in numbers) {
+          if (num.length > maxDigits) maxDigits = num.length;
+        }
+        final double lineWidth = (maxDigits * 8.0) + 18.0;
+
+        spans.add(
+          pw.WidgetSpan(
+            alignment: pw.PlaceholderAlignment.middle,
+            child: pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+              child: pw.Column(
+                mainAxisSize: pw.MainAxisSize.min,
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                children: [
+                  ...numbers.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final val = entry.value;
+                    final isLast = idx == numbers.length - 1;
+
+                    return pw.Row(
+                      mainAxisSize: pw.MainAxisSize.min,
+                      children: [
+                        if (isLast)
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.only(left: 3.0),
+                            child: pw.Text(
+                              op,
+                              style: pw.TextStyle(
+                                font: ttf,
+                                fontSize: fontSize * 1.1,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        pw.Text(
+                          val,
+                          style: pw.TextStyle(
+                            font: ttf,
+                            fontSize: fontSize * 1.05,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    );
+                  }),
+                  pw.Container(
+                    margin: const pw.EdgeInsets.only(top: 1.5, bottom: 4.0),
+                    width: lineWidth,
+                    height: 1.0,
+                    color: PdfColors.black,
+                  ),
+                ],
               ),
             ),
           ),
