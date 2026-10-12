@@ -176,12 +176,7 @@ class DocxGeneratorService {
       buffer.write('<w:tcPr><w:tcW w:w="7900" w:type="dxa"/></w:tcPr>');
 
       if (!q.isTwoColumns) {
-        buffer.write('<w:p>');
-        buffer.write('<w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:line="320" w:lineRule="auto"/></w:pPr>');
-        for (final s in q.spans) {
-          buffer.write(_renderDocxInlineRunsWithMath(s));
-        }
-        buffer.write('</w:p>');
+        buffer.write(_renderDocxParagraphOrTable(q.spans));
       } else {
         buffer.write(_buildDocxTwoColumnContent(q));
       }
@@ -238,10 +233,94 @@ class DocxGeneratorService {
     return buffer.toString();
   }
 
+  // بناء محتوى السؤال مع دعم رصف العمليات العمودية المضمنة أفقياً متجانبة
+  static String _renderDocxParagraphOrTable(List<TextSpanModel> spans) {
+    final fullText = spans.map((s) => s.text).join('');
+    final lines = fullText.split('\n');
+    final sb = StringBuffer();
+
+    for (final line in lines) {
+      if (line.contains('[عمودي:')) {
+        sb.write(_renderDocxLineWithVerticalOps(line));
+      } else {
+        sb.write('<w:p>');
+        sb.write('<w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:line="320" w:lineRule="auto"/></w:pPr>');
+        final dummySpan = spans.isNotEmpty
+            ? TextSpanModel(
+                text: line,
+                fontSize: spans.first.fontSize,
+                isBold: spans.first.isBold,
+                isUnderline: spans.first.isUnderline,
+                fontFamily: spans.first.fontFamily,
+              )
+            : TextSpanModel(text: line, fontSize: 11, fontFamily: 'Amiri');
+        sb.write(_renderDocxInlineRunsWithMath(dummySpan));
+        sb.write('</w:p>');
+      }
+    }
+
+    return sb.toString();
+  }
+
+  // رصف أسطر العمليات العمودية المتجاورة داخل جدول غير مرئي في Word
+  static String _renderDocxLineWithVerticalOps(String line) {
+    final regExp = RegExp(r'\[عمودي:(.*?)\]');
+    final matches = regExp.allMatches(line).toList();
+
+    if (matches.isEmpty) {
+      return '<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="Amiri"/><w:rtl/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>${_xmlEscape(line)}</w:t></w:r></w:p>';
+    }
+
+    final sb = StringBuffer();
+    sb.write('<w:tbl>');
+    sb.write('<w:tblPr>');
+    sb.write('<w:tblW w:w="7800" w:type="dxa"/>');
+    sb.write('<w:jc w:val="right"/>');
+    sb.write('<w:bidiVisual/>');
+    sb.write('<w:tblBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/><w:insideH w:val="none"/><w:insideV w:val="none"/></w:tblBorders>');
+    sb.write('</w:tblPr>');
+    sb.write('<w:tr>');
+
+    final int colWidth = (7800 / matches.length).floor();
+
+    for (final m in matches) {
+      final content = m.group(1) ?? '';
+      final parts = content.split(':');
+      final op = parts.isNotEmpty ? parts[0] : '+';
+      final numbers = parts.length > 1 ? parts.sublist(1) : <String>[];
+
+      sb.write('<w:tc>');
+      sb.write('<w:tcPr><w:tcW w:w="$colWidth" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>');
+
+      for (int i = 0; i < numbers.length; i++) {
+        final isLast = i == numbers.length - 1;
+        final val = numbers[i];
+        final lineStr = isLast ? '$op $val' : val;
+
+        sb.write('<w:p>');
+        sb.write('<w:pPr><w:bidi/><w:jc w:val="center"/>');
+        if (isLast) {
+          sb.write('<w:pBdr><w:bottom w:val="single" w:sz="8" w:space="1" w:color="000000"/></w:pBdr>');
+        }
+        sb.write('</w:pPr>');
+        sb.write('<w:r><w:rPr><w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="Amiri"/><w:b/><w:rtl/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">${_xmlEscape(lineStr)}</w:t></w:r>');
+        sb.write('</w:p>');
+      }
+
+      // سطر فارغ تحت العملية للإجابة
+      sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="center"/><w:spacing w:before="60"/></w:pPr></w:p>');
+      sb.write('</w:tc>');
+    }
+
+    sb.write('</w:tr>');
+    sb.write('</w:tbl>');
+    return sb.toString();
+  }
+
   // دعم تحويل النصوص ووسوم [كسر:بسط/مقام] و [جذر:المقدار] و [جذر:رتبة:مقدار] و [sqrt:...] إلى عناصر Word القياسية
   static String _renderDocxInlineRunsWithMath(TextSpanModel s) {
     final text = s.text;
-    final regExp = RegExp(r'\[(كسر|جذر|sqrt):(.*?)\]');
+    final regExp = RegExp(r'\[(كسر|جذر|sqrt):(.*?)(?:/(.*?))?\]');
     final matches = regExp.allMatches(text);
 
     final fontXml = '<w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="${s.fontFamily}"/>';
@@ -265,11 +344,16 @@ class DocxGeneratorService {
 
       final type = m.group(1);
       final rawContent = m.group(2) ?? '';
+      final rawAlt = m.group(3);
 
       if (type == 'كسر') {
-        final parts = rawContent.split('/');
-        final num = parts.isNotEmpty ? parts[0] : '';
-        final den = parts.length > 1 ? parts[1] : '';
+        String num = rawContent;
+        String den = rawAlt ?? '';
+        if (rawAlt == null && rawContent.contains('/')) {
+          final parts = rawContent.split('/');
+          num = parts[0];
+          den = parts.length > 1 ? parts[1] : '';
+        }
 
         // حقل الكسر الرأسي القياسي في Word
         sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>');
@@ -282,7 +366,6 @@ class DocxGeneratorService {
         final String degree = parts.length > 1 ? parts[0] : '';
         final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
 
-        // في Word: إذا وجدت رتبة تكون EQ \r(degree, radicand) وإذا لم توجد تكون EQ \r(radicand)
         final eqInstruction = degree.isNotEmpty
             ? ' EQ \\r(${_xmlEscape(degree)},${_xmlEscape(radicand)}) '
             : ' EQ \\r(${_xmlEscape(radicand)}) ';
