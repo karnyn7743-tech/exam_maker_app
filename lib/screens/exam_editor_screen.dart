@@ -2364,7 +2364,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         builder: (context, setDlgState) => AlertDialog(
           title: const Text('تعديل عنوان الاختبار الرئيسي'),
           content: Column(
-            mainAxisSize: min,
+            mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: cTitle,
