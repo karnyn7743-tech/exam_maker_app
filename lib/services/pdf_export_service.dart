@@ -505,7 +505,6 @@ class PdfExportService {
           ),
         );
       } else if (type == 'عمودي') {
-        // رسم الجمع/الطرح العمودي المضمن في السطر مع خط النتيجة
         final parts = rawContent.split(':');
         final op = parts.isNotEmpty ? parts[0] : '+';
         final numbers = parts.length > 1 ? parts.sublist(1) : <String>[];
@@ -514,54 +513,60 @@ class PdfExportService {
         for (final num in numbers) {
           if (num.length > maxDigits) maxDigits = num.length;
         }
-        final double lineWidth = (maxDigits * 8.0) + 18.0;
+        final double lineWidth = (maxDigits * 8.0) + 20.0;
 
         spans.add(
           pw.WidgetSpan(
             child: pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
-              child: pw.Column(
-                mainAxisSize: pw.MainAxisSize.min,
-                crossAxisAlignment: pw.CrossAxisAlignment.end,
-                children: [
-                  ...numbers.asMap().entries.map((entry) {
-                    final idx = entry.key;
-                    final val = entry.value;
-                    final isLast = idx == numbers.length - 1;
+              padding: const pw.EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
+              child: pw.Directionality(
+                textDirection: pw.TextDirection.rtl,
+                child: pw.Column(
+                  mainAxisSize: pw.MainAxisSize.min,
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    ...numbers.asMap().entries.map((entry) {
+                      final idx = entry.key;
+                      final val = entry.value;
+                      final isLast = idx == numbers.length - 1;
 
-                    return pw.Row(
-                      mainAxisSize: pw.MainAxisSize.min,
-                      children: [
-                        if (isLast)
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.only(left: 3.0),
-                            child: pw.Text(
-                              op,
-                              style: pw.TextStyle(
-                                font: ttf,
-                                fontSize: fontSize * 1.1,
-                                fontWeight: pw.FontWeight.bold,
-                              ),
+                      return pw.Row(
+                        mainAxisSize: pw.MainAxisSize.min,
+                        children: [
+                          pw.Container(
+                            width: 14,
+                            child: isLast
+                                ? pw.Text(
+                                    op,
+                                    style: pw.TextStyle(
+                                      font: ttf,
+                                      fontSize: fontSize * 1.15,
+                                      fontWeight: pw.FontWeight.bold,
+                                    ),
+                                    textAlign: pw.TextAlign.center,
+                                  )
+                                : null,
+                          ),
+                          pw.SizedBox(width: 4),
+                          pw.Text(
+                            val,
+                            style: pw.TextStyle(
+                              font: ttf,
+                              fontSize: fontSize * 1.05,
+                              fontWeight: pw.FontWeight.bold,
                             ),
                           ),
-                        pw.Text(
-                          val,
-                          style: pw.TextStyle(
-                            font: ttf,
-                            fontSize: fontSize * 1.05,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    );
-                  }),
-                  pw.Container(
-                    margin: const pw.EdgeInsets.only(top: 1.5, bottom: 4.0),
-                    width: lineWidth,
-                    height: 1.0,
-                    color: PdfColors.black,
-                  ),
-                ],
+                        ],
+                      );
+                    }),
+                    pw.Container(
+                      margin: const pw.EdgeInsets.only(top: 2.0, bottom: 4.0),
+                      width: lineWidth,
+                      height: 1.0,
+                      color: PdfColors.black,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
