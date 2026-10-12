@@ -245,9 +245,15 @@ class PdfExportService {
       ),
     );
 
+    // توجيه الحفظ إلى مجلد التنزيلات العام مباشرة في أندرويد
     Directory dir;
     if (Platform.isAndroid) {
-      dir = (await getExternalStorageDirectory()) ?? await getApplicationDocumentsDirectory();
+      final downloadDir = Directory('/storage/emulated/0/Download');
+      if (downloadDir.existsSync()) {
+        dir = downloadDir;
+      } else {
+        dir = (await getExternalStorageDirectory()) ?? await getApplicationDocumentsDirectory();
+      }
     } else {
       dir = await getApplicationDocumentsDirectory();
     }
