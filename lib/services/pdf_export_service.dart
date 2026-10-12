@@ -316,7 +316,7 @@ class PdfExportService {
     );
   }
 
-  // دالة تحويل وسوم [كسر:بسط/مقام] و [جذر:المقدار] و [sqrt:expr] إلى عناصر PDF مدمجة في نفس السطر
+  // دالة تحويل وسوم [كسر:بسط/مقام] و [جذر:المقدار] و [جذر:رتبة:مقدار] إلى عناصر PDF مدمجة في نفس السطر
   static pw.Widget _renderInlineMathText(
     String text,
     pw.Font ttf, {
@@ -324,7 +324,7 @@ class PdfExportService {
     bool isBold = false,
     double lineSpacing = 1.5,
   }) {
-    final regExp = RegExp(r'\[(كسر|جذر|sqrt):(.*?)(?:/(.*?))?\]');
+    final regExp = RegExp(r'\[(كسر|جذر|sqrt):(.*?)\]');
     final matches = regExp.allMatches(text);
 
     if (matches.isEmpty) {
@@ -349,11 +349,14 @@ class PdfExportService {
       }
 
       final type = m.group(1);
-      final param1 = m.group(2) ?? '';
-      final param2 = m.group(3) ?? '';
+      final rawContent = m.group(2) ?? '';
 
       if (type == 'كسر') {
-        final int maxLen = param1.length > param2.length ? param1.length : param2.length;
+        final parts = rawContent.split('/');
+        final num = parts.isNotEmpty ? parts[0] : '';
+        final den = parts.length > 1 ? parts[1] : '';
+
+        final int maxLen = num.length > den.length ? num.length : den.length;
         final double lineWidth = (maxLen * 7.0) + 6.0;
 
         spans.add(
@@ -364,7 +367,7 @@ class PdfExportService {
                 mainAxisSize: pw.MainAxisSize.min,
                 children: [
                   pw.Text(
-                    param1,
+                    num,
                     style: pw.TextStyle(
                       font: ttf,
                       fontSize: fontSize * 0.85,
@@ -373,7 +376,7 @@ class PdfExportService {
                   ),
                   pw.Container(width: lineWidth, height: 0.8, color: PdfColors.black),
                   pw.Text(
-                    param2,
+                    den,
                     style: pw.TextStyle(
                       font: ttf,
                       fontSize: fontSize * 0.85,
@@ -386,7 +389,11 @@ class PdfExportService {
           ),
         );
       } else if (type == 'جذر') {
-        // جذر عربي RTL: علامة الجذر يميناً وسقف ممتد يساراً فوق المقدار
+        final parts = rawContent.split(':');
+        final String degree = parts.length > 1 ? parts[0] : '';
+        final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
+
+        // رسم الجذر العربي متضمناً الرتبة العلوية إن وجدت
         spans.add(
           pw.WidgetSpan(
             child: pw.Padding(
@@ -397,6 +404,18 @@ class PdfExportService {
                   mainAxisSize: pw.MainAxisSize.min,
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
+                    if (degree.isNotEmpty)
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(top: 0.0, left: 1.5),
+                        child: pw.Text(
+                          degree,
+                          style: pw.TextStyle(
+                            font: ttf,
+                            fontSize: fontSize * 0.70,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     pw.Text(
                       '⎷',
                       style: pw.TextStyle(
@@ -414,7 +433,7 @@ class PdfExportService {
                       ),
                       padding: const pw.EdgeInsets.only(top: 1, left: 2, right: 2),
                       child: pw.Text(
-                        param1,
+                        radicand,
                         style: pw.TextStyle(
                           font: ttf,
                           fontSize: fontSize * 0.95,
@@ -429,7 +448,11 @@ class PdfExportService {
           ),
         );
       } else if (type == 'sqrt') {
-        // جذر إنجليزي LTR: علامة الجذر يساراً وسقف ممتد يميناً فوق المقدار
+        final parts = rawContent.split(':');
+        final String degree = parts.length > 1 ? parts[0] : '';
+        final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
+
+        // رسم الجذر الإنجليزي متضمناً الرتبة العلوية إن وجدت
         spans.add(
           pw.WidgetSpan(
             child: pw.Padding(
@@ -440,6 +463,18 @@ class PdfExportService {
                   mainAxisSize: pw.MainAxisSize.min,
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
+                    if (degree.isNotEmpty)
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(top: 0.0, right: 1.5),
+                        child: pw.Text(
+                          degree,
+                          style: pw.TextStyle(
+                            font: ttf,
+                            fontSize: fontSize * 0.70,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     pw.Text(
                       '√',
                       style: pw.TextStyle(
@@ -457,7 +492,7 @@ class PdfExportService {
                       ),
                       padding: const pw.EdgeInsets.only(top: 1, left: 2, right: 2),
                       child: pw.Text(
-                        param1,
+                        radicand,
                         style: pw.TextStyle(
                           font: ttf,
                           fontSize: fontSize * 0.95,
