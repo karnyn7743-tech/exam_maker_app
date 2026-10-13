@@ -225,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'أرشيف الاختبارات المدرسية',
+          'محرر الاختبارات المدرسية',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
@@ -263,7 +263,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Icon(Icons.description_outlined, size: 90, color: Colors.grey.shade400),
           const SizedBox(height: 16),
           const Text(
-            'لا توجد اختبارات محفوظة بعد',
+            'لا توجد اختبارات محفوظة بعد  - أبو الخضر البعيثي',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey),
           ),
           const SizedBox(height: 8),
