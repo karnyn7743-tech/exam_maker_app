@@ -35,15 +35,231 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // إنشاء اختبار جديد بالقيم الافتراضية
-  void _createNewExam() {
+  // 1. الشروع في الاختبارات الشاملة (التحريرية التقليدية)
+  void _createTraditionalExam() {
     final newExam = ExamModel(
       id: const Uuid().v4(),
-      fileName: 'اختبار_جديد_${DateTime.now().millisecondsSinceEpoch}',
+      fileName: 'اختبار_شامل_${DateTime.now().millisecondsSinceEpoch}',
+      examType: ExamType.traditional,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
       header: HeaderModel(),
       questions: [],
+    );
+
+    _openEditor(newExam, isNew: true);
+  }
+
+  // 2. إنشاء اختبار مؤتمت (تظليل OMR) مع حوار تحديد الفقرات والرموز
+  void _showCreateAutomatedExamDialog() {
+    final tfCountCtrl = TextEditingController(text: '10');
+    final mcqCountCtrl = TextEditingController(text: '10');
+    ChoiceSymbolType symbolType = ChoiceSymbolType.arabicLetters;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          title: Row(
+            children: const [
+              Icon(Icons.checklist_rtl, color: Color(0xFF0F766E)),
+              SizedBox(width: 8),
+              Text(
+                'إعدادات الاختبار المؤتمت (OMR)',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'حدد عدد الفقرات لكل نمط سؤال ليتم توليد الأسئلة وشبكة دوائر التظليل آلياً:',
+                  style: TextStyle(fontSize: 12, color: Colors.black87),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: tfCountCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'عدد فقرات الصح والخطأ (ص / خ)',
+                    hintText: 'مثال: 10',
+                    prefixIcon: Icon(Icons.check_circle_outline, color: Colors.teal),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: mcqCountCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'عدد فقرات الاختيار من متعدد',
+                    hintText: 'مثال: 10 أو 20',
+                    prefixIcon: Icon(Icons.format_list_numbered, color: Colors.teal),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'نوع رموز البدائل في الاختيارات:',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Center(
+                          child: Text('أ ، ب ، جـ ، د', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                        selected: symbolType == ChoiceSymbolType.arabicLetters,
+                        selectedColor: const Color(0xFF0F766E),
+                        labelStyle: TextStyle(
+                          color: symbolType == ChoiceSymbolType.arabicLetters ? Colors.white : Colors.black87,
+                        ),
+                        onSelected: (val) {
+                          if (val) setDlgState(() => symbolType = ChoiceSymbolType.arabicLetters);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Center(
+                          child: Text('١ ، ٢ ، ٣ ، ٤', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                        selected: symbolType == ChoiceSymbolType.numbers,
+                        selectedColor: const Color(0xFF0F766E),
+                        labelStyle: TextStyle(
+                          color: symbolType == ChoiceSymbolType.numbers ? Colors.white : Colors.black87,
+                        ),
+                        onSelected: (val) {
+                          if (val) setDlgState(() => symbolType = ChoiceSymbolType.numbers);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0F766E),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+              icon: const Icon(Icons.auto_awesome, color: Colors.white, size: 18),
+              label: const Text(
+                'توليد الاختبار',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              onPressed: () {
+                final int tfCount = int.tryParse(tfCountCtrl.text.trim()) ?? 10;
+                final int mcqCount = int.tryParse(mcqCountCtrl.text.trim()) ?? 10;
+                Navigator.pop(ctx);
+                _generateAutomatedExam(
+                  tfCount: tfCount,
+                  mcqCount: mcqCount,
+                  symbolType: symbolType,
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // توليد كائن الاختبار المؤتمت بحسب الإعدادات المدخلة
+  void _generateAutomatedExam({
+    required int tfCount,
+    required int mcqCount,
+    required ChoiceSymbolType symbolType,
+  }) {
+    final List<QuestionModel> generatedQuestions = [];
+
+    // 1. توليد سؤال الصح والخطأ بحسب العدد المدخل
+    if (tfCount > 0) {
+      final buffer = StringBuffer();
+      buffer.writeln('ظلل الدائرة (ص) إذا كانت العبارة صحيحة، والدائرة (خ) إذا كانت العبارة خاطئة:');
+      for (int i = 1; i <= tfCount; i++) {
+        buffer.writeln('$i - (   ) ................................................................');
+      }
+
+      generatedQuestions.add(
+        QuestionModel(
+          id: const Uuid().v4(),
+          title: 'س ١',
+          titleOrientation: QuestionTitleOrientation.horizontal,
+          mark: tfCount.toDouble(),
+          spans: [
+            TextSpanModel(
+              text: buffer.toString().trim(),
+              fontSize: 13.0,
+              fontFamily: 'Amiri',
+            ),
+          ],
+          answerKey: '',
+          isTwoColumns: false,
+        ),
+      );
+    }
+
+    // 2. توليد سؤال الاختيار من متعدد بحسب العدد ونوع الرموز المختار
+    if (mcqCount > 0) {
+      final buffer = StringBuffer();
+      final bool isLetters = symbolType == ChoiceSymbolType.arabicLetters;
+      final choicesStr = isLetters
+          ? '[ أ- .. | ب- .. | جـ- .. | د- .. ]'
+          : '[ ١- .. | ٢- .. | ٣- .. | ٤- .. ]';
+
+      buffer.writeln('ظلل الدائرة التي تمثل الإجابة الصحيحة لكل فقرة من الفقرات الآتية:');
+      for (int i = 1; i <= mcqCount; i++) {
+        buffer.writeln('$i - ........................................ $choicesStr');
+      }
+
+      generatedQuestions.add(
+        QuestionModel(
+          id: const Uuid().v4(),
+          title: tfCount > 0 ? 'س ٢' : 'س ١',
+          titleOrientation: QuestionTitleOrientation.horizontal,
+          mark: mcqCount.toDouble(),
+          spans: [
+            TextSpanModel(
+              text: buffer.toString().trim(),
+              fontSize: 13.0,
+              fontFamily: 'Amiri',
+            ),
+          ],
+          answerKey: '',
+          isTwoColumns: true,
+        ),
+      );
+    }
+
+    final newExam = ExamModel(
+      id: const Uuid().v4(),
+      fileName: 'اختبار_مؤتمت_${DateTime.now().millisecondsSinceEpoch}',
+      examType: ExamType.automated,
+      automatedConfig: AutomatedExamConfig(
+        trueFalseCount: tfCount,
+        mcqCount: mcqCount,
+        choiceSymbolType: symbolType,
+      ),
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      header: HeaderModel(
+        examTitle: 'اختبار مؤتمت (نماذج التظليل الذكية)',
+        instructionText: 'أجب بتظليل الدائرة المناسبة في ورقة الإجابة المخصصة',
+      ),
+      questions: generatedQuestions,
     );
 
     _openEditor(newExam, isNew: true);
@@ -225,7 +441,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'محرر الاختبارات المدرسية',
+          'محرر الاختبارات المدرسية والأتمتة',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
@@ -247,10 +463,57 @@ class _HomeScreenState extends State<HomeScreen> {
           : _exams.isEmpty
               ? _buildEmptyState()
               : _buildExamsList(),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _createNewExam,
-        icon: const Icon(Icons.add),
-        label: const Text('إنشاء اختبار جديد', style: TextStyle(fontWeight: FontWeight.bold)),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Row(
+            children: [
+              // الزر الأول: الشروع في الاختبارات الشاملة (التحريرية التقليدية)
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E3A8A),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.edit_document, color: Colors.white, size: 20),
+                  label: const Text(
+                    'الاختبارات الشاملة',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  onPressed: _createTraditionalExam,
+                ),
+              ),
+              const SizedBox(width: 10),
+              // الزر الثاني: إنشاء اختبار مؤتمت (تظليل OMR)
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F766E),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.checklist_rtl, color: Colors.white, size: 20),
+                  label: const Text(
+                    'اختبار مؤتمت (OMR)',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  onPressed: _showCreateAutomatedExamDialog,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -260,16 +523,16 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.description_outlined, size: 90, color: Colors.grey.shade400),
+          Icon(Icons.description_outlined, size: 85, color: Colors.grey.shade400),
           const SizedBox(height: 16),
           const Text(
-            'لا توجد اختبارات محفوظة بعد  - أبو الخضر البعيثي',
+            'لا توجد اختبارات محفوظة بعد',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey),
           ),
           const SizedBox(height: 8),
           const Text(
-            'اضغط على زر (إنشاء اختبار جديد) للبدء أو استورد ملف (.exam)',
-            style: TextStyle(color: Colors.grey),
+            'اختر أحد الزرين بالأسفل لإنشاء اختبار شامل أو مؤتمت',
+            style: TextStyle(color: Colors.grey, fontSize: 13),
           ),
         ],
       ),
@@ -282,6 +545,8 @@ class _HomeScreenState extends State<HomeScreen> {
       itemCount: _exams.length,
       itemBuilder: (context, index) {
         final exam = _exams[index];
+        final bool isAutomated = exam.examType == ExamType.automated;
+
         return Card(
           elevation: 2,
           margin: const EdgeInsets.only(bottom: 12),
@@ -300,22 +565,45 @@ class _HomeScreenState extends State<HomeScreen> {
                       Expanded(
                         child: Text(
                           exam.header.subject.isNotEmpty ? exam.header.subject : 'مادة غير محددة',
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.blue.shade200),
-                        ),
-                        child: Text(
-                          exam.header.grade,
-                          style: TextStyle(color: Colors.blue.shade800, fontSize: 12),
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: isAutomated ? Colors.teal.shade50 : Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: isAutomated ? Colors.teal.shade300 : Colors.blue.shade300,
+                              ),
+                            ),
+                            child: Text(
+                              isAutomated ? 'مؤتمت OMR' : 'شامل / تحريري',
+                              style: TextStyle(
+                                color: isAutomated ? const Color(0xFF0F766E) : const Color(0xFF1E3A8A),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: Text(
+                              exam.header.grade,
+                              style: TextStyle(color: Colors.grey.shade800, fontSize: 11),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
