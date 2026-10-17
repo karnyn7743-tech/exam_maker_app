@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
@@ -9,6 +10,7 @@ import '../services/docx_generator_service.dart';
 import '../services/exam_storage_service.dart';
 import '../services/pdf_export_service.dart';
 import '../services/exam_share_service.dart';
+import '../services/student_excel_service.dart';
 import '../widgets/exam_custom_keyboard.dart';
 
 class ExamEditorScreen extends StatefulWidget {
@@ -312,6 +314,32 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (_exam.header.topMargin1cm && _exam.header.studentDataMode != 'none') ...[
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'اسم الطالب: .................................................',
+                              style: TextStyle(
+                                fontFamily: _exam.header.adminFont,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                            ),
+                            Text(
+                              'رقم الجلوس: [ ........... ]',
+                              style: TextStyle(
+                                fontFamily: _exam.header.detailsFont,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     _buildExamHeader(),
                     const SizedBox(height: 8),
                     _buildQuestionsTable(),
@@ -871,7 +899,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            // 1. عمود يمين: رمز العملية قبل الآحاد في آخر سطر فقط
                             SizedBox(
                               width: 16,
                               child: isLast
@@ -886,7 +913,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                   : null,
                             ),
                             const SizedBox(width: 4),
-                            // 2. عمود يسار: الأعداد محاذاة لليمين لتتطابق خانات الآحاد تحت الآحاد
                             Expanded(
                               child: Text(
                                 val,
@@ -2173,6 +2199,108 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
+  Future<void> _handleTopMarginToggle(bool val, StateSetter setDlgState) async {
+    if (!val) {
+      setDlgState(() {
+        _exam.header.topMargin1cm = false;
+        _exam.header.studentDataMode = 'none';
+        _exam.header.excelFilePath = null;
+      });
+      return;
+    }
+
+    final choice = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (cCtx) => AlertDialog(
+        title: const Text(
+          'إدراج بيانات الطلاب في رأس الصفحة',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        content: const Text(
+          'تم تفعيل فراغ رأس الصفحة (1 سم).\nهل ترغب في جلب بيانات الطلاب لتوليد نسخ مخصصة لكل طالب؟',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(cCtx, 'none'),
+            child: const Text('تجاهل (ورق عادي)'),
+          ),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(cCtx, 'namesOnly'),
+            child: const Text('الاسم ورقم الجلوس فقط'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
+            onPressed: () => Navigator.pop(cCtx, 'namesAndQr'),
+            child: const Text('الاسم + الجلوس + رمز QR وكود المادة', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == null || choice == 'none') {
+      setDlgState(() {
+        _exam.header.topMargin1cm = true;
+        _exam.header.studentDataMode = 'none';
+        _exam.header.excelFilePath = null;
+      });
+      return;
+    }
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['xlsx', 'xls'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        final path = result.files.single.path!;
+        final excelRes = await StudentExcelService.parseExcelFile(
+          path,
+          expectedSubject: _exam.header.subject,
+        );
+
+        setDlgState(() {
+          _exam.header.topMargin1cm = true;
+          _exam.header.studentDataMode = choice;
+          _exam.header.excelFilePath = path;
+          _exam.header.subjectCode = excelRes.subjectCode;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'تم تحميل ${excelRes.students.length} طالباً بنجاح.\nكود المادة: ${excelRes.subjectCode} (${excelRes.matchedSubjectName.isNotEmpty ? excelRes.matchedSubjectName : _exam.header.subject})',
+              ),
+              backgroundColor: Colors.green.shade800,
+            ),
+          );
+        }
+      } else {
+        setDlgState(() {
+          _exam.header.topMargin1cm = true;
+          _exam.header.studentDataMode = 'none';
+          _exam.header.excelFilePath = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تعذر قراءة ملف الإكسيل: $e'),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+      setDlgState(() {
+        _exam.header.topMargin1cm = true;
+        _exam.header.studentDataMode = 'none';
+        _exam.header.excelFilePath = null;
+      });
+    }
+  }
+
   void _openFooterSettingsDialog() {
     final singleCtrl = TextEditingController(text: _exam.header.singlePageFooterText);
     final multiCtrl = TextEditingController(text: _exam.header.continuationText);
@@ -2191,9 +2319,35 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               children: [
                 SwitchListTile(
                   title: const Text('فراغ رأس الصفحة 1 سم'),
+                  subtitle: Text(
+                    _exam.header.studentDataMode == 'none'
+                        ? 'توليد ورق عادي (بدون تخصيص)'
+                        : (_exam.header.studentDataMode == 'namesOnly'
+                            ? 'مفعّل: استيراد الاسم ورقم الجلوس'
+                            : 'مفعّل: الاسم ورقم الجلوس ورمز QR'),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: _exam.header.studentDataMode != 'none' ? Colors.green.shade800 : Colors.grey.shade600,
+                      fontWeight: _exam.header.studentDataMode != 'none' ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
                   value: topMargin,
-                  onChanged: (val) => setDlgState(() => topMargin = val),
+                  onChanged: (val) async {
+                    await _handleTopMarginToggle(val, setDlgState);
+                    topMargin = _exam.header.topMargin1cm;
+                  },
                 ),
+                if (_exam.header.excelFilePath != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 2.0),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        'ملف الكشف: ${_exam.header.excelFilePath!.split(Platform.pathSeparator).last} (كود المادة: ${_exam.header.subjectCode})',
+                        style: const TextStyle(fontSize: 10, color: Colors.blueGrey),
+                      ),
+                    ),
+                  ),
                 const Divider(),
                 SwitchListTile(
                   title: const Text('الاختبار أكثر من ورقة'),
