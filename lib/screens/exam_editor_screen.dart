@@ -11,6 +11,7 @@ import '../services/exam_storage_service.dart';
 import '../services/pdf_export_service.dart';
 import '../services/exam_share_service.dart';
 import '../services/student_excel_service.dart';
+import '../services/omr_sheet_service.dart';
 import '../widgets/exam_custom_keyboard.dart';
 
 class ExamEditorScreen extends StatefulWidget {
@@ -174,6 +175,32 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
   }
 
+  // تصدير ورقة التظليل (OMR Bubble Sheet)
+  Future<void> _exportOmrSheetToDownloads() async {
+    await ExamStorageService.saveOrUpdateExam(_exam);
+    try {
+      final path = await OmrSheetService.generateOmrPdf(_exam);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تم حفظ ورقة التظليل (OMR) بنجاح في التنزيلات:\n$path'),
+            backgroundColor: const Color(0xFF0F766E),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تعذر تصدير ورقة التظليل: $e'),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+    }
+  }
+
   Future<bool?> _showExportChoiceDialog(String title) {
     return showDialog<bool>(
       context: context,
@@ -258,6 +285,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             tooltip: 'مشاركة ملف المشروع (.exam)',
             onPressed: _exportExamProjectFile,
           ),
+          if (_exam.examType == ExamType.automated)
+            IconButton(
+              icon: const Icon(Icons.fact_check_outlined, color: Colors.white),
+              tooltip: 'تصدير ورقة التظليل (OMR Sheet)',
+              onPressed: _exportOmrSheetToDownloads,
+            ),
           IconButton(
             icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
             tooltip: 'تصدير PDF',
@@ -793,7 +826,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               textDirection: TextDirection.rtl,
               child: IntrinsicWidth(
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize: minAxisSize(),
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (degree.isNotEmpty)
@@ -839,7 +872,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               textDirection: TextDirection.ltr,
               child: IntrinsicWidth(
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize: minAxisSize(),
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (degree.isNotEmpty)
@@ -954,6 +987,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     return TextSpan(children: children);
   }
+
+  static MainAxisSize minAxisSize() => MainAxisSize.min;
 
   Widget _buildQuestionContent(QuestionModel q) {
     if (!q.isTwoColumns) {
