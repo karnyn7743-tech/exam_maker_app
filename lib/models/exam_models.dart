@@ -1,5 +1,17 @@
 import 'dart:convert';
 
+/// نمط الاختبار العام في التطبيق
+enum ExamType {
+  traditional, // الاختبارات الشاملة (التحريرية التقليدية)
+  automated,   // اختبارات الأتمتة الذكية (نماذج التظليل OMR)
+}
+
+/// نمط رموز خيارات أسئلة الاختيار من متعدد
+enum ChoiceSymbolType {
+  arabicLetters, // أ ، ب ، جـ ، د
+  numbers,       // ١ ، ٢ ، ٣ ، ٤
+}
+
 enum QuestionTitleOrientation {
   horizontal,
   verticalBottomToTop,
@@ -90,7 +102,7 @@ class QuestionModel {
   List<TextSpanModel> spans;
   List<InsertableElement> elements;
   String answerKey;
-  bool isTwoColumns; // الخاصية المضافة لتخطيط العمودين
+  bool isTwoColumns;
 
   QuestionModel({
     required this.id,
@@ -155,6 +167,11 @@ class HeaderModel {
   String teacherSignature;
   bool topMargin1cm;
 
+  // خصائص استيراد بيانات الطلاب وكود المادة
+  String studentDataMode; // 'none', 'namesOnly', 'namesAndQr'
+  String? excelFilePath;
+  int subjectCode;
+
   // خصائص الخطوط وتنسيقات حقول الترويسة
   String basmalaFont;
   double basmalaFontSize;
@@ -192,6 +209,9 @@ class HeaderModel {
     this.continuationText = 'يتبع الصفحة التالية ◄',
     this.teacherSignature = 'معلم المادة: ......................',
     this.topMargin1cm = true,
+    this.studentDataMode = 'none',
+    this.excelFilePath,
+    this.subjectCode = 1,
     this.basmalaFont = 'Amiri',
     this.basmalaFontSize = 12.0,
     this.basmalaBold = true,
@@ -226,6 +246,9 @@ class HeaderModel {
         'continuationText': continuationText,
         'teacherSignature': teacherSignature,
         'topMargin1cm': topMargin1cm,
+        'studentDataMode': studentDataMode,
+        'excelFilePath': excelFilePath,
+        'subjectCode': subjectCode,
         'basmalaFont': basmalaFont,
         'basmalaFontSize': basmalaFontSize,
         'basmalaBold': basmalaBold,
@@ -260,6 +283,9 @@ class HeaderModel {
         continuationText: map['continuationText'] ?? '',
         teacherSignature: map['teacherSignature'] ?? '',
         topMargin1cm: map['topMargin1cm'] ?? true,
+        studentDataMode: map['studentDataMode'] ?? 'none',
+        excelFilePath: map['excelFilePath'],
+        subjectCode: map['subjectCode'] ?? 1,
         basmalaFont: map['basmalaFont'] ?? 'Amiri',
         basmalaFontSize: (map['basmalaFontSize'] as num?)?.toDouble() ?? 12.0,
         basmalaBold: map['basmalaBold'] ?? true,
@@ -275,9 +301,39 @@ class HeaderModel {
       );
 }
 
+/// إعدادات أسئلة وورقة إجابة الأتمتة الذكية (OMR)
+class AutomatedExamConfig {
+  int trueFalseCount;
+  int mcqCount;
+  ChoiceSymbolType choiceSymbolType;
+
+  AutomatedExamConfig({
+    this.trueFalseCount = 10,
+    this.mcqCount = 10,
+    this.choiceSymbolType = ChoiceSymbolType.arabicLetters,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'trueFalseCount': trueFalseCount,
+        'mcqCount': mcqCount,
+        'choiceSymbolType': choiceSymbolType.name,
+      };
+
+  factory AutomatedExamConfig.fromMap(Map<String, dynamic> map) =>
+      AutomatedExamConfig(
+        trueFalseCount: map['trueFalseCount'] ?? 10,
+        mcqCount: map['mcqCount'] ?? 10,
+        choiceSymbolType: ChoiceSymbolType.values.byName(
+          map['choiceSymbolType'] ?? 'arabicLetters',
+        ),
+      );
+}
+
 class ExamModel {
   final String id;
   String fileName;
+  ExamType examType;
+  AutomatedExamConfig automatedConfig;
   DateTime createdAt;
   DateTime updatedAt;
   HeaderModel header;
@@ -286,11 +342,13 @@ class ExamModel {
   ExamModel({
     required this.id,
     required this.fileName,
+    this.examType = ExamType.traditional,
+    AutomatedExamConfig? automatedConfig,
     required this.createdAt,
     required this.updatedAt,
     required this.header,
     required this.questions,
-  });
+  }) : automatedConfig = automatedConfig ?? AutomatedExamConfig();
 
   double get totalMarks =>
       questions.fold(0.0, (sum, item) => sum + item.mark);
@@ -298,10 +356,14 @@ class ExamModel {
   ExamModel copyWith({
     String? newId,
     String? newFileName,
+    ExamType? newExamType,
   }) {
     return ExamModel(
       id: newId ?? id,
       fileName: newFileName ?? fileName,
+      examType: newExamType ?? examType,
+      automatedConfig:
+          AutomatedExamConfig.fromMap(automatedConfig.toMap()),
       createdAt: createdAt,
       updatedAt: DateTime.now(),
       header: HeaderModel.fromMap(header.toMap()),
@@ -312,6 +374,8 @@ class ExamModel {
   Map<String, dynamic> toMap() => {
         'id': id,
         'fileName': fileName,
+        'examType': examType.name,
+        'automatedConfig': automatedConfig.toMap(),
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'header': header.toMap(),
@@ -321,6 +385,10 @@ class ExamModel {
   factory ExamModel.fromMap(Map<String, dynamic> map) => ExamModel(
         id: map['id'] ?? '',
         fileName: map['fileName'] ?? '',
+        examType: ExamType.values.byName(map['examType'] ?? 'traditional'),
+        automatedConfig: AutomatedExamConfig.fromMap(
+          map['automatedConfig'] ?? {},
+        ),
         createdAt: DateTime.parse(map['createdAt']),
         updatedAt: DateTime.parse(map['updatedAt']),
         header: HeaderModel.fromMap(map['header'] ?? {}),
