@@ -54,7 +54,10 @@ class PdfExportService {
 
     for (final student in studentsToIterate) {
       final bool hasStudent = student.seatNo.isNotEmpty;
-      final bool showQrMode = hasStudent && exam.header.studentDataMode == 'namesAndQr';
+      // يظهر الـ QR في ورقة الأسئلة فقط إذا كان الاختبار شاملاً وليس مؤتمتاً (في المؤتمت يكون الـ QR على ورقة التظليل فقط)
+      final bool showQrMode = hasStudent &&
+          exam.header.studentDataMode == 'namesAndQr' &&
+          exam.examType != ExamType.automated;
 
       pdf.addPage(
         pw.MultiPage(
@@ -98,8 +101,6 @@ class PdfExportService {
           },
           footer: (pw.Context context) {
             final isLastPage = context.pageNumber == context.pagesCount;
-            // التحقق من إظهار الـ QR في الصفحة الأولى فقط أو الأخيرة أو كل الصفحات
-            // افتراضياً يظهر في الصفحة الأولى (First Page) لحماية مساحة الأسئلة، ويمكن تخصيصه
             final bool shouldShowQrOnThisPage = showQrMode && (context.pageNumber == 1);
 
             return pw.Container(
