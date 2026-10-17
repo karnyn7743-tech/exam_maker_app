@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:barcode/barcode.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../models/exam_models.dart';
+import 'student_excel_service.dart';
 
 class PdfExportService {
   static Future<String> exportToDownloadsPdf(ExamModel exam) async {
@@ -25,225 +27,326 @@ class PdfExportService {
       logoImage = pw.MemoryImage(bytes);
     }
 
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: pw.EdgeInsets.only(
-          top: exam.header.topMargin1cm ? 28.3 : 20.0,
-          bottom: 20.0,
-          left: 20.0,
-          right: 20.0,
-        ),
-        textDirection: pw.TextDirection.rtl,
-        build: (pw.Context context) {
-          return [
-            // 1. ترويسة الاختبار
-            pw.Container(
-              decoration: pw.BoxDecoration(
-                border: pw.Border.all(color: PdfColors.black, width: 1.5),
-              ),
-              padding: const pw.EdgeInsets.all(4),
-              child: pw.Column(
-                children: [
-                  pw.Row(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Container(
-                        width: 135,
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.center,
-                          children: [
-                            pw.Text(exam.header.country,
-                                style: pw.TextStyle(
-                                    font: ttf,
-                                    fontSize: 10,
-                                    fontWeight: pw.FontWeight.bold),
-                                textAlign: pw.TextAlign.center),
-                            pw.Text(exam.header.ministry,
-                                style: pw.TextStyle(font: ttf, fontSize: 8.5),
-                                textAlign: pw.TextAlign.center),
-                            pw.Text(exam.header.governorate,
-                                style: pw.TextStyle(font: ttf, fontSize: 8),
-                                textAlign: pw.TextAlign.center),
-                            pw.Text(exam.header.directorate,
-                                style: pw.TextStyle(font: ttf, fontSize: 8),
-                                textAlign: pw.TextAlign.center),
-                            pw.Text(exam.header.school,
-                                style: pw.TextStyle(
-                                    font: ttf,
-                                    fontSize: 8.5,
-                                    fontWeight: pw.FontWeight.bold),
-                                textAlign: pw.TextAlign.center),
-                          ],
-                        ),
-                      ),
-                      pw.Expanded(
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.center,
-                          children: [
-                            pw.Text(exam.header.basmalaText,
-                                style: pw.TextStyle(
-                                    font: ttf,
-                                    fontSize: 11,
-                                    fontWeight: pw.FontWeight.bold),
-                                textAlign: pw.TextAlign.center),
-                            pw.SizedBox(height: 4),
-                            if (logoImage != null)
-                              pw.Image(logoImage, height: 45, fit: pw.BoxFit.contain)
-                            else
-                              pw.SizedBox(height: 45),
-                          ],
-                        ),
-                      ),
-                      pw.Container(
-                        width: 135,
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: [
-                            pw.Text('الصف : ${exam.header.grade}',
-                                style: pw.TextStyle(
-                                    font: ttf,
-                                    fontSize: 9.5,
-                                    fontWeight: pw.FontWeight.bold)),
-                            pw.Text('المادة : ${exam.header.subject}',
-                                style: pw.TextStyle(
-                                    font: ttf,
-                                    fontSize: 9.5,
-                                    fontWeight: pw.FontWeight.bold)),
-                            pw.Text('التاريخ: ${exam.header.examDate}',
-                                style: pw.TextStyle(font: ttf, fontSize: 8.5)),
-                            pw.Text('الزمن: ${exam.header.examTime}',
-                                style: pw.TextStyle(font: ttf, fontSize: 8.5)),
-                            pw.Text('الفترة: ${exam.header.period}',
-                                style: pw.TextStyle(font: ttf, fontSize: 8.5)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  pw.SizedBox(height: 3),
-                  pw.Container(
-                    width: double.infinity,
-                    color: PdfColors.grey200,
-                    padding: const pw.EdgeInsets.symmetric(vertical: 2),
-                    child: pw.Text(
-                      exam.header.examTitle,
-                      textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(
-                          font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            pw.SizedBox(height: 6),
+    // 1. فحص هل تم تفعيل وضع تخصيص أوراق الطلاب
+    List<StudentData> studentList = [];
+    int currentSubjectCode = exam.header.subjectCode;
 
-            // 2. جدول الأسئلة
-            pw.Table(
-              border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
-              columnWidths: {
-                0: const pw.FixedColumnWidth(35),
-                1: const pw.FlexColumnWidth(),
-                2: const pw.FixedColumnWidth(35),
-              },
-              children: [
-                pw.TableRow(
-                  decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+    if (exam.header.topMargin1cm &&
+        exam.header.studentDataMode != 'none' &&
+        exam.header.excelFilePath != null &&
+        File(exam.header.excelFilePath!).existsSync()) {
+      try {
+        final excelRes = await StudentExcelService.parseExcelFile(
+          exam.header.excelFilePath!,
+          expectedSubject: exam.header.subject,
+        );
+        studentList = excelRes.students;
+        currentSubjectCode = excelRes.subjectCode;
+      } catch (_) {
+        studentList = [];
+      }
+    }
+
+    // 2. إذا لم يكن هناك طلاب أو تم اختيار الإلغاء، نضع عنصراً وهمياً فارغاً لطباعة ورقة عادية
+    final studentsToIterate = studentList.isNotEmpty
+        ? studentList
+        : [StudentData(seatNo: '', name: '', secretCode: '')];
+
+    for (final student in studentsToIterate) {
+      final bool hasStudent = student.seatNo.isNotEmpty;
+      final bool showQrMode = hasStudent && exam.header.studentDataMode == 'namesAndQr';
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: pw.EdgeInsets.only(
+            top: exam.header.topMargin1cm ? 28.3 : 20.0,
+            bottom: 20.0,
+            left: 20.0,
+            right: 20.0,
+          ),
+          textDirection: pw.TextDirection.rtl,
+          header: (pw.Context context) {
+            // يظهر اسم ورقم جلوس الطالب في أعلى الصفحة الأولى فقط
+            if (exam.header.topMargin1cm && hasStudent && context.pageNumber == 1) {
+              return pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 5.0),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(4),
-                      child: pw.Text('السؤال',
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                              font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+                    pw.Text(
+                      'اسم الطالب: ${student.name}',
+                      style: pw.TextStyle(
+                        font: ttf,
+                        fontSize: 10.5,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
                     ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(4),
-                      child: pw.Text(exam.header.instructionText,
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                              font: ttf,
-                              fontSize: 10,
-                              fontWeight: pw.FontWeight.bold,
-                              color: PdfColors.red900)),
-                    ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(4),
-                      child: pw.Text('الدرجة',
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                              font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+                    pw.Text(
+                      'رقم الجلوس: [ ${student.seatNo} ]',
+                      style: pw.TextStyle(
+                        font: ttf,
+                        fontSize: 10.5,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
-                ...exam.questions.map((q) {
-                  return pw.TableRow(
+              );
+            }
+            return pw.SizedBox.shrink();
+          },
+          footer: (pw.Context context) {
+            final isLastPage = context.pageNumber == context.pagesCount;
+            // التحقق من إظهار الـ QR في الصفحة الأولى فقط أو الأخيرة أو كل الصفحات
+            // افتراضياً يظهر في الصفحة الأولى (First Page) لحماية مساحة الأسئلة، ويمكن تخصيصه
+            final bool shouldShowQrOnThisPage = showQrMode && (context.pageNumber == 1);
+
+            return pw.Container(
+              padding: const pw.EdgeInsets.only(top: 4),
+              child: pw.Column(
+                mainAxisSize: pw.MainAxisSize.min,
+                children: [
+                  pw.Center(
+                    child: pw.Text(
+                      isLastPage
+                          ? exam.header.singlePageFooterText
+                          : exam.header.continuationText,
+                      style: pw.TextStyle(
+                        font: ttf,
+                        fontSize: 9.5,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.symmetric(vertical: 6),
-                        child: pw.Center(
-                          child: pw.Text(q.title,
-                              textAlign: pw.TextAlign.center,
-                              style: pw.TextStyle(
-                                  font: ttf,
-                                  fontSize: 9.5,
-                                  fontWeight: pw.FontWeight.bold)),
-                        ),
+                      pw.Text(
+                        exam.header.teacherSignature,
+                        style: pw.TextStyle(font: ttf, fontSize: 9.0),
                       ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                      if (shouldShowQrOnThisPage)
+                        pw.Row(
+                          mainAxisSize: pw.MainAxisSize.min,
+                          crossAxisAlignment: pw.CrossAxisAlignment.center,
                           children: [
-                            _buildPdfQuestionContent(q, ttf),
-                            if (q.elements.isNotEmpty) pw.SizedBox(height: 4),
-                            ...q.elements.map((el) => _buildPdfElement(el, ttf)),
+                            pw.Text(
+                              '$currentSubjectCode',
+                              style: pw.TextStyle(
+                                font: ttf,
+                                fontSize: 20,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.SizedBox(width: 6),
+                            pw.Container(
+                              width: 38,
+                              height: 38,
+                              child: pw.BarcodeWidget(
+                                barcode: Barcode.qrCode(),
+                                data: student.secretCode,
+                                drawText: false,
+                              ),
+                            ),
                           ],
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.symmetric(vertical: 6),
-                        child: pw.Center(
-                          child: pw.Text(
-                            q.mark > 0 ? '${q.mark.toInt()} د' : '-',
-                            style: pw.TextStyle(
-                                font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
+                        )
+                      else
+                        pw.SizedBox(height: 10),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+          build: (pw.Context context) {
+            return [
+              // 1. ترويسة الاختبار الرسمية
+              pw.Container(
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.black, width: 1.5),
+                ),
+                padding: const pw.EdgeInsets.all(4),
+                child: pw.Column(
+                  children: [
+                    pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Container(
+                          width: 135,
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.center,
+                            children: [
+                              pw.Text(exam.header.country,
+                                  style: pw.TextStyle(
+                                      font: ttf,
+                                      fontSize: 10,
+                                      fontWeight: pw.FontWeight.bold),
+                                  textAlign: pw.TextAlign.center),
+                              pw.Text(exam.header.ministry,
+                                  style: pw.TextStyle(font: ttf, fontSize: 8.5),
+                                  textAlign: pw.TextAlign.center),
+                              pw.Text(exam.header.governorate,
+                                  style: pw.TextStyle(font: ttf, fontSize: 8),
+                                  textAlign: pw.TextAlign.center),
+                              pw.Text(exam.header.directorate,
+                                  style: pw.TextStyle(font: ttf, fontSize: 8),
+                                  textAlign: pw.TextAlign.center),
+                              pw.Text(exam.header.school,
+                                  style: pw.TextStyle(
+                                      font: ttf,
+                                      fontSize: 8.5,
+                                      fontWeight: pw.FontWeight.bold),
+                                  textAlign: pw.TextAlign.center),
+                            ],
                           ),
                         ),
+                        pw.Expanded(
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.center,
+                            children: [
+                              pw.Text(exam.header.basmalaText,
+                                  style: pw.TextStyle(
+                                      font: ttf,
+                                      fontSize: 11,
+                                      fontWeight: pw.FontWeight.bold),
+                                  textAlign: pw.TextAlign.center),
+                              pw.SizedBox(height: 4),
+                              if (logoImage != null)
+                                pw.Image(logoImage, height: 45, fit: pw.BoxFit.contain)
+                              else
+                                pw.SizedBox(height: 45),
+                            ],
+                          ),
+                        ),
+                        pw.Container(
+                          width: 135,
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Text('الصف : ${exam.header.grade}',
+                                  style: pw.TextStyle(
+                                      font: ttf,
+                                      fontSize: 9.5,
+                                      fontWeight: pw.FontWeight.bold)),
+                              pw.Text('المادة : ${exam.header.subject}',
+                                  style: pw.TextStyle(
+                                      font: ttf,
+                                      fontSize: 9.5,
+                                      fontWeight: pw.FontWeight.bold)),
+                              pw.Text('التاريخ: ${exam.header.examDate}',
+                                  style: pw.TextStyle(font: ttf, fontSize: 8.5)),
+                              pw.Text('الزمن: ${exam.header.examTime}',
+                                  style: pw.TextStyle(font: ttf, fontSize: 8.5)),
+                              pw.Text('الفترة: ${exam.header.period}',
+                                  style: pw.TextStyle(font: ttf, fontSize: 8.5)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    pw.SizedBox(height: 3),
+                    pw.Container(
+                      width: double.infinity,
+                      color: PdfColors.grey200,
+                      padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                      child: pw.Text(
+                        exam.header.examTitle,
+                        textAlign: pw.TextAlign.center,
+                        style: pw.TextStyle(
+                            font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 6),
+
+              // 2. جدول الأسئلة
+              pw.Table(
+                border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
+                columnWidths: {
+                  0: const pw.FixedColumnWidth(35),
+                  1: const pw.FlexColumnWidth(),
+                  2: const pw.FixedColumnWidth(35),
+                },
+                children: [
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4),
+                        child: pw.Text('السؤال',
+                            textAlign: pw.TextAlign.center,
+                            style: pw.TextStyle(
+                                font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4),
+                        child: pw.Text(exam.header.instructionText,
+                            textAlign: pw.TextAlign.center,
+                            style: pw.TextStyle(
+                                font: ttf,
+                                fontSize: 10,
+                                fontWeight: pw.FontWeight.bold,
+                                color: PdfColors.red900)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4),
+                        child: pw.Text('الدرجة',
+                            textAlign: pw.TextAlign.center,
+                            style: pw.TextStyle(
+                                font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
                       ),
                     ],
-                  );
-                }),
-              ],
-            ),
-            pw.SizedBox(height: 8),
-
-            // 3. التذييل
-            pw.Column(
-              children: [
-                pw.Center(
-                  child: pw.Text(
-                    exam.header.isMultiPage
-                        ? exam.header.continuationText
-                        : exam.header.singlePageFooterText,
-                    style: pw.TextStyle(
-                        font: ttf, fontSize: 10, fontWeight: pw.FontWeight.bold),
                   ),
-                ),
-                pw.SizedBox(height: 4),
-                pw.Align(
-                  alignment: pw.Alignment.centerLeft,
-                  child: pw.Text(
-                    exam.header.teacherSignature,
-                    style: pw.TextStyle(font: ttf, fontSize: 9.5),
-                  ),
-                ),
-              ],
-            ),
-          ];
-        },
-      ),
-    );
+                  ...exam.questions.map((q) {
+                    return pw.TableRow(
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.symmetric(vertical: 6),
+                          child: pw.Center(
+                            child: pw.Text(q.title,
+                                textAlign: pw.TextAlign.center,
+                                style: pw.TextStyle(
+                                    font: ttf,
+                                    fontSize: 9.5,
+                                    fontWeight: pw.FontWeight.bold)),
+                          ),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(6),
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                            children: [
+                              _buildPdfQuestionContent(q, ttf),
+                              if (q.elements.isNotEmpty) pw.SizedBox(height: 4),
+                              ...q.elements.map((el) => _buildPdfElement(el, ttf)),
+                            ],
+                          ),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.symmetric(vertical: 6),
+                          child: pw.Center(
+                            child: pw.Text(
+                              q.mark > 0 ? '${q.mark.toInt()} د' : '-',
+                              style: pw.TextStyle(
+                                  font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }),
+                ],
+              ),
+            ];
+          },
+        ),
+      );
+    }
 
     // توجيه الحفظ إلى مجلد التنزيلات العام مباشرة في أندرويد
     Directory dir;
