@@ -43,6 +43,10 @@ dependencies:
 
   # لتوليد معرفات فريدة للاختبارات والأسئلة
   uuid: ^4.4.0
+  
+  # معرف الجهاز وحماية التنشيط
+  device_info_plus: ^10.1.0
+  crypto: ^3.0.3
 
 dev_dependencies:
   flutter_test:
