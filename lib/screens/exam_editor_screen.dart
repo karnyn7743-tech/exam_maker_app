@@ -338,7 +338,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ],
                 ),
                 padding: EdgeInsets.only(
-                  top: _exam.header.topMargin1cm ? 28.0 : 12.0,
+                  top: _exam.header.topMargin1cm ? 8.5 : 12.0, // 3 مم من الأعلى
                   left: 12.0,
                   right: 12.0,
                   bottom: 12.0,
@@ -347,13 +347,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // شريط بيانات الطالب في مساحة الـ 1 سم
+                    // شريط بيانات الطالب في رأس الصفحة
                     if (_exam.header.topMargin1cm) ...[
                       InkWell(
                         onTap: _openFooterSettingsDialog,
                         borderRadius: BorderRadius.circular(4),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
                           margin: const EdgeInsets.only(bottom: 6.0),
                           decoration: BoxDecoration(
                             color: _exam.header.studentDataMode != 'none'
@@ -1137,7 +1137,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // بناء التسطير والجدولة الهندسية لفقرات الاختيار من متعدد داخل شاشة المحرر
+  // بناء التسطير والجدولة الهندسية لفقرات الاختيار من متعدد داخل شاشة المحرر (بدون أي سواد خلف الرموز)
   Widget _buildAutomatedEditorMcqGrid(QuestionModel q) {
     final fullText = q.spans.map((s) => s.text).join('');
     final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
@@ -1161,7 +1161,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           ),
         ...itemLines.map((line) {
-          // استخراج رقم الفقرة ونص السؤال والخيارات
           int itemNum = 1;
           String qBody = line;
 
@@ -1171,7 +1170,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             qBody = match.group(2) ?? '';
           }
 
-          // استخراج الخيارات إن وجدت بين أقواس [ ... ]
           List<String> parsedChoices = ['', '', '', ''];
           if (qBody.contains('[') && qBody.contains(']')) {
             final startIdx = qBody.lastIndexOf('[');
@@ -1241,16 +1239,22 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 ),
                                 child: Row(
                                   children: [
+                                    // خانة رمز الاختيار بخلفية بيضاء نقية وبدون أي سواد
                                     Container(
-                                      width: 20,
-                                      color: Colors.black87,
+                                      width: 22,
+                                      decoration: const BoxDecoration(
+                                        color: Colors.white,
+                                        border: Border(
+                                          left: BorderSide(color: Colors.black87, width: 0.8),
+                                        ),
+                                      ),
                                       child: Center(
                                         child: Text(
                                           sym,
                                           style: const TextStyle(
-                                            color: Colors.white,
+                                            color: Colors.black87,
                                             fontWeight: FontWeight.bold,
-                                            fontSize: 10,
+                                            fontSize: 11,
                                           ),
                                         ),
                                       ),
@@ -2445,7 +2449,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         content: const Text(
-          'تم تفعيل فراغ رأس الصفحة (1 سم).\nهل ترغب في جلب بيانات الطلاب لتوليد نسخ مخصصة لكل طالب؟',
+          'تم تفعيل فراغ رأس الصفحة.\nهل ترغب في جلب بيانات الطلاب لتوليد نسخ مخصصة لكل طالب؟',
         ),
         actions: [
           TextButton(
@@ -2547,7 +2551,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               children: [
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('فراغ رأس الصفحة 1 سم'),
+                  title: const Text('فراغ رأس الصفحة'),
                   subtitle: Text(
                     _exam.header.studentDataMode == 'none'
                         ? 'توليد ورق عادي (بدون كشف طلاب)'
