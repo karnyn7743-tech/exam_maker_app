@@ -7,18 +7,18 @@ import 'services/activation_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // فحص حالة تنشيط التطبيق على هذا العتاد
-  final bool isActivated = await ActivationService.isActivated();
+  // فحص هل مسموح له بالدخول (مفعل بالكامل أو متبقي له الاختبار التجريبي)
+  final bool canAccess = await ActivationService.canAccessApp();
 
-  runApp(ExamMakerApp(isActivated: isActivated));
+  runApp(ExamMakerApp(initialAccessGranted: canAccess));
 }
 
 class ExamMakerApp extends StatelessWidget {
-  final bool isActivated;
+  final bool initialAccessGranted;
 
   const ExamMakerApp({
     super.key,
-    required this.isActivated,
+    required this.initialAccessGranted,
   });
 
   @override
@@ -26,7 +26,6 @@ class ExamMakerApp extends StatelessWidget {
     return MaterialApp(
       title: 'صانع الاختبارات',
       debugShowCheckedModeBanner: false,
-      // ضبط اتجاه التطبيق بالكامل من اليمين لليسار
       locale: const Locale('ar', 'YE'),
       supportedLocales: const [
         Locale('ar', 'YE'),
@@ -48,7 +47,7 @@ class ExamMakerApp extends StatelessWidget {
           elevation: 2,
         ),
       ),
-      home: isActivated ? const HomeScreen() : const ActivationScreen(),
+      home: initialAccessGranted ? const HomeScreen() : const ActivationScreen(),
     );
   }
 }
