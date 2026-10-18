@@ -63,7 +63,6 @@ class OmrSheetService {
         pw.Page(
           pageFormat: PdfPageFormat.a4,
           textDirection: pw.TextDirection.rtl,
-          // 1 سم أعلى الورقة، وهوامش متناسقة للجوانب والأسفل
           margin: const pw.EdgeInsets.only(
             top: 1.0 * cm,
             bottom: 1.0 * cm,
@@ -74,7 +73,7 @@ class OmrSheetService {
             return pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
-                // أ. ترويسة ورقة الإجابة المصغرة (النظيفة بدون بادئات يدوية)
+                // أ. ترويسة ورقة الإجابة المصغرة
                 _buildOmrHeader(exam, student, ttf),
                 pw.SizedBox(height: 6),
 
@@ -114,9 +113,9 @@ class OmrSheetService {
                   ),
                 ),
 
-                pw.SizedBox(height: 8),
+                pw.SizedBox(height: 6),
 
-                // د. التذييل: يستقر في الأسفل بحيز الـ 7 سم لكود المادة ورمز QR والدرجة
+                // د. التذييل مع رمز QR وكود المادة ومربع الدرجة الفارغ 50x60
                 _buildOmrFooter(exam, student, showQr, currentSubjectCode, ttf),
               ],
             );
@@ -148,7 +147,7 @@ class OmrSheetService {
     return filePath;
   }
 
-  // ترويسة ورقة التظليل النظيفة (تعرض بيانات الطالب فقط عند الاستيراد)
+  // ترويسة ورقة التظليل
   static pw.Widget _buildOmrHeader(
       ExamModel exam, StudentData student, pw.Font ttf) {
     final bool hasStudent = student.name.trim().isNotEmpty;
@@ -269,7 +268,7 @@ class OmrSheetService {
     );
   }
 
-  // بناء شبكة الصح والخطأ (ص / خ)
+  // بناء شبكة الصح والخطأ
   static pw.Widget _buildTrueFalseGrid(int count, pw.Font ttf) {
     final int half = (count / 2).ceil();
     final bool useTwoCols = count > 12;
@@ -301,7 +300,6 @@ class OmrSheetService {
       );
     }
 
-    // تقسيم إلى عمودين إذا كان عدد الأسئلة كبيراً
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
@@ -410,7 +408,7 @@ class OmrSheetService {
     );
   }
 
-  // رسم دائرة التظليل الهندسية (القطر القياسي 4.76 مم = 13.5 pt)
+  // رسم دائرة التظليل
   static pw.Widget _buildCircle({
     required String label,
     pw.Font? ttf,
@@ -442,8 +440,8 @@ class OmrSheetService {
     );
   }
 
-  // تذييل ورقة التظليل: يستقر داخل هامش الـ 7 سم السفلي وفق النموذج الهندسي المطلوب
-  // [مربع الدرجة اليدوية] <- [رمز QR بمقاس 40x40] <- [كود المادة بحجم 20 عريض وبدون إطار]
+  // تذييل ورقة التظليل:
+  // [مربع فارغ تماماً 50 عرض × 60 ارتفاع] <- [رمز QR بمقاس 40x40] <- [كود المادة بحجم 20 عريض وبدون إطار]
   static pw.Widget _buildOmrFooter(
     ExamModel exam,
     StudentData student,
@@ -453,7 +451,7 @@ class OmrSheetService {
   ) {
     return pw.Container(
       height: 6.5 * cm,
-      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         crossAxisAlignment: pw.CrossAxisAlignment.end,
@@ -476,13 +474,13 @@ class OmrSheetService {
             ],
           ),
 
-          // الجهة اليسرى (نهاية اتجاه الكتابة العربية):
-          // [كود المادة: 20 عريض بدون إطار] -> [رمز QR: 40x40] -> [مربع الدرجة اليدوية: 48x40]
+          // الجهة اليسرى:
+          // [كود المادة: خط 20 عريض بدون إطار] -> [رمز QR: 40x40] -> [مربع فارغ تماماً: عرض 50 × ارتفاع 60]
           pw.Row(
             mainAxisSize: pw.MainAxisSize.min,
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
-              // 1. رقم كود المادة: خط 20 عريض وبدون أي إطار
+              // 1. رقم كود المادة: خط 20 عريض وبدون إطار
               pw.Text(
                 '$subjectCode',
                 style: pw.TextStyle(
@@ -510,23 +508,12 @@ class OmrSheetService {
 
               pw.SizedBox(width: 10),
 
-              // 3. مربع فارغ لرصد الدرجة المستحقة يدوياً
+              // 3. مربع الدرجة المستحقة: فارغ تماماً بدون كتابة وبمقاس 50 × 60
               pw.Container(
-                width: 48,
-                height: 40,
+                width: 50,
+                height: 60,
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: PdfColors.black, width: 1.2),
-                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-                ),
-                child: pw.Center(
-                  child: pw.Text(
-                    'الدرجة',
-                    style: pw.TextStyle(
-                      font: ttf,
-                      fontSize: 8,
-                      color: PdfColors.grey600,
-                    ),
-                  ),
                 ),
               ),
             ],
