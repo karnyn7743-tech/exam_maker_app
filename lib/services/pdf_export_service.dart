@@ -57,7 +57,6 @@ class PdfExportService {
 
     for (final student in studentsToIterate) {
       final bool hasStudent = student.seatNo.isNotEmpty;
-      // يظهر الـ QR وكود المادة فقط عند اختيار الوضع الثالث (الاسم + الجلوس + رمز QR وكود المادة)
       final bool showQrMode = hasStudent &&
           exam.header.studentDataMode == 'namesAndQr' &&
           exam.examType != ExamType.automated;
@@ -67,13 +66,12 @@ class PdfExportService {
           pageFormat: PdfPageFormat.a4,
           margin: pw.EdgeInsets.only(
             top: exam.header.topMargin1cm ? (1.0 * cm) : 20.0,
-            bottom: showQrMode ? (3.5 * cm) : 20.0, // إتاحة مسافة مريحة للـ QR ومربع الدرجة في الأسفل
+            bottom: showQrMode ? (3.8 * cm) : 20.0,
             left: 20.0,
             right: 20.0,
           ),
           textDirection: pw.TextDirection.rtl,
           header: (pw.Context context) {
-            // يظهر شريط اسم ورقم جلوس الطالب في أعلى الصفحة الأولى فقط
             if (exam.header.topMargin1cm && hasStudent && context.pageNumber == 1) {
               return pw.Padding(
                 padding: const pw.EdgeInsets.only(bottom: 5.0),
@@ -104,7 +102,6 @@ class PdfExportService {
           },
           footer: (pw.Context context) {
             final isLastPage = context.pageNumber == context.pagesCount;
-            // إظهار كود المادة ورمز الـ QR ومربع الدرجة في الصفحة الأخيرة (أو الأولى إذا كان الاختبار من صفحة واحدة)
             final bool shouldShowQrOnThisPage = showQrMode && isLastPage;
 
             return pw.Container(
@@ -135,8 +132,8 @@ class PdfExportService {
                         style: pw.TextStyle(font: ttf, fontSize: 9.0),
                       ),
 
-                      // الجهة اليسرى (نهاية اتجاه السطر العربي):
-                      // [رقم كود المادة: 20 عريض بدون إطار] -> [رمز QR: 40x40] -> [مربع الدرجة اليدوية: 48x40]
+                      // الجهة اليسرى:
+                      // [كود المادة: خط 20 عريض بدون إطار] -> [رمز QR: 40x40] -> [مربع فارغ تماماً: عرض 50 × ارتفاع 60]
                       if (shouldShowQrOnThisPage)
                         pw.Row(
                           mainAxisSize: pw.MainAxisSize.min,
@@ -170,23 +167,12 @@ class PdfExportService {
 
                             pw.SizedBox(width: 10),
 
-                            // 3. مربع فارغ لرصد الدرجة المستحقة بخط اليد
+                            // 3. مربع فارغ تماماً لرصد الدرجة بخط اليد 50x60
                             pw.Container(
-                              width: 48,
-                              height: 40,
+                              width: 50,
+                              height: 60,
                               decoration: pw.BoxDecoration(
                                 border: pw.Border.all(color: PdfColors.black, width: 1.2),
-                                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-                              ),
-                              child: pw.Center(
-                                child: pw.Text(
-                                  'الدرجة',
-                                  style: pw.TextStyle(
-                                    font: ttf,
-                                    fontSize: 8,
-                                    color: PdfColors.grey600,
-                                  ),
-                                ),
                               ),
                             ),
                           ],
@@ -386,7 +372,6 @@ class PdfExportService {
       );
     }
 
-    // توجيه الحفظ إلى مجلد التنزيلات العام مباشرة في أندرويد
     Directory dir;
     if (Platform.isAndroid) {
       final downloadDir = Directory('/storage/emulated/0/Download');
@@ -407,7 +392,7 @@ class PdfExportService {
     return filePath;
   }
 
-  // بناء نص السؤال مع دعم الكسور والجذور والعمليات العمودية المضمنة
+  // بناء نص السؤال
   static pw.Widget _buildPdfQuestionContent(QuestionModel q, pw.Font ttf) {
     final fullText = q.spans.map((s) => s.text).join('');
 
@@ -463,7 +448,7 @@ class PdfExportService {
     );
   }
 
-  // دالة تحويل وسوم [كسر] و [جذر] و [sqrt] و [عمودي] إلى عناصر PDF مدمجة في نفس السطر ومتجانبة
+  // دالة تحويل وسوم الرياضيات المضمنة
   static pw.Widget _renderInlineMathText(
     String text,
     pw.Font ttf, {
