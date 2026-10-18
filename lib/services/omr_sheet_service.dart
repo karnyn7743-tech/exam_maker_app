@@ -63,10 +63,10 @@ class OmrSheetService {
         pw.Page(
           pageFormat: PdfPageFormat.a4,
           textDirection: pw.TextDirection.rtl,
-          // الهوامش: 1 سم من الأعلى، و 7 سم كاملة من الأسفل محجوزة للـ QR وكود المادة والدرجة
-          margin: pw.EdgeInsets.only(
+          // 1 سم أعلى الورقة، وهوامش متناسقة للجوانب والأسفل
+          margin: const pw.EdgeInsets.only(
             top: 1.0 * cm,
-            bottom: 7.0 * cm,
+            bottom: 1.0 * cm,
             left: 1.2 * cm,
             right: 1.2 * cm,
           ),
@@ -82,7 +82,7 @@ class OmrSheetService {
                 _buildOmrInstructions(ttf),
                 pw.SizedBox(height: 6),
 
-                // ج. شبكة دوائر التظليل (تنتهي تماماً فوق فراغ الـ 7 سم)
+                // ج. شبكة دوائر التظليل
                 pw.Expanded(
                   child: pw.Row(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -113,12 +113,13 @@ class OmrSheetService {
                     ],
                   ),
                 ),
+
+                pw.SizedBox(height: 8),
+
+                // د. التذييل: يستقر في الأسفل بحيز الـ 7 سم لكود المادة ورمز QR والدرجة
+                _buildOmrFooter(exam, student, showQr, currentSubjectCode, ttf),
               ],
             );
-          },
-          // د. استغلال حيز الـ 7 سم السفلي وفق النموذج الهندسي المطلوب بالصورة
-          footer: (pw.Context context) {
-            return _buildOmrFooter(exam, student, showQr, currentSubjectCode, ttf);
           },
         ),
       );
@@ -452,7 +453,7 @@ class OmrSheetService {
   ) {
     return pw.Container(
       height: 6.5 * cm,
-      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         crossAxisAlignment: pw.CrossAxisAlignment.end,
