@@ -9,8 +9,9 @@ import '../models/exam_models.dart';
 import 'student_excel_service.dart';
 
 class PdfExportService {
-  // ثابت تحويل السنتيمتر إلى نقاط الطباعة
+  // ثوابت تحويل الأبعاد إلى نقاط الطباعة
   static const double cm = 28.3465;
+  static const double mm = 2.83465;
 
   static Future<String> exportToDownloadsPdf(ExamModel exam) async {
     final pdf = pw.Document();
@@ -69,8 +70,8 @@ class PdfExportService {
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
           margin: pw.EdgeInsets.only(
-            top: exam.header.topMargin1cm ? (1.0 * cm) : 20.0,
-            bottom: showQrMode ? (3.8 * cm) : 20.0,
+            top: 3.0 * mm,     // 3 مم من الحافة العلوية للورقة
+            bottom: 4.0 * mm,  // 4 مم من الحافة السفلية للورقة
             left: 20.0,
             right: 20.0,
           ),
@@ -78,7 +79,7 @@ class PdfExportService {
           header: (pw.Context context) {
             if (exam.header.topMargin1cm && hasStudent) {
               return pw.Padding(
-                padding: const pw.EdgeInsets.only(bottom: 5.0),
+                padding: const pw.EdgeInsets.only(bottom: 4.0),
                 child: pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
@@ -106,7 +107,7 @@ class PdfExportService {
           },
           footer: (pw.Context context) {
             return pw.Container(
-              padding: const pw.EdgeInsets.only(top: 4),
+              padding: const pw.EdgeInsets.only(top: 2),
               child: pw.Column(
                 mainAxisSize: pw.MainAxisSize.min,
                 children: [
@@ -120,7 +121,7 @@ class PdfExportService {
                       ),
                     ),
                   ),
-                  pw.SizedBox(height: 3),
+                  pw.SizedBox(height: 2),
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
@@ -131,7 +132,8 @@ class PdfExportService {
                         style: pw.TextStyle(font: ttf, fontSize: 9.0),
                       ),
 
-                      // الجهة اليسرى
+                      // الجهة اليسرى:
+                      // [كود المادة: 20 عريض بدون إطار] -> [رمز QR: 40x40 مشفر داخله الرقم السري] -> [مربع فارغ تماماً: 50x60]
                       if (showQrMode)
                         pw.Row(
                           mainAxisSize: pw.MainAxisSize.min,
@@ -178,15 +180,11 @@ class PdfExportService {
           },
           build: (pw.Context context) {
             return [
-              // 1. ترويسة الاختبار الرسمية
               _buildExamHeaderBox(exam, ttf, logoImage),
               pw.SizedBox(height: 6),
-
-              // 2. إذا كان الاختبار مؤتمتاً: بناء التسطير المجدول لفقرات الأتمتة
               if (isAutomated)
                 ..._buildAutomatedQuestionsList(exam, symbols, ttf)
               else
-                // إذا كان اختباراً تقليدياً: بناء جدول الأسئلة الشاملة المعتاد
                 _buildTraditionalQuestionsTable(exam, ttf),
             ];
           },
@@ -214,7 +212,7 @@ class PdfExportService {
     return filePath;
   }
 
-  // ترويسة الاختبار
+  // ترويسة الاختبار الرسمية
   static pw.Widget _buildExamHeaderBox(ExamModel exam, pw.Font ttf, pw.MemoryImage? logoImage) {
     return pw.Container(
       decoration: pw.BoxDecoration(
@@ -316,7 +314,6 @@ class PdfExportService {
     final int tfCount = exam.automatedConfig.trueFalseCount;
     final int mcqCount = exam.automatedConfig.mcqCount;
 
-    // أولاً: ترويسة تعليمات الإجابة
     widgets.add(
       pw.Container(
         margin: const pw.EdgeInsets.only(bottom: 6),
@@ -332,7 +329,7 @@ class PdfExportService {
       ),
     );
 
-    // 1. قسم فقرات الصح والخطأ المجدولة
+    // قسم فقرات الصح والخطأ
     if (tfCount > 0) {
       widgets.add(
         pw.Container(
@@ -382,7 +379,7 @@ class PdfExportService {
       widgets.add(pw.SizedBox(height: 6));
     }
 
-    // 2. قسم فقرات الاختيار من متعدد المجدولة كما في النموذج الوزاري
+    // قسم فقرات الاختيار من متعدد
     if (mcqCount > 0) {
       widgets.add(
         pw.Container(
@@ -413,7 +410,7 @@ class PdfExportService {
     return widgets;
   }
 
-  // بناء فقرة اختيار من متعدد مجدولة هندسياً مطابقة للصورة تماماً
+  // بناء فقرة اختيار من متعدد: تم إزالة السواد وجعل الخلفية بيضاء نقية
   static pw.Widget _buildAutomatedMcqItem({
     required int itemNumber,
     required String questionText,
@@ -447,7 +444,7 @@ class PdfExportService {
             ),
           ),
 
-          // 2. الجانب الأيسر: مقسوم أفقياً (نص السؤال، وتحته شبكة البدائل الأربعة)
+          // 2. الجانب الأيسر: مقسوم أفقياً (نص السؤال، والصف السفلي للخيارات)
           pw.Expanded(
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
@@ -467,7 +464,7 @@ class PdfExportService {
                   ),
                 ),
 
-                // ب. صف البدائل الأربعة المجدولة
+                // ب. صف البدائل الأربعة المجدولة بخلفية بيضاء نقية (بدون سواد)
                 pw.Container(
                   height: 20,
                   child: pw.Row(
@@ -486,17 +483,22 @@ class PdfExportService {
                           ),
                           child: pw.Row(
                             children: [
-                              // مربع رمز الاختيار
+                              // مربع رمز الاختيار بخلفية بيضاء وحد أسود واضح وبدون أي سواد
                               pw.Container(
                                 width: 18,
-                                color: PdfColors.black,
+                                decoration: const pw.BoxDecoration(
+                                  color: PdfColors.white,
+                                  border: pw.Border(
+                                    left: pw.BorderSide(color: PdfColors.black, width: 0.8),
+                                  ),
+                                ),
                                 child: pw.Center(
                                   child: pw.Text(
                                     sym,
                                     style: pw.TextStyle(
                                       font: ttf,
-                                      fontSize: 8.5,
-                                      color: PdfColors.white,
+                                      fontSize: 9.0,
+                                      color: PdfColors.black,
                                       fontWeight: pw.FontWeight.bold,
                                     ),
                                   ),
@@ -527,7 +529,7 @@ class PdfExportService {
     );
   }
 
-  // بناء جدول الأسئلة الشاملة التقليدية المعتادة
+  // بناء جدول الأسئلة الشاملة التقليدية
   static pw.Widget _buildTraditionalQuestionsTable(ExamModel exam, pw.Font ttf) {
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
