@@ -4,11 +4,13 @@ import 'package:crypto/crypto.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+enum LicenseStatus { locked, trial, full }
+
 class ActivationService {
   static const String _secretSalt = 'EXAM_MAKER_SECURE_SALT_2026_@ALBAETHEE';
-  static const String _prefKeyIsActivated = 'app_is_activated';
+  static const String _prefLicenseStatus = 'license_status'; // 'trial' أو 'full'
   static const String _prefKeyActivationCode = 'app_activation_code';
-  static const String _prefKeyCreatedExamsCount = 'trial_created_exams_count';
+  static const String _prefTrialExamsCount = 'trial_exams_created_count';
 
   /// استخراج المعرف الفريد للجهاز
   static Future<String> getDeviceId() async {
@@ -33,58 +35,70 @@ class ActivationService {
     return '${hash.substring(0, 4)}-${hash.substring(4, 8)}-${hash.substring(8, 12)}';
   }
 
-  /// توليد مفتاح التنشيط
-  static String generateActivationKey(String deviceId) {
+  /// خوارزمية التحقق من المفتاح وتحديد نوعه (تجريبي أو دائم)
+  static LicenseStatus verifyKey(String enteredKey, String deviceId) {
     final cleanDevice = deviceId.replaceAll('-', '').trim().toUpperCase();
-    final combined = '$cleanDevice:$_secretSalt';
-    final hash = sha256.convert(utf8.encode(combined)).toString().toUpperCase();
-    return '${hash.substring(0, 4)}-${hash.substring(4, 8)}-${hash.substring(8, 12)}-${hash.substring(12, 16)}';
+    final cleanKey = enteredKey.trim().toUpperCase();
+
+    // 1. فحص هل هو مفتاح كامل دائم
+    final fullCombined = '$cleanDevice:FULL:$_secretSalt';
+    final fullHash = sha256.convert(utf8.encode(fullCombined)).toString().toUpperCase();
+    final expectedFullKey = 'FL-${fullHash.substring(0, 4)}-${fullHash.substring(4, 8)}-${fullHash.substring(8, 12)}';
+
+    if (cleanKey == expectedFullKey) {
+      return LicenseStatus.full;
+    }
+
+    // 2. فحص هل هو مفتاح تجريبي مصرح به (لاختبار واحد)
+    final trialCombined = '$cleanDevice:TRIAL:$_secretSalt';
+    final trialHash = sha256.convert(utf8.encode(trialCombined)).toString().toUpperCase();
+    final expectedTrialKey = 'TR-${trialHash.substring(0, 4)}-${trialHash.substring(4, 8)}-${trialHash.substring(8, 12)}';
+
+    if (cleanKey == expectedTrialKey) {
+      return LicenseStatus.trial;
+    }
+
+    return LicenseStatus.locked;
   }
 
-  /// التحقق هل التطبيق منشط برخصة كاملة
-  static Future<bool> isActivated() async {
+  /// التحقق من حالة الترخيص الحالية للجهاز
+  static Future<LicenseStatus> getLicenseStatus() async {
     final prefs = await SharedPreferences.getInstance();
     final savedKey = prefs.getString(_prefKeyActivationCode);
-    if (savedKey == null || savedKey.isEmpty) return false;
+    if (savedKey == null || savedKey.isEmpty) return LicenseStatus.locked;
 
     final currentDeviceId = await getDeviceId();
-    final expectedKey = generateActivationKey(currentDeviceId);
-    return savedKey.trim() == expectedKey.trim();
+    final status = verifyKey(savedKey, currentDeviceId);
+
+    // إذا كان مفتاحاً تجريبياً، نتأكد هل استهلك اختباره الوحيد
+    if (status == LicenseStatus.trial) {
+      final count = prefs.getInt(_prefTrialExamsCount) ?? 0;
+      if (count >= 1) {
+        return LicenseStatus.locked; // انتهت التجربة
+      }
+    }
+
+    return status;
   }
 
-  /// جلب عدد الاختبارات المنشأة أثناء الفترة التجريبية
-  static Future<int> getTrialCreatedCount() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_prefKeyCreatedExamsCount) ?? 0;
-  }
-
-  /// تسجيل استهلاك اختبار تجريبي جديد
+  /// تسجيل استهلاك الاختبار التجريبي
   static Future<void> incrementTrialCount() async {
     final prefs = await SharedPreferences.getInstance();
-    final current = prefs.getInt(_prefKeyCreatedExamsCount) ?? 0;
-    await prefs.setInt(_prefKeyCreatedExamsCount, current + 1);
+    final current = prefs.getInt(_prefTrialExamsCount) ?? 0;
+    await prefs.setInt(_prefTrialExamsCount, current + 1);
   }
 
-  /// فحص هل يُسمح له بفتح التطبيق
-  /// (مسموح إذا كان مفعلاً، أو لم يستهلك بعد الاختبار التجريبي الوحيد)
-  static Future<bool> canAccessApp() async {
-    if (await isActivated()) return true;
-    final count = await getTrialCreatedCount();
-    return count < 1;
-  }
-
-  /// تفعيل التطبيق بالمفتاح المدخل
-  static Future<bool> activate(String enteredKey) async {
+  /// تفعيل المفتاح المدخل
+  static Future<LicenseStatus> applyKey(String enteredKey) async {
     final currentDeviceId = await getDeviceId();
-    final expectedKey = generateActivationKey(currentDeviceId);
+    final status = verifyKey(enteredKey, currentDeviceId);
 
-    final cleanEntered = enteredKey.trim().toUpperCase();
-    if (cleanEntered == expectedKey) {
+    if (status != LicenseStatus.locked) {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_prefKeyIsActivated, true);
-      await prefs.setString(_prefKeyActivationCode, cleanEntered);
-      return true;
+      await prefs.setString(_prefKeyActivationCode, enteredKey.trim().toUpperCase());
+      await prefs.setString(_prefLicenseStatus, status == LicenseStatus.full ? 'full' : 'trial');
     }
-    return false;
+
+    return status;
   }
 }
