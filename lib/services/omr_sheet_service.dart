@@ -63,7 +63,7 @@ class OmrSheetService {
         pw.Page(
           pageFormat: PdfPageFormat.a4,
           textDirection: pw.TextDirection.rtl,
-          // الهوامش: 1 سم من الأعلى، و 7 سم كاملة من الأسفل محجوزة للـ QR وكود المادة
+          // الهوامش: 1 سم من الأعلى، و 7 سم كاملة من الأسفل محجوزة للـ QR وكود المادة والدرجة
           margin: pw.EdgeInsets.only(
             top: 1.0 * cm,
             bottom: 7.0 * cm,
@@ -116,7 +116,7 @@ class OmrSheetService {
               ],
             );
           },
-          // د. استغلال حيز الـ 7 سم السفلي لرمز QR وكود المادة وبيانات الكنترول
+          // د. استغلال حيز الـ 7 سم السفلي وفق النموذج الهندسي المطلوب بالصورة
           footer: (pw.Context context) {
             return _buildOmrFooter(exam, student, showQr, currentSubjectCode, ttf);
           },
@@ -441,7 +441,8 @@ class OmrSheetService {
     );
   }
 
-  // تذييل ورقة التظليل: يستقر داخل هامش الـ 7 سم السفلي المريح لكود المادة والـ QR
+  // تذييل ورقة التظليل: يستقر داخل هامش الـ 7 سم السفلي وفق النموذج الهندسي المطلوب
+  // [مربع الدرجة اليدوية] <- [رمز QR بمقاس 40x40] <- [كود المادة بحجم 20 عريض وبدون إطار]
   static pw.Widget _buildOmrFooter(
     ExamModel exam,
     StudentData student,
@@ -450,83 +451,85 @@ class OmrSheetService {
     pw.Font ttf,
   ) {
     return pw.Container(
-      height: 6.5 * cm, // يستغل حيز الـ 7 سم السفلي المحجوز دون أن يتداخل مع التسطير
-      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey700, width: 0.8),
-        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-      ),
+      height: 6.5 * cm,
+      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        crossAxisAlignment: pw.CrossAxisAlignment.end,
         children: [
-          // كود المادة والرقم السري
+          // الجهة اليمنى: توقيع وملاحظة الكنترول
           pw.Column(
-            mainAxisAlignment: pw.MainAxisAlignment.center,
+            mainAxisAlignment: pw.MainAxisAlignment.end,
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text(
-                'كود المادة: $subjectCode',
-                style: pw.TextStyle(
-                  font: ttf,
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-              if (student.secretCode.isNotEmpty) ...[
-                pw.SizedBox(height: 4),
+              if (student.secretCode.isNotEmpty)
                 pw.Text(
-                  'الرقم السري للكنترول: ${student.secretCode}',
-                  style: pw.TextStyle(font: ttf, fontSize: 8.5),
+                  'الرقم السري: ${student.secretCode}',
+                  style: pw.TextStyle(font: ttf, fontSize: 8.5, color: PdfColors.grey700),
                 ),
-              ],
-              pw.SizedBox(height: 6),
+              pw.SizedBox(height: 4),
               pw.Text(
                 'لجنة الكنترول والتصحيح الآلي | ملاحظ القاعة: ......................',
-                style: pw.TextStyle(font: ttf, fontSize: 8),
+                style: pw.TextStyle(font: ttf, fontSize: 8.5),
               ),
             ],
           ),
 
-          // رمز QR للطالب
-          if (showQr && student.secretCode.isNotEmpty)
-            pw.Column(
-              mainAxisAlignment: pw.MainAxisAlignment.center,
-              children: [
+          // الجهة اليسرى (نهاية اتجاه الكتابة العربية):
+          // [كود المادة: 20 عريض بدون إطار] -> [رمز QR: 40x40] -> [مربع الدرجة اليدوية: 48x40]
+          pw.Row(
+            mainAxisSize: pw.MainAxisSize.min,
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              // 1. رقم كود المادة: خط 20 عريض وبدون أي إطار
+              pw.Text(
+                '$subjectCode',
+                style: pw.TextStyle(
+                  font: ttf,
+                  fontSize: 20,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+
+              pw.SizedBox(width: 8),
+
+              // 2. رمز الاستجابة السريع للطالب بمقاس 40 × 40
+              if (showQr && student.secretCode.isNotEmpty)
                 pw.Container(
-                  width: 48,
-                  height: 48,
+                  width: 40,
+                  height: 40,
                   child: pw.BarcodeWidget(
                     barcode: Barcode.qrCode(),
                     data: student.secretCode,
                     drawText: false,
                   ),
+                )
+              else
+                pw.SizedBox(width: 40, height: 40),
+
+              pw.SizedBox(width: 10),
+
+              // 3. مربع فارغ لرصد الدرجة المستحقة يدوياً
+              pw.Container(
+                width: 48,
+                height: 40,
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.black, width: 1.2),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
                 ),
-                pw.SizedBox(height: 2),
-                pw.Text(
-                  'معرّف الطالب',
-                  style: pw.TextStyle(
-                    font: ttf,
-                    fontSize: 7.5,
-                    fontWeight: pw.FontWeight.bold,
+                child: pw.Center(
+                  child: pw.Text(
+                    'الدرجة',
+                    style: pw.TextStyle(
+                      font: ttf,
+                      fontSize: 8,
+                      color: PdfColors.grey600,
+                    ),
                   ),
                 ),
-              ],
-            )
-          else
-            pw.Container(
-              width: 80,
-              height: 35,
-              decoration: pw.BoxDecoration(
-                border: pw.Border.all(color: PdfColors.grey500, width: 0.6),
               ),
-              child: pw.Center(
-                child: pw.Text(
-                  'ختم الكنترول',
-                  style: pw.TextStyle(font: ttf, fontSize: 8, color: PdfColors.grey700),
-                ),
-              ),
-            ),
+            ],
+          ),
         ],
       ),
     );
