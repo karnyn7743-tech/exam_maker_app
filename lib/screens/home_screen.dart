@@ -298,7 +298,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       buffer.writeln('ظلل الدائرة التي تمثل الإجابة الصحيحة لكل فقرة من الفقرات الآتية:');
       for (int i = 1; i <= mcqCount; i++) {
-        buffer.writeln('$i - ........................................$choicesStr');
+        buffer.writeln('$i - ........................................ $choicesStr');
       }
 
       generatedQuestions.add(
@@ -753,4 +753,31 @@ class _HomeScreenState extends State<HomeScreen> {
                           const SizedBox(width: 4),
                           Text(
                             FileManager.sanitizeFileName(exam.fileName),
-                            style: const TextStyle(fontSize: 
+                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          Text(
+                            'الدرجة: ${exam.totalMarks}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          const SizedBox(width: 10),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                            onPressed: () => _confirmDelete(exam),
+                          ),
+                        ],
+                      )
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
