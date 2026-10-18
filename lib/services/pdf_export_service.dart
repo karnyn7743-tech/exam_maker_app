@@ -57,6 +57,7 @@ class PdfExportService {
 
     for (final student in studentsToIterate) {
       final bool hasStudent = student.seatNo.isNotEmpty;
+      // يظهر الـ QR وكود المادة إذا تم اختيار نمط (الاسم + الجلوس + رمز QR وكود المادة)
       final bool showQrMode = hasStudent &&
           exam.header.studentDataMode == 'namesAndQr' &&
           exam.examType != ExamType.automated;
@@ -72,7 +73,8 @@ class PdfExportService {
           ),
           textDirection: pw.TextDirection.rtl,
           header: (pw.Context context) {
-            if (exam.header.topMargin1cm && hasStudent && context.pageNumber == 1) {
+            // شريط اسم ورقم جلوس كل طالب على ورقة امتحانه
+            if (exam.header.topMargin1cm && hasStudent) {
               return pw.Padding(
                 padding: const pw.EdgeInsets.only(bottom: 5.0),
                 child: pw.Row(
@@ -101,9 +103,6 @@ class PdfExportService {
             return pw.SizedBox.shrink();
           },
           footer: (pw.Context context) {
-            final isLastPage = context.pageNumber == context.pagesCount;
-            final bool shouldShowQrOnThisPage = showQrMode && isLastPage;
-
             return pw.Container(
               padding: const pw.EdgeInsets.only(top: 4),
               child: pw.Column(
@@ -111,9 +110,7 @@ class PdfExportService {
                 children: [
                   pw.Center(
                     child: pw.Text(
-                      isLastPage
-                          ? exam.header.singlePageFooterText
-                          : exam.header.continuationText,
+                      exam.header.singlePageFooterText,
                       style: pw.TextStyle(
                         font: ttf,
                         fontSize: 9.5,
@@ -132,14 +129,14 @@ class PdfExportService {
                         style: pw.TextStyle(font: ttf, fontSize: 9.0),
                       ),
 
-                      // الجهة اليسرى:
-                      // [كود المادة: خط 20 عريض بدون إطار] -> [رمز QR: 40x40] -> [مربع فارغ تماماً: عرض 50 × ارتفاع 60]
-                      if (shouldShowQrOnThisPage)
+                      // الجهة اليسرى: تظهر في الصفحة الأولى باستمرار وبشكل حتمي
+                      // [رقم كود المادة: خط 20 عريض بدون إطار] -> [رمز QR: 40x40] -> [مربع فارغ تماماً: عرض 50 × ارتفاع 60]
+                      if (showQrMode)
                         pw.Row(
                           mainAxisSize: pw.MainAxisSize.min,
                           crossAxisAlignment: pw.CrossAxisAlignment.center,
                           children: [
-                            // 1. رقم كود المادة: حجم 20 عريض وبدون إطار
+                            // 1. كود المادة بحجم 20 عريض وبدون إطار
                             pw.Text(
                               '$currentSubjectCode',
                               style: pw.TextStyle(
@@ -151,7 +148,7 @@ class PdfExportService {
 
                             pw.SizedBox(width: 8),
 
-                            // 2. رمز الاستجابة السريع للطالب بمقاس 40 × 40
+                            // 2. رمز QR الخاص بالطالب بمقاس 40 × 40
                             if (student.secretCode.isNotEmpty)
                               pw.Container(
                                 width: 40,
@@ -167,10 +164,10 @@ class PdfExportService {
 
                             pw.SizedBox(width: 10),
 
-                            // 3. مربع فارغ تماماً لرصد الدرجة بخط اليد 50x60
+                            // 3. مربع الدرجة المستحقة فارغ تماماً بدون أي نص (عرض 50 × ارتفاع 40)
                             pw.Container(
                               width: 50,
-                              height: 60,
+                              height: 40,
                               decoration: pw.BoxDecoration(
                                 border: pw.Border.all(color: PdfColors.black, width: 1.2),
                               ),
@@ -392,7 +389,7 @@ class PdfExportService {
     return filePath;
   }
 
-  // بناء نص السؤال
+  // بناء نص السؤال مع دعم الكسور والجذور والعمليات العمودية
   static pw.Widget _buildPdfQuestionContent(QuestionModel q, pw.Font ttf) {
     final fullText = q.spans.map((s) => s.text).join('');
 
