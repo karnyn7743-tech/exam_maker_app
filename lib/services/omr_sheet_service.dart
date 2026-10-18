@@ -8,6 +8,9 @@ import '../models/exam_models.dart';
 import 'student_excel_service.dart';
 
 class OmrSheetService {
+  // ثابت تحويل السنتيمتر إلى نقاط الطباعة (Points)
+  static const double cm = 28.3465;
+
   /// توليد ورقة التظليل (OMR Bubble Sheet) كملف PDF وحفظه في مجلد التنزيلات
   static Future<String> generateOmrPdf(ExamModel exam) async {
     final pdf = pw.Document();
@@ -20,7 +23,7 @@ class OmrSheetService {
     }
     final ttf = pw.Font.ttf(fontData);
 
-    // 1. استخراج بيانات الطلاب إن وجدت
+    // 1. استخراج بيانات الطلاب إن وجدت من ملف الإكسيل
     List<StudentData> studentList = [];
     int currentSubjectCode = exam.header.subjectCode;
 
@@ -59,21 +62,27 @@ class OmrSheetService {
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(22),
           textDirection: pw.TextDirection.rtl,
+          // الهوامش: 1 سم من الأعلى، و 7 سم كاملة من الأسفل محجوزة للـ QR وكود المادة
+          margin: pw.EdgeInsets.only(
+            top: 1.0 * cm,
+            bottom: 7.0 * cm,
+            left: 1.2 * cm,
+            right: 1.2 * cm,
+          ),
           build: (pw.Context context) {
             return pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
-                // أ. ترويسة ورقة الإجابة المصغرة
+                // أ. ترويسة ورقة الإجابة المصغرة (النظيفة بدون بادئات يدوية)
                 _buildOmrHeader(exam, student, ttf),
-                pw.SizedBox(height: 12),
+                pw.SizedBox(height: 6),
 
                 // ب. منطقة إرشادات التظليل
                 _buildOmrInstructions(ttf),
-                pw.SizedBox(height: 12),
+                pw.SizedBox(height: 6),
 
-                // ج. شبكة دوائر التظليل للصح والخطأ والاختيار من متعدد
+                // ج. شبكة دوائر التظليل (تنتهي تماماً فوق فراغ الـ 7 سم)
                 pw.Expanded(
                   child: pw.Row(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -88,7 +97,7 @@ class OmrSheetService {
                             child: _buildTrueFalseGrid(tfCount, ttf),
                           ),
                         ),
-                        pw.SizedBox(width: 14),
+                        if (mcqCount > 0) pw.SizedBox(width: 10),
                       ],
 
                       // قسم الاختيار من متعدد
@@ -104,12 +113,12 @@ class OmrSheetService {
                     ],
                   ),
                 ),
-
-                // د. التذييل مع رمز QR وكود المادة وتوقيع الكنترول
-                pw.SizedBox(height: 8),
-                _buildOmrFooter(exam, student, showQr, currentSubjectCode, ttf),
               ],
             );
+          },
+          // د. استغلال حيز الـ 7 سم السفلي لرمز QR وكود المادة وبيانات الكنترول
+          footer: (pw.Context context) {
+            return _buildOmrFooter(exam, student, showQr, currentSubjectCode, ttf);
           },
         ),
       );
@@ -138,50 +147,58 @@ class OmrSheetService {
     return filePath;
   }
 
-  // ترويسة ورقة التظليل
+  // ترويسة ورقة التظليل النظيفة (تعرض بيانات الطالب فقط عند الاستيراد)
   static pw.Widget _buildOmrHeader(
       ExamModel exam, StudentData student, pw.Font ttf) {
+    final bool hasStudent = student.name.trim().isNotEmpty;
+
     return pw.Container(
       decoration: pw.BoxDecoration(
         border: pw.Border.all(color: PdfColors.black, width: 1.2),
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
       ),
-      padding: const pw.EdgeInsets.all(6),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       child: pw.Column(
         children: [
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              pw.Text('${exam.header.country} - ${exam.header.school}',
-                  style: pw.TextStyle(
-                      font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
-              pw.Text('ورقة الإجابة والتظليل الآلي (OMR Sheet)',
-                  style: pw.TextStyle(
-                      font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold)),
-              pw.Text('المادة: ${exam.header.subject} | الصف: ${exam.header.grade}',
-                  style: pw.TextStyle(
-                      font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
-            ],
-          ),
-          pw.Divider(thickness: 0.8, color: PdfColors.black),
-          pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-            children: [
               pw.Text(
-                student.name.isNotEmpty
-                    ? 'اسم الطالب: ${student.name}'
-                    : 'اسم الطالب: ................................................................',
+                '${exam.header.country} - ${exam.header.school}',
                 style: pw.TextStyle(
-                    font: ttf, fontSize: 10, fontWeight: pw.FontWeight.bold),
+                    font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
               ),
               pw.Text(
-                student.seatNo.isNotEmpty
-                    ? 'رقم الجلوس: [ ${student.seatNo} ]'
-                    : 'رقم الجلوس: [ .................... ]',
+                'ورقة الإجابة والتظليل الآلي (OMR Sheet)',
                 style: pw.TextStyle(
-                    font: ttf, fontSize: 10, fontWeight: pw.FontWeight.bold),
+                    font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold),
+              ),
+              pw.Text(
+                'المادة: ${exam.header.subject} | الصف: ${exam.header.grade}',
+                style: pw.TextStyle(
+                    font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
               ),
             ],
           ),
+          if (hasStudent) ...[
+            pw.Divider(thickness: 0.8, color: PdfColors.black, height: 6),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  'اسم الطالب: ${student.name}',
+                  style: pw.TextStyle(
+                      font: ttf, fontSize: 10, fontWeight: pw.FontWeight.bold),
+                ),
+                if (student.seatNo.isNotEmpty)
+                  pw.Text(
+                    'رقم الجلوس: [ ${student.seatNo} ]',
+                    style: pw.TextStyle(
+                        font: ttf, fontSize: 10, fontWeight: pw.FontWeight.bold),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -190,8 +207,11 @@ class OmrSheetService {
   // صندوق التعليمات للتظليل الصحيح
   static pw.Widget _buildOmrInstructions(pw.Font ttf) {
     return pw.Container(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+      decoration: const pw.BoxDecoration(
+        color: PdfColors.grey200,
+        borderRadius: pw.BorderRadius.all(pw.Radius.circular(3)),
+      ),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
@@ -224,6 +244,7 @@ class OmrSheetService {
     return pw.Container(
       decoration: pw.BoxDecoration(
         border: pw.Border.all(color: PdfColors.black, width: 1.0),
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
       ),
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
@@ -239,7 +260,7 @@ class OmrSheetService {
             ),
           ),
           pw.Padding(
-            padding: const pw.EdgeInsets.all(6),
+            padding: const pw.EdgeInsets.all(5),
             child: child,
           ),
         ],
@@ -257,7 +278,7 @@ class OmrSheetService {
         children: List.generate(count, (i) {
           final qNum = i + 1;
           return pw.Padding(
-            padding: const pw.EdgeInsets.symmetric(vertical: 2.5),
+            padding: const pw.EdgeInsets.symmetric(vertical: 2.2),
             child: pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.center,
               children: [
@@ -291,7 +312,7 @@ class OmrSheetService {
             }),
           ),
         ),
-        pw.Container(width: 0.8, height: half * 20.0, color: PdfColors.grey400),
+        pw.Container(width: 0.8, height: half * 19.0, color: PdfColors.grey400),
         pw.Expanded(
           child: pw.Column(
             children: List.generate(count - half, (i) {
@@ -306,7 +327,7 @@ class OmrSheetService {
 
   static pw.Widget _buildTfRow(int qNum, pw.Font ttf) {
     return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 2.0),
+      padding: const pw.EdgeInsets.symmetric(vertical: 1.8),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.center,
         children: [
@@ -352,7 +373,7 @@ class OmrSheetService {
             }),
           ),
         ),
-        pw.Container(width: 0.8, height: half * 22.0, color: PdfColors.grey400),
+        pw.Container(width: 0.8, height: half * 21.0, color: PdfColors.grey400),
         pw.Expanded(
           child: pw.Column(
             children: List.generate(count - half, (i) {
@@ -367,7 +388,7 @@ class OmrSheetService {
 
   static pw.Widget _buildMcqRow(int qNum, List<String> symbols, pw.Font ttf) {
     return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 2.2),
+      padding: const pw.EdgeInsets.symmetric(vertical: 2.0),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.center,
         children: [
@@ -380,7 +401,7 @@ class OmrSheetService {
           ),
           pw.SizedBox(width: 4),
           ...symbols.map((sym) => pw.Padding(
-                padding: const pw.EdgeInsets.symmetric(horizontal: 2.5),
+                padding: const pw.EdgeInsets.symmetric(horizontal: 2.2),
                 child: _buildCircle(label: sym, ttf: ttf),
               )),
         ],
@@ -388,7 +409,7 @@ class OmrSheetService {
     );
   }
 
-  // رسم دائرة التظليل الهندسية
+  // رسم دائرة التظليل الهندسية (القطر القياسي 4.76 مم = 13.5 pt)
   static pw.Widget _buildCircle({
     required String label,
     pw.Font? ttf,
@@ -420,7 +441,7 @@ class OmrSheetService {
     );
   }
 
-  // تذييل ورقة التظليل مع رمز الاستجابة السريع وكود المادة
+  // تذييل ورقة التظليل: يستقر داخل هامش الـ 7 سم السفلي المريح لكود المادة والـ QR
   static pw.Widget _buildOmrFooter(
     ExamModel exam,
     StudentData student,
@@ -428,42 +449,86 @@ class OmrSheetService {
     int subjectCode,
     pw.Font ttf,
   ) {
-    return pw.Row(
-      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: pw.CrossAxisAlignment.end,
-      children: [
-        pw.Text(
-          'لجنة الكنترول والتصحيح الآلي | ملاحظ القاعة: ......................',
-          style: pw.TextStyle(font: ttf, fontSize: 8.5),
-        ),
-        if (showQr)
-          pw.Row(
-            mainAxisSize: pw.MainAxisSize.min,
-            crossAxisAlignment: pw.CrossAxisAlignment.center,
+    return pw.Container(
+      height: 6.5 * cm, // يستغل حيز الـ 7 سم السفلي المحجوز دون أن يتداخل مع التسطير
+      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.grey700, width: 0.8),
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+      ),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          // كود المادة والرقم السري
+          pw.Column(
+            mainAxisAlignment: pw.MainAxisAlignment.center,
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Text(
-                '$subjectCode',
+                'كود المادة: $subjectCode',
                 style: pw.TextStyle(
                   font: ttf,
-                  fontSize: 20,
+                  fontSize: 14,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
-              pw.SizedBox(width: 6),
-              pw.Container(
-                width: 38,
-                height: 38,
-                child: pw.BarcodeWidget(
-                  barcode: Barcode.qrCode(),
-                  data: student.secretCode,
-                  drawText: false,
+              if (student.secretCode.isNotEmpty) ...[
+                pw.SizedBox(height: 4),
+                pw.Text(
+                  'الرقم السري للكنترول: ${student.secretCode}',
+                  style: pw.TextStyle(font: ttf, fontSize: 8.5),
                 ),
+              ],
+              pw.SizedBox(height: 6),
+              pw.Text(
+                'لجنة الكنترول والتصحيح الآلي | ملاحظ القاعة: ......................',
+                style: pw.TextStyle(font: ttf, fontSize: 8),
               ),
             ],
-          )
-        else
-          pw.SizedBox(height: 10),
-      ],
+          ),
+
+          // رمز QR للطالب
+          if (showQr && student.secretCode.isNotEmpty)
+            pw.Column(
+              mainAxisAlignment: pw.MainAxisAlignment.center,
+              children: [
+                pw.Container(
+                  width: 48,
+                  height: 48,
+                  child: pw.BarcodeWidget(
+                    barcode: Barcode.qrCode(),
+                    data: student.secretCode,
+                    drawText: false,
+                  ),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  'معرّف الطالب',
+                  style: pw.TextStyle(
+                    font: ttf,
+                    fontSize: 7.5,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ],
+            )
+          else
+            pw.Container(
+              width: 80,
+              height: 35,
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.grey500, width: 0.6),
+              ),
+              child: pw.Center(
+                child: pw.Text(
+                  'ختم الكنترول',
+                  style: pw.TextStyle(font: ttf, fontSize: 8, color: PdfColors.grey700),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
