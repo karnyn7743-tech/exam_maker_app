@@ -347,7 +347,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // شريط بيانات الطالب في مساحة الـ 1 سم (قابل للنقر المباشر لضبط كشف الإكسيل)
+                    // شريط بيانات الطالب في مساحة الـ 1 سم
                     if (_exam.header.topMargin1cm) ...[
                       InkWell(
                         onTap: _openFooterSettingsDialog,
@@ -787,7 +787,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // دعم رسم الكسور والجذور والعمليات العمودية المضمنة في السطر ومحاذاة المنازل لليمين مع وضع الإشارة قبل الآحاد
+  // دعم رسم الكسور والجذور والعمليات العمودية المضمنة في السطر
   InlineSpan _buildInlineSpanWithFractions(String text, TextStyle baseStyle) {
     final regExp = RegExp(r'\[(كسر|جذر|sqrt|عمودي):(.*?)\]');
     final matches = regExp.allMatches(text);
@@ -1029,6 +1029,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   static MainAxisSize minAxisSize() => MainAxisSize.min;
 
   Widget _buildQuestionContent(QuestionModel q) {
+    // إذا كان الاختبار مؤتمتاً وهذا سؤال الاختيار من متعدد، نعرضه بالجدولة الهندسية المسطرة
+    final fullText = q.spans.map((s) => s.text).join('');
+    final bool isAutomatedMcq = _exam.examType == ExamType.automated &&
+        (fullText.contains('[') && (fullText.contains('أ-') || fullText.contains('١-') || fullText.contains('1-')));
+
+    if (isAutomatedMcq) {
+      return _buildAutomatedEditorMcqGrid(q);
+    }
+
     if (!q.isTwoColumns) {
       return Text.rich(
         TextSpan(
@@ -1047,7 +1056,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       );
     }
 
-    final fullText = q.spans.map((s) => s.text).join('');
     final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
 
     if (lines.length <= 1) {
@@ -1125,6 +1133,152 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           ],
         ),
+      ],
+    );
+  }
+
+  // بناء التسطير والجدولة الهندسية لفقرات الاختيار من متعدد داخل شاشة المحرر
+  Widget _buildAutomatedEditorMcqGrid(QuestionModel q) {
+    final fullText = q.spans.map((s) => s.text).join('');
+    final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
+
+    final String intro = lines.isNotEmpty ? lines.first : '';
+    final List<String> itemLines = lines.length > 1 ? lines.sublist(1) : [];
+
+    final bool isLetters = _exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.arabicLetters;
+    final List<String> defaultSymbols = isLetters ? ['أ', 'ب', 'جـ', 'د'] : ['١', '٢', '٣', '٤'];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (intro.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              intro,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
+              textAlign: TextAlign.right,
+            ),
+          ),
+        ...itemLines.map((line) {
+          // استخراج رقم الفقرة ونص السؤال والخيارات
+          int itemNum = 1;
+          String qBody = line;
+
+          final match = RegExp(r'^(\d+)\s*[-–]\s*(.*)').firstMatch(line);
+          if (match != null) {
+            itemNum = int.tryParse(match.group(1) ?? '1') ?? 1;
+            qBody = match.group(2) ?? '';
+          }
+
+          // استخراج الخيارات إن وجدت بين أقواس [ ... ]
+          List<String> parsedChoices = ['', '', '', ''];
+          if (qBody.contains('[') && qBody.contains(']')) {
+            final startIdx = qBody.lastIndexOf('[');
+            final endIdx = qBody.lastIndexOf(']');
+            final bracketContent = qBody.substring(startIdx + 1, endIdx);
+            qBody = qBody.substring(0, startIdx).trim();
+
+            final rawParts = bracketContent.split(RegExp(r'[|،,]'));
+            for (int i = 0; i < rawParts.length && i < 4; i++) {
+              parsedChoices[i] = rawParts[i].replaceAll(RegExp(r'^[أ-ي0-9١-٩]\s*[-–]\s*'), '').trim();
+            }
+          }
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 6.0),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.black87, width: 1.0),
+              color: Colors.white,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // عمود رقم الفقرة على اليمين
+                Container(
+                  width: 32,
+                  decoration: const BoxDecoration(
+                    border: Border(left: BorderSide(color: Colors.black87, width: 1.0)),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$itemNum',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                  ),
+                ),
+                // الجانب الأيسر: مقسوم أفقياً (نص السؤال، والصف السفلي للخيارات الأربعة)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                        decoration: const BoxDecoration(
+                          border: Border(bottom: BorderSide(color: Colors.black87, width: 0.8)),
+                        ),
+                        child: Text(
+                          qBody.isNotEmpty ? qBody : '....................................................................',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                      SizedBox(
+                        height: 24,
+                        child: Row(
+                          children: List.generate(4, (idx) {
+                            final sym = defaultSymbols[idx];
+                            final choiceText = parsedChoices[idx];
+
+                            return Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    left: idx > 0
+                                        ? const BorderSide(color: Colors.black87, width: 0.8)
+                                        : BorderSide.none,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 20,
+                                      color: Colors.black87,
+                                      child: Center(
+                                        child: Text(
+                                          sym,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Center(
+                                        child: Text(
+                                          choiceText,
+                                          style: const TextStyle(fontSize: 10),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
       ],
     );
   }
@@ -2412,7 +2566,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     topMargin = _exam.header.topMargin1cm;
                   },
                 ),
-                // زر صريح ومباشر لإدراج أو إعادة اختيار ملف الإكسيل
                 if (topMargin) ...[
                   const SizedBox(height: 4),
                   OutlinedButton.icon(
@@ -2839,11 +2992,9 @@ class _ArabicRadicalPainter extends CustomPainter {
     final startX = size.width;
     final bottomY = size.height - 2;
 
-    // بداية الجذر من اليمين
     path.moveTo(startX, bottomY - 6);
     path.lineTo(startX - 3, bottomY);
     path.lineTo(startX - 7, 2);
-    // سقف الجذر ممتد يساراً فوق المقدار
     path.lineTo(0, 2);
 
     canvas.drawPath(path, paint);
@@ -2875,11 +3026,9 @@ class _EnglishRadicalPainter extends CustomPainter {
     final path = Path();
     final bottomY = size.height - 2;
 
-    // بداية الجذر من اليسار
     path.moveTo(0, bottomY - 6);
     path.lineTo(3, bottomY);
     path.lineTo(7, 2);
-    // سقف الجذر ممتد يميناً فوق المقدار
     path.lineTo(size.width, 2);
 
     canvas.drawPath(path, paint);
