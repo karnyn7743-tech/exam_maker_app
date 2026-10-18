@@ -7,18 +7,19 @@ import 'services/activation_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // فحص هل مسموح له بالدخول (مفعل بالكامل أو متبقي له الاختبار التجريبي)
-  final bool canAccess = await ActivationService.canAccessApp();
+  // فحص حالة الترخيص: لا يمكن الدخول إلا بترخيص ساري (تجريبي أو دائم)
+  final status = await ActivationService.getLicenseStatus();
+  final bool isAllowed = (status == LicenseStatus.full || status == LicenseStatus.trial);
 
-  runApp(ExamMakerApp(initialAccessGranted: canAccess));
+  runApp(ExamMakerApp(isInitialAccessGranted: isAllowed));
 }
 
 class ExamMakerApp extends StatelessWidget {
-  final bool initialAccessGranted;
+  final bool isInitialAccessGranted;
 
   const ExamMakerApp({
     super.key,
-    required this.initialAccessGranted,
+    required this.isInitialAccessGranted,
   });
 
   @override
@@ -47,7 +48,7 @@ class ExamMakerApp extends StatelessWidget {
           elevation: 2,
         ),
       ),
-      home: initialAccessGranted ? const HomeScreen() : const ActivationScreen(),
+      home: isInitialAccessGranted ? const HomeScreen() : const ActivationScreen(),
     );
   }
 }
