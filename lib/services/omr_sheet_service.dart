@@ -470,7 +470,7 @@ class OmrSheetService {
           ),
 
           // الجهة اليسرى:
-          // [كود المادة: خط 20 عريض بدون إطار] -> [رمز QR: 40x40 مشفر داخله الرقم السري] -> [مربع فارغ تماماً: 50 × 60]
+          // [كود المادة: خط 20 عريض بدون إطار] -> [رمز QR: 40x40 مشفر داخله الرقم السري] -> [مربع فارغ تماماً: 50 × 40]
           pw.Row(
             mainAxisSize: pw.MainAxisSize.min,
             crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -506,7 +506,7 @@ class OmrSheetService {
               // 3. مربع الدرجة المستحقة: فارغ تماماً وبمقاس 50 × 60
               pw.Container(
                 width: 50,
-                height: 60,
+                height: 40,
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: PdfColors.black, width: 1.2),
                 ),
