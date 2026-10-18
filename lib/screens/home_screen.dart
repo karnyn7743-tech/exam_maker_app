@@ -30,9 +30,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkActivationStatus() async {
-    final activated = await ActivationService.isActivated();
+    final status = await ActivationService.getLicenseStatus();
     if (mounted) {
-      setState(() => _isActivated = activated);
+      setState(() => _isActivated = (status == LicenseStatus.full));
     }
   }
 
@@ -48,14 +48,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// فحص هل يُسمح له بإنشاء اختبار جديد أو استيراده
   Future<bool> _verifyTrialOrActivated() async {
-    if (_isActivated) return true;
+    final status = await ActivationService.getLicenseStatus();
+    if (status == LicenseStatus.full) return true;
 
     final createdCount = await ActivationService.getTrialCreatedCount();
-    if (createdCount >= 1 || _exams.isNotEmpty) {
+    if (status == LicenseStatus.locked || createdCount >= 1 || _exams.isNotEmpty) {
       if (!mounted) return false;
       // توجيهه فوراً لشاشة التنشيط
       await showDialog(
         context: context,
+        barrierDismissible: false,
         builder: (ctx) => AlertDialog(
           title: Row(
             children: const [
@@ -647,7 +649,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildEmptyState() {
     return Center(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.center,
         children: [
           Icon(Icons.description_outlined, size: 85, color: Colors.grey.shade400),
           const SizedBox(height: 16),
