@@ -8,8 +8,9 @@ import '../models/exam_models.dart';
 import 'student_excel_service.dart';
 
 class OmrSheetService {
-  // ثابت تحويل السنتيمتر إلى نقاط الطباعة (Points)
+  // ثوابت تحويل الأبعاد إلى نقاط الطباعة (Points)
   static const double cm = 28.3465;
+  static const double mm = 2.83465;
 
   /// توليد ورقة التظليل (OMR Bubble Sheet) كملف PDF وحفظه في مجلد التنزيلات
   static Future<String> generateOmrPdf(ExamModel exam) async {
@@ -63,9 +64,10 @@ class OmrSheetService {
         pw.Page(
           pageFormat: PdfPageFormat.a4,
           textDirection: pw.TextDirection.rtl,
+          // 3 مم من الأعلى، و 4 مم من الأسفل
           margin: const pw.EdgeInsets.only(
-            top: 1.0 * cm,
-            bottom: 1.0 * cm,
+            top: 3.0 * mm,     // 3 مم حتى بيانات رأس الورقة
+            bottom: 4.0 * mm,  // 4 مم حتى كود المادة والـ QR
             left: 1.2 * cm,
             right: 1.2 * cm,
           ),
@@ -75,11 +77,11 @@ class OmrSheetService {
               children: [
                 // أ. ترويسة ورقة الإجابة المصغرة
                 _buildOmrHeader(exam, student, ttf),
-                pw.SizedBox(height: 6),
+                pw.SizedBox(height: 5),
 
                 // ب. منطقة إرشادات التظليل
                 _buildOmrInstructions(ttf),
-                pw.SizedBox(height: 6),
+                pw.SizedBox(height: 5),
 
                 // ج. شبكة دوائر التظليل
                 pw.Expanded(
@@ -113,9 +115,9 @@ class OmrSheetService {
                   ),
                 ),
 
-                pw.SizedBox(height: 6),
+                pw.SizedBox(height: 4),
 
-                // د. التذييل مع رمز QR وكود المادة ومربع الدرجة الفارغ 50x60
+                // د. التذييل: يستقر على بعد 4 مم من الحافة السفلية
                 _buildOmrFooter(exam, student, showQr, currentSubjectCode, ttf),
               ],
             );
@@ -157,7 +159,7 @@ class OmrSheetService {
         border: pw.Border.all(color: PdfColors.black, width: 1.2),
         borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
       ),
-      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: pw.Column(
         children: [
           pw.Row(
@@ -181,7 +183,7 @@ class OmrSheetService {
             ],
           ),
           if (hasStudent) ...[
-            pw.Divider(thickness: 0.8, color: PdfColors.black, height: 6),
+            pw.Divider(thickness: 0.8, color: PdfColors.black, height: 5),
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
@@ -207,7 +209,7 @@ class OmrSheetService {
   // صندوق التعليمات للتظليل الصحيح
   static pw.Widget _buildOmrInstructions(pw.Font ttf) {
     return pw.Container(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3.0),
       decoration: const pw.BoxDecoration(
         color: PdfColors.grey200,
         borderRadius: pw.BorderRadius.all(pw.Radius.circular(3)),
@@ -251,7 +253,7 @@ class OmrSheetService {
         children: [
           pw.Container(
             color: PdfColors.grey200,
-            padding: const pw.EdgeInsets.symmetric(vertical: 3),
+            padding: const pw.EdgeInsets.symmetric(vertical: 2.5),
             child: pw.Text(
               title,
               textAlign: pw.TextAlign.center,
@@ -260,7 +262,7 @@ class OmrSheetService {
             ),
           ),
           pw.Padding(
-            padding: const pw.EdgeInsets.all(5),
+            padding: const pw.EdgeInsets.all(4),
             child: child,
           ),
         ],
@@ -278,7 +280,7 @@ class OmrSheetService {
         children: List.generate(count, (i) {
           final qNum = i + 1;
           return pw.Padding(
-            padding: const pw.EdgeInsets.symmetric(vertical: 2.2),
+            padding: const pw.EdgeInsets.symmetric(vertical: 2.0),
             child: pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.center,
               children: [
@@ -387,7 +389,7 @@ class OmrSheetService {
 
   static pw.Widget _buildMcqRow(int qNum, List<String> symbols, pw.Font ttf) {
     return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 2.0),
+      padding: const pw.EdgeInsets.symmetric(vertical: 1.8),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.center,
         children: [
@@ -440,8 +442,7 @@ class OmrSheetService {
     );
   }
 
-  // تذييل ورقة التظليل:
-  // [مربع فارغ تماماً 50 عرض × 40 ارتفاع] <- [رمز QR بمقاس 40x40] <- [كود المادة بحجم 20 عريض وبدون إطار]
+  // تذييل ورقة التظليل: بدون طباعة الرقم السري نهائياً لحفظ السرية التامة
   static pw.Widget _buildOmrFooter(
     ExamModel exam,
     StudentData student,
@@ -450,23 +451,17 @@ class OmrSheetService {
     pw.Font ttf,
   ) {
     return pw.Container(
-      height: 6.5 * cm,
-      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      height: 62, // ارتفاع مريح يستوعب مربع الـ 60 pt بدقة
+      padding: const pw.EdgeInsets.symmetric(horizontal: 4),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         crossAxisAlignment: pw.CrossAxisAlignment.end,
         children: [
-          // الجهة اليمنى: توقيع وملاحظة الكنترول
+          // الجهة اليمنى: توقيع وملاحظة الكنترول فقط بدون الرقم السري
           pw.Column(
             mainAxisAlignment: pw.MainAxisAlignment.end,
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              if (student.secretCode.isNotEmpty)
-                pw.Text(
-                  'الرقم السري: ${student.secretCode}',
-                  style: pw.TextStyle(font: ttf, fontSize: 8.5, color: PdfColors.grey700),
-                ),
-              pw.SizedBox(height: 4),
               pw.Text(
                 'لجنة الكنترول والتصحيح الآلي | ملاحظ القاعة: ......................',
                 style: pw.TextStyle(font: ttf, fontSize: 8.5),
@@ -475,7 +470,7 @@ class OmrSheetService {
           ),
 
           // الجهة اليسرى:
-          // [كود المادة: خط 20 عريض بدون إطار] -> [رمز QR: 40x40] -> [مربع فارغ تماماً: عرض 50 × ارتفاع 40]
+          // [كود المادة: خط 20 عريض بدون إطار] -> [رمز QR: 40x40 مشفر داخله الرقم السري] -> [مربع فارغ تماماً: 50 × 60]
           pw.Row(
             mainAxisSize: pw.MainAxisSize.min,
             crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -508,10 +503,10 @@ class OmrSheetService {
 
               pw.SizedBox(width: 10),
 
-              // 3. مربع الدرجة المستحقة: فارغ تماماً بدون كتابة وبمقاس 50 × 60
+              // 3. مربع الدرجة المستحقة: فارغ تماماً وبمقاس 50 × 60
               pw.Container(
                 width: 50,
-                height: 40,
+                height: 60,
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: PdfColors.black, width: 1.2),
                 ),
