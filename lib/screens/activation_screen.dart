@@ -11,7 +11,7 @@ class ActivationScreen extends StatefulWidget {
 }
 
 class _ActivationScreenState extends State<ActivationScreen> {
-  String _deviceId = 'جاري الجلب...';
+  String _deviceId = 'جاري القراءة...';
   final _keyController = TextEditingController();
   bool _isLoading = true;
   String? _errorMessage;
@@ -33,27 +33,38 @@ class _ActivationScreenState extends State<ActivationScreen> {
   Future<void> _handleActivation() async {
     final key = _keyController.text.trim();
     if (key.isEmpty) {
-      setState(() => _errorMessage = 'يرجى إدخال مفتاح التنشيط');
+      setState(() => _errorMessage = 'يرجى إدخال مفتاح التنشيط أو التجربة');
       return;
     }
 
-    final success = await ActivationService.activate(key);
-    if (success) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تم تنشيط التطبيق بنجاح! أهلاً بك.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
-      }
+    final status = await ActivationService.applyKey(key);
+    if (!mounted) return;
+
+    if (status == LicenseStatus.full) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تم تنشيط النسخة الكاملة بنجاح مدى الحياة! أهلاً بك.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    } else if (status == LicenseStatus.trial) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تم تفعيل النسخة التجريبية (مسموح باختبار واحد كامل).'),
+          backgroundColor: Color(0xFF0F766E),
+        ),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
     } else {
       setState(() {
-        _errorMessage = 'مفتاح التنشيط غير صحيح أو غير مخصص لهذا الجهاز';
+        _errorMessage = 'مفتاح غير صحيح أو غير مخصص لهذا الجهاز';
       });
     }
   }
@@ -62,7 +73,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
     Clipboard.setData(ClipboardData(text: _deviceId));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('تم نسخ رمز الجهاز بنجاح. أرسله للمطور للحصول على التفعيل.'),
+        content: Text('تم نسخ رمز الجهاز. أرسله للمطور لاستلام كود التجربة أو التفعيل.'),
         duration: Duration(seconds: 2),
       ),
     );
@@ -77,7 +88,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: Container(
-              constraints: const BoxConstraints(maxWidth: 450),
+              constraints: const BoxConstraints(maxWidth: 460),
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -90,20 +101,20 @@ class _ActivationScreenState extends State<ActivationScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.security, size: 60, color: Color(0xFF1E3A8A)),
+                  const Icon(Icons.security, size: 58, color: Color(0xFF1E3A8A)),
                   const SizedBox(height: 12),
                   const Text(
-                    'تنشيط النسخة المرخصة',
+                    'تنشيط صانع الاختبارات والأتمتة',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'هذا التطبيق محمي ومخصص للعمل على جهاز مصرح به فقط.\nأرسل رمز الجهاز أدناه للمطور لاستلام مفتاح التفعيل.',
+                    'للحصول على كود تجربة مجاني أو مفتاح الترخيص الدائم، أرسل رمز جهازك الظاهر بالأسفل إلى المطور.',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
-                  const Divider(height: 28),
+                  const Divider(height: 26),
 
                   const Text(
                     'رمز الجهاز الخاص بك (Device ID):',
@@ -143,10 +154,10 @@ class _ActivationScreenState extends State<ActivationScreen> {
                   TextField(
                     controller: _keyController,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(letterSpacing: 2.0, fontWeight: FontWeight.bold),
+                    style: const TextStyle(letterSpacing: 1.5, fontWeight: FontWeight.bold),
                     decoration: InputDecoration(
-                      labelText: 'أدخل مفتاح التنشيط هنا',
-                      hintText: 'XXXX-XXXX-XXXX-XXXX',
+                      labelText: 'أدخل مفتاح التنشيط أو كود التجربة',
+                      hintText: 'TR-XXXX-XXXX-XXXX أو FL-XXXX-...',
                       errorText: _errorMessage,
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.key, color: Color(0xFF1E3A8A)),
@@ -162,7 +173,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
                     ),
                     icon: const Icon(Icons.verified, color: Colors.white),
                     label: const Text(
-                      'تأكيد وتفعيل التطبيق',
+                      'تأكيد الدخول والتفعيل',
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                     ),
                     onPressed: _isLoading ? null : _handleActivation,
