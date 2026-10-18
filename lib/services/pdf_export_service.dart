@@ -9,6 +9,9 @@ import '../models/exam_models.dart';
 import 'student_excel_service.dart';
 
 class PdfExportService {
+  // ثابت تحويل السنتيمتر إلى نقاط الطباعة
+  static const double cm = 28.3465;
+
   static Future<String> exportToDownloadsPdf(ExamModel exam) async {
     final pdf = pw.Document();
 
@@ -27,7 +30,7 @@ class PdfExportService {
       logoImage = pw.MemoryImage(bytes);
     }
 
-    // 1. فحص هل تم تفعيل وضع تخصيص أوراق الطلاب
+    // 1. فحص هل تم تفعيل وضع تخصيص أوراق الطلاب من الإكسيل
     List<StudentData> studentList = [];
     int currentSubjectCode = exam.header.subjectCode;
 
@@ -47,14 +50,14 @@ class PdfExportService {
       }
     }
 
-    // 2. إذا لم يكن هناك طلاب أو تم اختيار الإلغاء، نضع عنصراً وهمياً فارغاً لطباعة ورقة عادية
+    // 2. إذا كان الخيار "ورق عادي" أو لم يتم استيراد كشف، نطبع نسخة عامة واحدة فقط
     final studentsToIterate = studentList.isNotEmpty
         ? studentList
         : [StudentData(seatNo: '', name: '', secretCode: '')];
 
     for (final student in studentsToIterate) {
       final bool hasStudent = student.seatNo.isNotEmpty;
-      // يظهر الـ QR في ورقة الأسئلة فقط إذا كان الاختبار شاملاً وليس مؤتمتاً (في المؤتمت يكون الـ QR على ورقة التظليل فقط)
+      // يظهر الـ QR وكود المادة فقط عند اختيار الوضع الثالث (الاسم + الجلوس + رمز QR وكود المادة)
       final bool showQrMode = hasStudent &&
           exam.header.studentDataMode == 'namesAndQr' &&
           exam.examType != ExamType.automated;
@@ -63,14 +66,14 @@ class PdfExportService {
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
           margin: pw.EdgeInsets.only(
-            top: exam.header.topMargin1cm ? 28.3 : 20.0,
-            bottom: 20.0,
+            top: exam.header.topMargin1cm ? (1.0 * cm) : 20.0,
+            bottom: showQrMode ? (3.5 * cm) : 20.0, // إتاحة مسافة مريحة للـ QR ومربع الدرجة في الأسفل
             left: 20.0,
             right: 20.0,
           ),
           textDirection: pw.TextDirection.rtl,
           header: (pw.Context context) {
-            // يظهر اسم ورقم جلوس الطالب في أعلى الصفحة الأولى فقط
+            // يظهر شريط اسم ورقم جلوس الطالب في أعلى الصفحة الأولى فقط
             if (exam.header.topMargin1cm && hasStudent && context.pageNumber == 1) {
               return pw.Padding(
                 padding: const pw.EdgeInsets.only(bottom: 5.0),
@@ -101,7 +104,8 @@ class PdfExportService {
           },
           footer: (pw.Context context) {
             final isLastPage = context.pageNumber == context.pagesCount;
-            final bool shouldShowQrOnThisPage = showQrMode && (context.pageNumber == 1);
+            // إظهار كود المادة ورمز الـ QR ومربع الدرجة في الصفحة الأخيرة (أو الأولى إذا كان الاختبار من صفحة واحدة)
+            final bool shouldShowQrOnThisPage = showQrMode && isLastPage;
 
             return pw.Container(
               padding: const pw.EdgeInsets.only(top: 4),
@@ -120,20 +124,25 @@ class PdfExportService {
                       ),
                     ),
                   ),
-                  pw.SizedBox(height: 2),
+                  pw.SizedBox(height: 3),
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
+                      // الجهة اليمنى: توقيع المعلم
                       pw.Text(
                         exam.header.teacherSignature,
                         style: pw.TextStyle(font: ttf, fontSize: 9.0),
                       ),
+
+                      // الجهة اليسرى (نهاية اتجاه السطر العربي):
+                      // [رقم كود المادة: 20 عريض بدون إطار] -> [رمز QR: 40x40] -> [مربع الدرجة اليدوية: 48x40]
                       if (shouldShowQrOnThisPage)
                         pw.Row(
                           mainAxisSize: pw.MainAxisSize.min,
                           crossAxisAlignment: pw.CrossAxisAlignment.center,
                           children: [
+                            // 1. رقم كود المادة: حجم 20 عريض وبدون إطار
                             pw.Text(
                               '$currentSubjectCode',
                               style: pw.TextStyle(
@@ -142,14 +151,42 @@ class PdfExportService {
                                 fontWeight: pw.FontWeight.bold,
                               ),
                             ),
-                            pw.SizedBox(width: 6),
+
+                            pw.SizedBox(width: 8),
+
+                            // 2. رمز الاستجابة السريع للطالب بمقاس 40 × 40
+                            if (student.secretCode.isNotEmpty)
+                              pw.Container(
+                                width: 40,
+                                height: 40,
+                                child: pw.BarcodeWidget(
+                                  barcode: Barcode.qrCode(),
+                                  data: student.secretCode,
+                                  drawText: false,
+                                ),
+                              )
+                            else
+                              pw.SizedBox(width: 40, height: 40),
+
+                            pw.SizedBox(width: 10),
+
+                            // 3. مربع فارغ لرصد الدرجة المستحقة بخط اليد
                             pw.Container(
-                              width: 38,
-                              height: 38,
-                              child: pw.BarcodeWidget(
-                                barcode: Barcode.qrCode(),
-                                data: student.secretCode,
-                                drawText: false,
+                              width: 48,
+                              height: 40,
+                              decoration: pw.BoxDecoration(
+                                border: pw.Border.all(color: PdfColors.black, width: 1.2),
+                                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                              ),
+                              child: pw.Center(
+                                child: pw.Text(
+                                  'الدرجة',
+                                  style: pw.TextStyle(
+                                    font: ttf,
+                                    fontSize: 8,
+                                    color: PdfColors.grey600,
+                                  ),
+                                ),
                               ),
                             ),
                           ],
