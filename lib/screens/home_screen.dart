@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import '../models/exam_models.dart';
+import '../services/activation_service.dart';
 import '../services/exam_share_service.dart';
 import '../services/exam_storage_service.dart';
 import '../services/file_manager.dart';
+import 'activation_screen.dart';
 import 'exam_editor_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -18,11 +20,20 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<ExamModel> _exams = [];
   bool _isLoading = true;
+  bool _isActivated = false;
 
   @override
   void initState() {
     super.initState();
     _loadExams();
+    _checkActivationStatus();
+  }
+
+  Future<void> _checkActivationStatus() async {
+    final activated = await ActivationService.isActivated();
+    if (mounted) {
+      setState(() => _isActivated = activated);
+    }
   }
 
   // تحميل قائمة الاختبارات من الذاكرة المحلية
@@ -35,8 +46,64 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  /// فحص هل يُسمح له بإنشاء اختبار جديد أو استيراده
+  Future<bool> _verifyTrialOrActivated() async {
+    if (_isActivated) return true;
+
+    final createdCount = await ActivationService.getTrialCreatedCount();
+    if (createdCount >= 1 || _exams.isNotEmpty) {
+      if (!mounted) return false;
+      // توجيهه فوراً لشاشة التنشيط
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Row(
+            children: const [
+              Icon(Icons.lock_clock, color: Colors.amber),
+              SizedBox(width: 8),
+              Text('انتهت النسخة التجريبية', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          content: const Text(
+            'لقد استخدمت الاختبار التجريبي المجاني المتاح على هذا الجهاز.\n'
+            'لإنشاء المزيد من الاختبارات المفتوحة والوصول لجميع الميزات، يرجى تفعيل النسخة الكاملة.',
+            style: TextStyle(fontSize: 13),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ActivationScreen()),
+                ).then((_) {
+                  _checkActivationStatus();
+                  _loadExams();
+                });
+              },
+              child: const Text('إدخال مفتاح التنشيط', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+      return false;
+    }
+    return true;
+  }
+
   // 1. الشروع في الاختبارات الشاملة (التحريرية التقليدية)
-  void _createTraditionalExam() {
+  Future<void> _createTraditionalExam() async {
+    if (!await _verifyTrialOrActivated()) return;
+
+    if (!_isActivated) {
+      await ActivationService.incrementTrialCount();
+    }
+
     final newExam = ExamModel(
       id: const Uuid().v4(),
       fileName: 'اختبار_شامل_${DateTime.now().millisecondsSinceEpoch}',
@@ -50,11 +117,15 @@ class _HomeScreenState extends State<HomeScreen> {
     _openEditor(newExam, isNew: true);
   }
 
-  // 2. إنشاء اختبار مؤتمت (تظليل OMR) مع حوار تحديد الفقرات والرموز
-  void _showCreateAutomatedExamDialog() {
+  // 2. إنشاء اختبار مؤتمت (تظليل OMR)
+  Future<void> _showCreateAutomatedExamDialog() async {
+    if (!await _verifyTrialOrActivated()) return;
+
     final tfCountCtrl = TextEditingController(text: '10');
     final mcqCountCtrl = TextEditingController(text: '10');
     ChoiceSymbolType symbolType = ChoiceSymbolType.arabicLetters;
+
+    if (!mounted) return;
 
     showDialog(
       context: context,
@@ -160,10 +231,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 'توليد الاختبار',
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
-              onPressed: () {
+              onPressed: () async {
                 final int tfCount = int.tryParse(tfCountCtrl.text.trim()) ?? 10;
                 final int mcqCount = int.tryParse(mcqCountCtrl.text.trim()) ?? 10;
                 Navigator.pop(ctx);
+
+                if (!_isActivated) {
+                  await ActivationService.incrementTrialCount();
+                }
+
                 _generateAutomatedExam(
                   tfCount: tfCount,
                   mcqCount: mcqCount,
@@ -185,7 +261,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }) {
     final List<QuestionModel> generatedQuestions = [];
 
-    // 1. توليد سؤال الصح والخطأ بحسب العدد المدخل
     if (tfCount > 0) {
       final buffer = StringBuffer();
       buffer.writeln('ظلل الدائرة (ص) إذا كانت العبارة صحيحة، والدائرة (خ) إذا كانت العبارة خاطئة:');
@@ -212,7 +287,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // 2. توليد سؤال الاختيار من متعدد بحسب العدد ونوع الرموز المختار
     if (mcqCount > 0) {
       final buffer = StringBuffer();
       final bool isLetters = symbolType == ChoiceSymbolType.arabicLetters;
@@ -279,11 +353,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (result == true) {
       _loadExams();
+      _checkActivationStatus();
     }
   }
 
   // استيراد ملف مشروع .exam
   Future<void> _importExamProjectDialog() async {
+    if (!await _verifyTrialOrActivated()) return;
+
     Directory? downloadsDir;
     if (Platform.isAndroid) {
       downloadsDir = Directory('/storage/emulated/0/Download');
@@ -339,6 +416,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 final path = pathCtrl.text.trim();
                 if (path.isNotEmpty) {
                   Navigator.pop(ctx);
+                  if (!_isActivated) await ActivationService.incrementTrialCount();
                   await _processImportedFile(path);
                 }
               },
@@ -350,7 +428,6 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    // عرض قائمة الملفات المتوفرة في مجلد التنزيلات
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -368,6 +445,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 onTap: () async {
                   Navigator.pop(ctx);
+                  if (!_isActivated) await ActivationService.incrementTrialCount();
                   await _processImportedFile(file.path);
                 },
               );
@@ -451,6 +529,20 @@ class _HomeScreenState extends State<HomeScreen> {
             tooltip: 'استيراد اختبار (.exam)',
             onPressed: _importExamProjectDialog,
           ),
+          if (!_isActivated)
+            IconButton(
+              icon: const Icon(Icons.key, color: Colors.amberAccent),
+              tooltip: 'تنشيط النسخة الكاملة',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ActivationScreen()),
+                ).then((_) {
+                  _checkActivationStatus();
+                  _loadExams();
+                });
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'تحديث القائمة',
@@ -458,11 +550,47 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _exams.isEmpty
-              ? _buildEmptyState()
-              : _buildExamsList(),
+      body: Column(
+        children: [
+          // شريط إشعار النسخة التجريبية إذا لم يكن منشطاً
+          if (!_isActivated)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              color: Colors.amber.shade100,
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Colors.brown, size: 20),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'نسخة تجريبية (مسموح باختبار مجاني واحد فقط لتجربة التنسيق والطباعة).',
+                      style: TextStyle(color: Colors.brown, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ActivationScreen()),
+                      ).then((_) {
+                        _checkActivationStatus();
+                        _loadExams();
+                      });
+                    },
+                    child: const Text('تنشيط الآن', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                  ),
+                ],
+              ),
+            ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _exams.isEmpty
+                    ? _buildEmptyState()
+                    : _buildExamsList(),
+          ),
+        ],
+      ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
@@ -478,7 +606,6 @@ class _HomeScreenState extends State<HomeScreen> {
         child: SafeArea(
           child: Row(
             children: [
-              // الزر الأول: الشروع في الاختبارات الشاملة (التحريرية التقليدية)
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
@@ -495,7 +622,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(width: 10),
-              // الزر الثاني: إنشاء اختبار مؤتمت (تظليل OMR)
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
