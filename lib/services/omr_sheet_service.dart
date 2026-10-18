@@ -441,7 +441,7 @@ class OmrSheetService {
   }
 
   // تذييل ورقة التظليل:
-  // [مربع فارغ تماماً 50 عرض × 60 ارتفاع] <- [رمز QR بمقاس 40x40] <- [كود المادة بحجم 20 عريض وبدون إطار]
+  // [مربع فارغ تماماً 50 عرض × 40 ارتفاع] <- [رمز QR بمقاس 40x40] <- [كود المادة بحجم 20 عريض وبدون إطار]
   static pw.Widget _buildOmrFooter(
     ExamModel exam,
     StudentData student,
@@ -475,7 +475,7 @@ class OmrSheetService {
           ),
 
           // الجهة اليسرى:
-          // [كود المادة: خط 20 عريض بدون إطار] -> [رمز QR: 40x40] -> [مربع فارغ تماماً: عرض 50 × ارتفاع 60]
+          // [كود المادة: خط 20 عريض بدون إطار] -> [رمز QR: 40x40] -> [مربع فارغ تماماً: عرض 50 × ارتفاع 40]
           pw.Row(
             mainAxisSize: pw.MainAxisSize.min,
             crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -511,7 +511,7 @@ class OmrSheetService {
               // 3. مربع الدرجة المستحقة: فارغ تماماً بدون كتابة وبمقاس 50 × 60
               pw.Container(
                 width: 50,
-                height: 60,
+                height: 40,
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: PdfColors.black, width: 1.2),
                 ),
