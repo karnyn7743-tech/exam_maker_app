@@ -8,7 +8,7 @@ enum LicenseStatus { locked, trial, full }
 
 class ActivationService {
   static const String _secretSalt = 'EXAM_MAKER_SECURE_SALT_2026_@ALBAETHEE';
-  static const String _prefLicenseStatus = 'license_status'; // 'trial' أو 'full'
+  static const String _prefLicenseStatus = 'license_status';
   static const String _prefKeyActivationCode = 'app_activation_code';
   static const String _prefTrialExamsCount = 'trial_exams_created_count';
 
@@ -35,12 +35,12 @@ class ActivationService {
     return '${hash.substring(0, 4)}-${hash.substring(4, 8)}-${hash.substring(8, 12)}';
   }
 
-  /// خوارزمية التحقق من المفتاح وتحديد نوعه (تجريبي أو دائم)
+  /// خوارزمية التحقق من المفتاح وتحديد نوعه
   static LicenseStatus verifyKey(String enteredKey, String deviceId) {
     final cleanDevice = deviceId.replaceAll('-', '').trim().toUpperCase();
     final cleanKey = enteredKey.trim().toUpperCase();
 
-    // 1. فحص هل هو مفتاح كامل دائم
+    // 1. فحص المفتاح الكامل الدائم
     final fullCombined = '$cleanDevice:FULL:$_secretSalt';
     final fullHash = sha256.convert(utf8.encode(fullCombined)).toString().toUpperCase();
     final expectedFullKey = 'FL-${fullHash.substring(0, 4)}-${fullHash.substring(4, 8)}-${fullHash.substring(8, 12)}';
@@ -49,7 +49,7 @@ class ActivationService {
       return LicenseStatus.full;
     }
 
-    // 2. فحص هل هو مفتاح تجريبي مصرح به (لاختبار واحد)
+    // 2. فحص كود التجربة المصرح به
     final trialCombined = '$cleanDevice:TRIAL:$_secretSalt';
     final trialHash = sha256.convert(utf8.encode(trialCombined)).toString().toUpperCase();
     final expectedTrialKey = 'TR-${trialHash.substring(0, 4)}-${trialHash.substring(4, 8)}-${trialHash.substring(8, 12)}';
@@ -61,7 +61,19 @@ class ActivationService {
     return LicenseStatus.locked;
   }
 
-  /// التحقق من حالة الترخيص الحالية للجهاز
+  /// فحص هل التطبيق مفعل تفعيلاً كاملاً
+  static Future<bool> isActivated() async {
+    final status = await getLicenseStatus();
+    return status == LicenseStatus.full;
+  }
+
+  /// جلب عدد الاختبارات المنشأة أثناء الفترة التجريبية
+  static Future<int> getTrialCreatedCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_prefTrialExamsCount) ?? 0;
+  }
+
+  /// التحقق من حالة الترخيص الحالية
   static Future<LicenseStatus> getLicenseStatus() async {
     final prefs = await SharedPreferences.getInstance();
     final savedKey = prefs.getString(_prefKeyActivationCode);
@@ -70,11 +82,10 @@ class ActivationService {
     final currentDeviceId = await getDeviceId();
     final status = verifyKey(savedKey, currentDeviceId);
 
-    // إذا كان مفتاحاً تجريبياً، نتأكد هل استهلك اختباره الوحيد
     if (status == LicenseStatus.trial) {
       final count = prefs.getInt(_prefTrialExamsCount) ?? 0;
       if (count >= 1) {
-        return LicenseStatus.locked; // انتهت التجربة
+        return LicenseStatus.locked;
       }
     }
 
