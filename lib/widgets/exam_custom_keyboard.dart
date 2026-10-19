@@ -25,6 +25,7 @@ class ExamCustomKeyboard extends StatefulWidget {
 class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
   KeyboardMode _mode = KeyboardMode.arabic;
   bool _isShift = false;
+  bool _arabicShift = false; // التبديل بين شاشتي الوضع العربي
 
   void _insertText(String text) {
     final c = widget.controller;
@@ -179,32 +180,88 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     }
   }
 
-  // 1. لوحة الحروف العربية القياسية
+  // 1. لوحة الحروف العربية ذات الشاشتين (الشاشة 1: الحروف الأساسية | الشاشة 2: التشكيل والهمزات والترقيم)
   Widget _buildArabicLayout() {
-    final nums = ['١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '٠'];
-    final r1 = ['ض', 'ص', 'ث', 'ق', 'ف', 'غ', 'ع', 'ه', 'خ', 'ح', 'ج', 'د'];
-    final r2 = ['ش', 'س', 'ي', 'ب', 'ل', 'ا', 'ت', 'ن', 'م', 'ك', 'ط'];
-    final r3 = ['ئ', 'ء', 'ؤ', 'ر', 'لا', 'ى', 'ة', 'و', 'ز', 'ظ', 'ذ'];
+    if (!_arabicShift) {
+      // --- الشاشة الأولى: الأحرف والأرقام العربية الأساسية ---
+      final nums = ['١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '٠'];
+      final r1 = ['ض', 'ص', 'ث', 'ق', 'ف', 'غ', 'ع', 'ه', 'خ', 'ح', 'ج', 'د'];
+      final r2 = ['ش', 'س', 'ي', 'ب', 'ل', 'ا', 'ت', 'ن', 'م', 'ك', 'ط'];
+      final r3 = ['ئ', 'ء', 'ؤ', 'ر', 'لا', 'ى', 'ة', 'و', 'ز', 'ظ', 'ذ'];
 
-    return Column(
-      children: [
-        _buildRow(nums),
-        _buildRow(r1),
-        _buildRow(r2),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ...r3.map((k) => _buildKey(k)),
-            _buildSpecialKey(
-              icon: Icons.backspace_outlined,
-              color: Colors.red.shade900,
-              onTap: _backspace,
-            ),
-          ],
-        ),
-        _buildBottomControlRow(excludeBackspace: true),
-      ],
-    );
+      return Column(
+        children: [
+          _buildRow(nums),
+          _buildRow(r1),
+          _buildRow(r2),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // زر Shift الثابت للتبديل للشاشة الثانية
+              _buildSpecialKey(
+                icon: Icons.arrow_upward,
+                color: Colors.blueGrey.shade800,
+                onTap: () => setState(() => _arabicShift = true),
+              ),
+              ...r3.map((k) => _buildKey(k)),
+              _buildSpecialKey(
+                icon: Icons.backspace_outlined,
+                color: Colors.red.shade900,
+                onTap: _backspace,
+              ),
+            ],
+          ),
+          _buildBottomControlRow(excludeBackspace: true),
+        ],
+      );
+    } else {
+      // --- الشاشة الثانية: حركات الضبط والتشكيل والهمزات وأنواع السكون وعلامات الترقيم ---
+      // الصف 1: حركات التشكيل والتنوين والسكون
+      // َ (فتحة)، ً (تنوين فتح)، ُ (ضمة)، ٌ (تنوين ضم)، ِ (كسرة)، ٍ (تنوين كسر)، ّ (شدة)، ْ (سكون دائري)، ۡ (سكون قرآني رأس حاء)، ـٰ (ألف خنجرية)
+      final rDiacritics = [
+        '\u064E', // فتحة
+        '\u064B', // تنوين فتح
+        '\u064F', // ضمة
+        '\u064C', // تنوين ضم
+        '\u0650', // كسرة
+        '\u064D', // تنوين كسر
+        '\u0651', // شدة
+        '\u0652', // سكون دائري
+        '\u06E1', // سكون قرآني شبيه برأس الحاء
+        '\u0670', // ألف خنجرية صغيرة
+      ];
+
+      // الصف 2: أشكال الهمزات والمدود
+      final rHamzas = ['أ', 'إ', 'آ', 'ٱ', 'ء', 'ئ', 'ؤ', 'ـ', '«', '»'];
+
+      // الصف 3: علامات الترقيم والأقواس
+      final rPunctuation = [':', '،', '؛', '؟', '!', '.', '—', '"', '(', ')'];
+
+      return Column(
+        children: [
+          _buildDiacriticsRow(rDiacritics),
+          _buildRow(rHamzas),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // زر Shift نشط باللون الأزرق للعودة للشاشة الأساسية
+              _buildSpecialKey(
+                icon: Icons.arrow_upward,
+                color: const Color(0xFF2563EB),
+                onTap: () => setState(() => _arabicShift = false),
+              ),
+              ...rPunctuation.map((k) => _buildKey(k)),
+              _buildSpecialKey(
+                icon: Icons.backspace_outlined,
+                color: Colors.red.shade900,
+                onTap: _backspace,
+              ),
+            ],
+          ),
+          _buildBottomControlRow(excludeBackspace: true),
+        ],
+      );
+    }
   }
 
   // 2. لوحة الإنجليزية القياسية QWERTY
@@ -227,7 +284,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
           children: [
             _buildSpecialKey(
               icon: Icons.arrow_upward,
-              color: _isShift ? Colors.blue : Colors.blueGrey.shade800,
+              color: _isShift ? const Color(0xFF2563EB) : Colors.blueGrey.shade800,
               onTap: () => setState(() => _isShift = !_isShift),
             ),
             ...mapShift(r3).map((k) => _buildKey(k)),
@@ -257,7 +314,6 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // زر الجذر العربي الممتد
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 1.5),
@@ -319,7 +375,6 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // زر الجذر اللاتيني الممتد
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 1.5),
@@ -401,6 +456,47 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: keys.map((k) => _buildKey(k)).toList(),
+      ),
+    );
+  }
+
+  // صف الحركات مع حرف استرشادي عائم لعرض الحركة بوضوح
+  Widget _buildDiacriticsRow(List<String> diacritics) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: diacritics.map((d) {
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 1.5),
+              child: InkWell(
+                onTap: () => _insertText(d),
+                borderRadius: BorderRadius.circular(4),
+                child: Container(
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E3A8A), // لون تمييزي لحركات التشكيل
+                    borderRadius: BorderRadius.circular(4),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black26, offset: Offset(0, 1), blurRadius: 1),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    'ـ$d',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Amiri',
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
