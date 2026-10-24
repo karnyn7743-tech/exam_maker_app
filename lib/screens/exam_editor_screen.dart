@@ -785,8 +785,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
+  // دعم رسم البلوكات الرياضية والفيزيائية المضمنة بدقة
   InlineSpan _buildInlineSpanWithFractions(String text, TextStyle baseStyle) {
-    final regExp = RegExp(r'\[(كسر|جذر|sqrt|عمودي|قسمة|div):(.*?)\]');
+    final regExp = RegExp(r'\[(كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):(.*?)\]');
     final matches = regExp.allMatches(text);
 
     if (matches.isEmpty) {
@@ -806,11 +807,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
       final type = match.group(1);
       final rawContent = match.group(2) ?? '';
+      final parts = rawContent.split(':');
 
       if (type == 'كسر') {
-        final parts = rawContent.split('/');
-        final num = parts.isNotEmpty ? parts[0] : '';
-        final den = parts.length > 1 ? parts[1] : '';
+        final p = rawContent.split('/');
+        final num = p.isNotEmpty ? p[0] : '';
+        final den = p.length > 1 ? p[1] : '';
 
         children.add(
           WidgetSpan(
@@ -850,7 +852,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
         );
       } else if (type == 'جذر') {
-        final parts = rawContent.split(':');
         final String degree = parts.length > 1 ? parts[0] : '';
         final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
 
@@ -861,7 +862,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               textDirection: TextDirection.rtl,
               child: IntrinsicWidth(
                 child: Row(
-                  mainAxisSize: minAxisSize(),
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (degree.isNotEmpty)
@@ -895,54 +896,159 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           ),
         );
-      } else if (type == 'sqrt') {
-        final parts = rawContent.split(':');
-        final String degree = parts.length > 1 ? parts[0] : '';
-        final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
+      } else if (type == 'نها') {
+        final v = parts.isNotEmpty ? parts[0] : 'س';
+        final t = parts.length > 1 ? parts[1] : '٠';
+        final fn = parts.length > 2 ? parts[2] : '';
 
         children.add(
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
-            child: Directionality(
-              textDirection: TextDirection.ltr,
-              child: IntrinsicWidth(
-                child: Row(
-                  mainAxisSize: minAxisSize(),
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (degree.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 0.0, right: 1.5),
-                        child: Text(
-                          degree,
-                          style: baseStyle.copyWith(
-                            fontSize: (baseStyle.fontSize ?? 14) * 0.70,
-                            fontWeight: FontWeight.bold,
-                            height: 0.9,
-                          ),
-                        ),
-                      ),
-                    CustomPaint(
-                      painter: _EnglishRadicalPainter(color: baseStyle.color ?? Colors.black87),
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 4.0, left: 10.0, right: 4.0, bottom: 2.0),
-                        child: Text(
-                          radicand,
-                          style: baseStyle.copyWith(
-                            fontWeight: FontWeight.bold,
-                            fontSize: (baseStyle.fontSize ?? 14) * 0.95,
-                          ),
-                        ),
-                      ),
-                    ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('نهـا', style: baseStyle.copyWith(fontWeight: FontWeight.bold, fontSize: (baseStyle.fontSize ?? 14) * 1.05)),
+                      Text('$v ← $t', style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.65, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  if (fn.isNotEmpty) ...[
+                    const SizedBox(width: 4),
+                    Text(fn, style: baseStyle.copyWith(fontWeight: FontWeight.bold)),
                   ],
-                ),
+                ],
+              ),
+            ),
+          ),
+        );
+      } else if (type == 'تباديل' || type == 'توافيق') {
+        final n = parts.isNotEmpty ? parts[0] : 'ن';
+        final r = parts.length > 1 ? parts[1] : 'ر';
+        final sym = type == 'تباديل' ? 'ل' : 'ق';
+
+        children.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Text(n, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.75, fontWeight: FontWeight.bold)),
+                  ),
+                  Text(sym, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 1.25, fontWeight: FontWeight.bold)),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(r, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.75, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      } else if (type == 'مجموع' || type == 'تكامل') {
+        final from = parts.isNotEmpty ? parts[0] : '';
+        final to = parts.length > 1 ? parts[1] : '';
+        final body = parts.length > 2 ? parts[2] : '';
+        final sym = type == 'مجموع' ? 'مجـ' : '∫';
+
+        children.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(to, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.65, fontWeight: FontWeight.bold)),
+                      Text(sym, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 1.2, fontWeight: FontWeight.bold)),
+                      Text(from, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.65, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  if (body.isNotEmpty) ...[
+                    const SizedBox(width: 4),
+                    Text(body, style: baseStyle.copyWith(fontWeight: FontWeight.bold)),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      } else if (type == 'متجه') {
+        final symbol = parts.isNotEmpty ? parts[0] : 'ق';
+        children.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('→', style: TextStyle(fontSize: 10, height: 0.8, fontWeight: FontWeight.bold)),
+                Text(symbol, style: baseStyle.copyWith(fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        );
+      } else if (type == 'بار') {
+        final symbol = parts.isNotEmpty ? parts[0] : 'س';
+        children.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(width: 12, height: 1.2, color: baseStyle.color ?? Colors.black87),
+                Text(symbol, style: baseStyle.copyWith(fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        );
+      } else if (type == 'محدد' || type == 'مصفوفة') {
+        final isMatrix = type == 'مصفوفة';
+        final a = parts.isNotEmpty ? parts[0] : '';
+        final b = parts.length > 1 ? parts[1] : '';
+        final c = parts.length > 2 ? parts[2] : '';
+        final d = parts.length > 3 ? parts[3] : '';
+
+        children.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                border: isMatrix
+                    ? Border(
+                        left: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
+                        right: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
+                      )
+                    : Border(
+                        left: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.2),
+                        right: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.2),
+                      ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(mainAxisSize: MainAxisSize.min, children: [Text(a, style: baseStyle), const SizedBox(width: 8), Text(b, style: baseStyle)]),
+                  Row(mainAxisSize: MainAxisSize.min, children: [Text(c, style: baseStyle), const SizedBox(width: 8), Text(d, style: baseStyle)]),
+                ],
               ),
             ),
           ),
         );
       } else if (type == 'عمودي') {
-        final parts = rawContent.split(':');
         final op = parts.isNotEmpty ? parts[0] : '+';
         final numbers = parts.length > 1 ? parts.sublist(1) : <String>[];
 
@@ -1009,7 +1115,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
         );
       } else if (type == 'قسمة' || type == 'div') {
-        final parts = rawContent.split(':');
         final bool isRtl = type == 'قسمة';
         final String dividend = parts.isNotEmpty ? parts[0] : '';
         final String divisor = parts.length > 1 ? parts[1] : '';
@@ -1041,7 +1146,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         ),
                       ),
                     Row(
-                      mainAxisSize: minAxisSize(),
+                      mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Text(
@@ -1092,8 +1197,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     return TextSpan(children: children);
   }
-
-  static MainAxisSize minAxisSize() => MainAxisSize.min;
 
   Widget _buildQuestionContent(QuestionModel q) {
     final fullText = q.spans.map((s) => s.text).join('');
@@ -1456,7 +1559,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
   }
 
-  // دالة عرض الأشكال الهندسية التلقائية في المحرر
   Widget _renderCustomShape(String jsonStr) {
     try {
       final Map<String, dynamic> data = jsonDecode(jsonStr);
@@ -1951,6 +2053,119 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       workingSpans = newSpans.where((s) => s.text.isNotEmpty).toList();
     }
 
+    // نافذة إدراج الصيغ الرياضية والفيزيائية المركبة الحرة
+    void showAdvancedEquationDialog(void Function(void Function()) setParentState) {
+      String eqType = 'نها';
+      final f1Ctrl = TextEditingController(text: 'س');
+      final f2Ctrl = TextEditingController(text: '٠');
+      final f3Ctrl = TextEditingController(text: '٢س');
+      final f4Ctrl = TextEditingController(text: '');
+
+      showDialog(
+        context: context,
+        builder: (dCtx) => StatefulBuilder(
+          builder: (context, setDState) => AlertDialog(
+            title: Row(
+              children: const [
+                Icon(Icons.functions, color: Color(0xFF1E3A8A)),
+                SizedBox(width: 8),
+                Text('إدراج معادلة رياضية / فيزيائية', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: eqType,
+                    decoration: const InputDecoration(labelText: 'نوع الصيغة أو العملية', border: OutlineInputBorder()),
+                    items: const [
+                      DropdownMenuItem(value: 'نها', child: Text('نهاية دالة (نهـا)')),
+                      DropdownMenuItem(value: 'تباديل', child: Text('تباديل (ن ل ر)')),
+                      DropdownMenuItem(value: 'توافيق', child: Text('توافيق (ن ق ر)')),
+                      DropdownMenuItem(value: 'مجموع', child: Text('رمز المجموع (مجـ / Σ)')),
+                      DropdownMenuItem(value: 'تكامل', child: Text('تكامل محدود (∫)')),
+                      DropdownMenuItem(value: 'متجه', child: Text('متجه فيزيائي (← علوي)')),
+                      DropdownMenuItem(value: 'بار', child: Text('متوسط حسابي (شَرطة علوية ¯)')),
+                      DropdownMenuItem(value: 'محدد', child: Text('محدد ثنائي 2×2 (| |)')),
+                      DropdownMenuItem(value: 'مصفوفة', child: Text('مصفوفة ثنائية 2×2 ([ ])')),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) {
+                        setDState(() {
+                          eqType = v;
+                          if (v == 'نها') { f1Ctrl.text = 'س'; f2Ctrl.text = '٠'; f3Ctrl.text = '٢س'; }
+                          if (v == 'تباديل') { f1Ctrl.text = '٧'; f2Ctrl.text = '٣'; }
+                          if (v == 'توافيق') { f1Ctrl.text = '١٠'; f2Ctrl.text = '٤'; }
+                          if (v == 'مجموع') { f1Ctrl.text = 'ر=١'; f2Ctrl.text = '٥'; f3Ctrl.text = 'ر²'; }
+                          if (v == 'تكامل') { f1Ctrl.text = '٠'; f2Ctrl.text = '٣'; f3Ctrl.text = 'س² د(س)'; }
+                          if (v == 'متجه') { f1Ctrl.text = 'ق'; }
+                          if (v == 'بار') { f1Ctrl.text = 'س'; }
+                          if (v == 'محدد' || v == 'مصفوفة') { f1Ctrl.text = '٢'; f2Ctrl.text = '٣'; f3Ctrl.text = '١'; f4Ctrl.text = '٤'; }
+                        });
+                      }
+                    },
+                  ),
+                  const Divider(height: 20),
+                  if (eqType == 'نها') ...[
+                    TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'المتغير (مثال: س)')),
+                    const SizedBox(height: 6),
+                    TextField(controller: f2Ctrl, decoration: const InputDecoration(labelText: 'يؤول إلى (مثال: ٠ أو ∞)')),
+                    const SizedBox(height: 6),
+                    TextField(controller: f3Ctrl, decoration: const InputDecoration(labelText: 'الدالة')),
+                  ] else if (eqType == 'تباديل' || eqType == 'توافيق') ...[
+                    TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'العدد الكلي / العلم (ن)')),
+                    const SizedBox(height: 6),
+                    TextField(controller: f2Ctrl, decoration: const InputDecoration(labelText: 'المأخوذ / الدليل (ر)')),
+                  ] else if (eqType == 'مجموع' || eqType == 'تكامل') ...[
+                    TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'حد البداية / الأدنى (بالأسفل)')),
+                    const SizedBox(height: 6),
+                    TextField(controller: f2Ctrl, decoration: const InputDecoration(labelText: 'حد النهاية / الأعلى (بالأعلى)')),
+                    const SizedBox(height: 6),
+                    TextField(controller: f3Ctrl, decoration: const InputDecoration(labelText: 'المقدار المراد حسابه')),
+                  ] else if (eqType == 'متجه' || eqType == 'بار') ...[
+                    TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'اسم الرمز أو الكمية الفيزيائية')),
+                  ] else if (eqType == 'محدد' || eqType == 'مصفوفة') ...[
+                    Row(children: [
+                      Expanded(child: TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'صف١ عمود١'))),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(controller: f2Ctrl, decoration: const InputDecoration(labelText: 'صف١ عمود٢'))),
+                    ]),
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      Expanded(child: TextField(controller: f3Ctrl, decoration: const InputDecoration(labelText: 'صف٢ عمود١'))),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(controller: f4Ctrl, decoration: const InputDecoration(labelText: 'صف٢ عمود٢'))),
+                    ]),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
+              ElevatedButton(
+                onPressed: () {
+                  String tag = '';
+                  if (eqType == 'تباديل' || eqType == 'توافيق') {
+                    tag = '[$eqType:${f1Ctrl.text.trim()}:${f2Ctrl.text.trim()}]';
+                  } else if (eqType == 'متجه' || eqType == 'بار') {
+                    tag = '[$eqType:${f1Ctrl.text.trim()}]';
+                  } else if (eqType == 'محدد' || eqType == 'مصفوفة') {
+                    tag = '[$eqType:${f1Ctrl.text.trim()}:${f2Ctrl.text.trim()}:${f3Ctrl.text.trim()}:${f4Ctrl.text.trim()}]';
+                  } else {
+                    tag = '[$eqType:${f1Ctrl.text.trim()}:${f2Ctrl.text.trim()}:${f3Ctrl.text.trim()}]';
+                  }
+                  setParentState(() => insertAtCursor(' $tag '));
+                  Navigator.pop(dCtx);
+                },
+                child: const Text('إدراج عند المؤشر'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     void showVerticalMathDialog(void Function(void Function()) setParentState) {
       int rowCount = 2;
       String op = '×';
@@ -2264,7 +2479,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       );
     }
 
-    // نافذة تصميم وإدراج الأشكال التلقائية كما في Word
     void showShapeDesignerDialog(void Function(void Function()) setParentState, {InsertableElement? existingElement}) {
       String shapeKind = 'rectangle';
       double width = 120.0;
@@ -2634,6 +2848,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Row(
                             children: [
+                              _buildBarBtn(
+                                text: 'معادلة f(x)',
+                                color: const Color(0xFF2563EB),
+                                tooltip: 'إدراج نهايات، مجـ، تكامل، تباديل وتوافيق، متجهات',
+                                onTap: () => showAdvancedEquationDialog(setModalState),
+                              ),
                               _buildBarBtn(
                                 text: 'عمودي ± ×',
                                 color: const Color(0xFFE11D48),
@@ -3656,7 +3876,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 }
 
-// الرسام الهندسي للأشكال في Flutter
 class _ExamShapePainter extends CustomPainter {
   final String kind;
   final Color strokeColor;
@@ -3709,7 +3928,6 @@ class _ExamShapePainter extends CustomPainter {
           ..close();
         if (fillColor != Colors.transparent) canvas.drawPath(path, fillPaint);
         canvas.drawPath(path, strokePaint);
-        // مربع الزاوية القائمة
         final sqPath = Path()
           ..moveTo(2, h - 14)
           ..lineTo(14, h - 14)
@@ -3736,7 +3954,6 @@ class _ExamShapePainter extends CustomPainter {
       case 'arrow':
         final y = h / 2;
         canvas.drawLine(Offset(2, y), Offset(w - 2, y), strokePaint);
-        // رأس السهم
         final arrowPath = Path()
           ..moveTo(12, y - 6)
           ..lineTo(2, y)
