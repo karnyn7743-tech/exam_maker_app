@@ -76,12 +76,12 @@ class _ActivationScreenState extends State<ActivationScreen> {
     }
   }
 
-  void _copyDeviceId() {
-    Clipboard.setData(ClipboardData(text: _deviceId));
+  void _copyText(String text, String message) {
+    Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('تم نسخ رمز الجهاز. أرسله للمطور لاستلام كود التجربة أو التفعيل.'),
-        duration: Duration(seconds: 2),
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -93,9 +93,9 @@ class _ActivationScreenState extends State<ActivationScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: Container(
-              constraints: const BoxConstraints(maxWidth: 460),
+              constraints: const BoxConstraints(maxWidth: 480),
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -108,21 +108,20 @@ class _ActivationScreenState extends State<ActivationScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.security, size: 58, color: Color(0xFF1E3A8A)),
-                  const SizedBox(height: 12),
+                  const Icon(Icons.security, size: 54, color: Color(0xFF1E3A8A)),
+                  const SizedBox(height: 10),
                   const Text(
                     'تنشيط صانع الاختبارات والأتمتة',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   const Text(
-                    'للحصول على كود تجربة مجاني لمدة شهر أو مفتاح الترخيص الدائم، أرسل رمز جهازك الظاهر بالأسفل إلى المطور.',
+                    'للحصول على كود تجربة مجاني أو مفتاح الترخيص الدائم، أرسل رمز جهازك الظاهر أدناه إلى المطور.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(fontSize: 11.5, color: Colors.grey),
                   ),
 
-                  // شريط توضيحي بالأيام المتبقية في حال كان الترخيص التجريبي سارياً
                   if (_isTrialNow && _remainingDays > 0) ...[
                     const SizedBox(height: 10),
                     Container(
@@ -150,7 +149,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
                     ),
                   ],
 
-                  const Divider(height: 26),
+                  const Divider(height: 22),
 
                   const Text(
                     'رمز الجهاز الخاص بك (Device ID):',
@@ -158,7 +157,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
                   ),
                   const SizedBox(height: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(8),
@@ -180,12 +179,12 @@ class _ActivationScreenState extends State<ActivationScreen> {
                         IconButton(
                           icon: const Icon(Icons.copy, size: 20, color: Color(0xFF1E3A8A)),
                           tooltip: 'نسخ الرمز',
-                          onPressed: _copyDeviceId,
+                          onPressed: () => _copyText(_deviceId, 'تم نسخ رمز الجهاز.'),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 14),
 
                   TextField(
                     controller: _keyController,
@@ -199,12 +198,12 @@ class _ActivationScreenState extends State<ActivationScreen> {
                       prefixIcon: const Icon(Icons.key, color: Color(0xFF1E3A8A)),
                     ),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 14),
 
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1E3A8A),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     icon: const Icon(Icons.verified, color: Colors.white),
@@ -213,6 +212,79 @@ class _ActivationScreenState extends State<ActivationScreen> {
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                     ),
                     onPressed: _isLoading ? null : _handleActivation,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // بطاقة بصمة المطور الرسمية
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: const [
+                            Icon(Icons.workspace_premium, color: Color(0xFFD97706), size: 18),
+                            SizedBox(width: 6),
+                            Text(
+                              'إعداد وتطوير النظام:',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF1E293B)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'الأستاذ / فواز سنان البعيثي',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Color(0xFF1E3A8A),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        InkWell(
+                          onTap: () => _copyText('00967778064679', 'تم نسخ رقم الواتساب والاتصال: 00967778064679'),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.phone_android, size: 15, color: Color(0xFF0F766E)),
+                              SizedBox(width: 4),
+                              Text(
+                                'اتصال وواتساب: 00967778064679',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F766E)),
+                                textDirection: TextDirection.ltr,
+                              ),
+                              SizedBox(width: 4),
+                              Icon(Icons.copy, size: 14, color: Colors.grey),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        InkWell(
+                          onTap: () => _copyText('https://t.me/fawaz132', 'تم نسخ رابط قناة التليجرام.'),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.send_rounded, size: 14, color: Color(0xFF0284C7)),
+                              SizedBox(width: 4),
+                              Text(
+                                'قناة التليجرام: t.me/fawaz132',
+                                style: TextStyle(fontSize: 11.5, color: Color(0xFF0284C7), fontWeight: FontWeight.bold),
+                                textDirection: TextDirection.ltr,
+                              ),
+                              SizedBox(width: 4),
+                              Icon(Icons.copy, size: 14, color: Colors.grey),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
