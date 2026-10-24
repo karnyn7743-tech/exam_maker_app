@@ -243,7 +243,7 @@ class PdfExportService {
               ),
               pw.Expanded(
                 child: pw.Column(
-                  mainAxisAlignment: pw.CrossAxisAlignment.center,
+                  mainAxisAlignment: pw.MainAxisAlignment.center,
                   children: [
                     pw.Text(exam.header.basmalaText,
                         style: pw.TextStyle(
@@ -680,8 +680,8 @@ class PdfExportService {
   static pw.Widget _drawPdfCheckmark({double size = 11.0, PdfColor color = PdfColors.black}) {
     return pw.CustomPaint(
       size: PdfPoint(size, size),
-      painter: (pw.Context context, PdfPoint pointSize) {
-        context.canvas
+      painter: (PdfGraphics canvas, PdfPoint pointSize) {
+        canvas
           ..setColor(color)
           ..setLineWidth(1.4)
           ..moveTo(pointSize.x * 0.15, pointSize.y * 0.45)
@@ -695,8 +695,8 @@ class PdfExportService {
   static pw.Widget _drawPdfCross({double size = 10.0, PdfColor color = PdfColors.black}) {
     return pw.CustomPaint(
       size: PdfPoint(size, size),
-      painter: (pw.Context context, PdfPoint pointSize) {
-        context.canvas
+      painter: (PdfGraphics canvas, PdfPoint pointSize) {
+        canvas
           ..setColor(color)
           ..setLineWidth(1.4)
           ..moveTo(pointSize.x * 0.18, pointSize.y * 0.18)
@@ -733,18 +733,18 @@ class PdfExportService {
             width: 7,
             margin: const pw.EdgeInsets.only(top: 2),
             child: pw.CustomPaint(
-              painter: (pw.Context context, PdfPoint size) {
-                context.canvas
+              painter: (PdfGraphics canvas, PdfPoint size) {
+                canvas
                   ..setColor(PdfColors.black)
                   ..setLineWidth(1.0);
                 if (isRtl) {
-                  context.canvas
+                  canvas
                     ..moveTo(size.x, size.y * 0.4)
                     ..lineTo(size.x * 0.45, 0)
                     ..lineTo(0, size.y)
                     ..strokePath();
                 } else {
-                  context.canvas
+                  canvas
                     ..moveTo(0, size.y * 0.4)
                     ..lineTo(size.x * 0.55, 0)
                     ..lineTo(size.x, size.y)
@@ -804,7 +804,6 @@ class PdfExportService {
       if (matchedStr == '✔' || matchedStr == '✓') {
         spans.add(
           pw.WidgetSpan(
-            alignment: pw.PlaceholderAlignment.middle,
             child: pw.Padding(
               padding: const pw.EdgeInsets.symmetric(horizontal: 2.0),
               child: _drawPdfCheckmark(size: fontSize * 0.95, color: textColor),
@@ -814,7 +813,6 @@ class PdfExportService {
       } else if (matchedStr == '✘' || matchedStr == '✗') {
         spans.add(
           pw.WidgetSpan(
-            alignment: pw.PlaceholderAlignment.middle,
             child: pw.Padding(
               padding: const pw.EdgeInsets.symmetric(horizontal: 2.0),
               child: _drawPdfCross(size: fontSize * 0.85, color: textColor),
@@ -879,7 +877,6 @@ class PdfExportService {
 
           spans.add(
             pw.WidgetSpan(
-              alignment: pw.PlaceholderAlignment.middle,
               child: pw.Padding(
                 padding: const pw.EdgeInsets.symmetric(horizontal: 3.0),
                 child: pw.Row(
@@ -908,7 +905,6 @@ class PdfExportService {
 
           spans.add(
             pw.WidgetSpan(
-              alignment: pw.PlaceholderAlignment.middle,
               child: pw.Padding(
                 padding: const pw.EdgeInsets.symmetric(horizontal: 2.5),
                 child: pw.Row(
@@ -936,7 +932,6 @@ class PdfExportService {
 
           spans.add(
             pw.WidgetSpan(
-              alignment: pw.PlaceholderAlignment.middle,
               child: pw.Padding(
                 padding: const pw.EdgeInsets.symmetric(horizontal: 3.0),
                 child: pw.Row(
@@ -963,7 +958,6 @@ class PdfExportService {
           final s = parts.isNotEmpty ? parts[0] : 'ق';
           spans.add(
             pw.WidgetSpan(
-              alignment: pw.PlaceholderAlignment.middle,
               child: pw.Column(
                 mainAxisSize: pw.MainAxisSize.min,
                 children: [
@@ -977,7 +971,6 @@ class PdfExportService {
           final s = parts.isNotEmpty ? parts[0] : 'س';
           spans.add(
             pw.WidgetSpan(
-              alignment: pw.PlaceholderAlignment.middle,
               child: pw.Column(
                 mainAxisSize: pw.MainAxisSize.min,
                 children: [
@@ -996,7 +989,6 @@ class PdfExportService {
 
           spans.add(
             pw.WidgetSpan(
-              alignment: pw.PlaceholderAlignment.middle,
               child: pw.Container(
                 margin: const pw.EdgeInsets.symmetric(horizontal: 3),
                 padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 1),
@@ -1388,8 +1380,7 @@ class PdfExportService {
             children: [
               pw.CustomPaint(
                 size: PdfPoint(w, h),
-                painter: (pw.Context context, PdfPoint pointSize) {
-                  final canvas = context.canvas;
+                painter: (PdfGraphics canvas, PdfPoint pointSize) {
                   final pw_x = pointSize.x;
                   final pw_y = pointSize.y;
 
@@ -1401,10 +1392,10 @@ class PdfExportService {
                     case 'circle':
                       if (hasFill) {
                         canvas.setFillColor(fillColor);
-                        canvas.ellipse(pw_x / 2, pw_y / 2, (pw_x - 4) / 2, (pw_y - 4) / 2);
+                        canvas.drawEllipse(pw_x / 2, pw_y / 2, (pw_x - 4) / 2, (pw_y - 4) / 2);
                         canvas.fillPath();
                       }
-                      canvas.ellipse(pw_x / 2, pw_y / 2, (pw_x - 4) / 2, (pw_y - 4) / 2);
+                      canvas.drawEllipse(pw_x / 2, pw_y / 2, (pw_x - 4) / 2, (pw_y - 4) / 2);
                       canvas.strokePath();
                       break;
 
