@@ -175,7 +175,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
   }
 
-  // تصدير ورقة التظليل (OMR Bubble Sheet)
   Future<void> _exportOmrSheetToDownloads() async {
     await ExamStorageService.saveOrUpdateExam(_exam);
     try {
@@ -338,7 +337,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ],
                 ),
                 padding: EdgeInsets.only(
-                  top: _exam.header.topMargin1cm ? 8.5 : 12.0, // 3 مم من الأعلى
+                  top: _exam.header.topMargin1cm ? 8.5 : 12.0,
                   left: 12.0,
                   right: 12.0,
                   bottom: 12.0,
@@ -347,7 +346,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // شريط بيانات الطالب في رأس الصفحة
                     if (_exam.header.topMargin1cm) ...[
                       InkWell(
                         onTap: _openFooterSettingsDialog,
@@ -787,9 +785,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // دعم رسم الكسور والجذور والعمليات العمودية المضمنة في السطر
   InlineSpan _buildInlineSpanWithFractions(String text, TextStyle baseStyle) {
-    final regExp = RegExp(r'\[(كسر|جذر|sqrt|عمودي):(.*?)\]');
+    final regExp = RegExp(r'\[(كسر|جذر|sqrt|عمودي|قسمة|div):(.*?)\]');
     final matches = regExp.allMatches(text);
 
     if (matches.isEmpty) {
@@ -1011,6 +1008,76 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           ),
         );
+      } else if (type == 'قسمة' || type == 'div') {
+        final parts = rawContent.split(':');
+        final bool isRtl = type == 'قسمة';
+        final String dividend = parts.isNotEmpty ? parts[0] : '';
+        final String divisor = parts.length > 1 ? parts[1] : '';
+        final String quotient = parts.length > 2 ? parts[2] : '';
+
+        children.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+              child: Directionality(
+                textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (quotient.isNotEmpty)
+                      Padding(
+                        padding: EdgeInsets.only(
+                          right: isRtl ? 22.0 : 0.0,
+                          left: !isRtl ? 22.0 : 0.0,
+                        ),
+                        child: Text(
+                          quotient,
+                          style: baseStyle.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: (baseStyle.fontSize ?? 14) * 0.9,
+                          ),
+                        ),
+                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          divisor,
+                          style: baseStyle.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: baseStyle.fontSize,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border(
+                              top: const BorderSide(color: Colors.black87, width: 1.5),
+                              right: isRtl ? const BorderSide(color: Colors.black87, width: 1.5) : BorderSide.none,
+                              left: !isRtl ? const BorderSide(color: Colors.black87, width: 1.5) : BorderSide.none,
+                            ),
+                          ),
+                          padding: const EdgeInsets.only(top: 2.0, left: 6.0, right: 6.0, bottom: 2.0),
+                          child: Text(
+                            dividend,
+                            style: baseStyle.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: baseStyle.fontSize,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
       }
 
       lastIndex = match.end;
@@ -1029,7 +1096,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   static MainAxisSize minAxisSize() => MainAxisSize.min;
 
   Widget _buildQuestionContent(QuestionModel q) {
-    // إذا كان الاختبار مؤتمتاً وهذا سؤال الاختيار من متعدد، نعرضه بالجدولة الهندسية المسطرة
     final fullText = q.spans.map((s) => s.text).join('');
     final bool isAutomatedMcq = _exam.examType == ExamType.automated &&
         (fullText.contains('[') && (fullText.contains('أ-') || fullText.contains('١-') || fullText.contains('1-')));
@@ -1137,7 +1203,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // بناء التسطير والجدولة الهندسية لفقرات الاختيار من متعدد داخل شاشة المحرر (بدون أي سواد خلف الرموز)
   Widget _buildAutomatedEditorMcqGrid(QuestionModel q) {
     final fullText = q.spans.map((s) => s.text).join('');
     final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
@@ -1192,7 +1257,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // عمود رقم الفقرة على اليمين
                 Container(
                   width: 32,
                   decoration: const BoxDecoration(
@@ -1205,7 +1269,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     ),
                   ),
                 ),
-                // الجانب الأيسر: مقسوم أفقياً (نص السؤال، والصف السفلي للخيارات الأربعة)
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1239,7 +1302,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 ),
                                 child: Row(
                                   children: [
-                                    // خانة رمز الاختيار بخلفية بيضاء نقية وبدون أي سواد
                                     Container(
                                       width: 22,
                                       decoration: const BoxDecoration(
@@ -1769,19 +1831,20 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       workingSpans = newSpans.where((s) => s.text.isNotEmpty).toList();
     }
 
+    // نافذة الجمع / الطرح / الضرب العمودي مع دعم العملية الثالثة (×)
     void showVerticalMathDialog(void Function(void Function()) setParentState) {
-      int rowCount = 3;
-      String op = '+';
+      int rowCount = 2;
+      String op = '×'; // الافتراضي أو المختار
       final r1Ctrl = TextEditingController(text: '٥٣٤');
-      final r2Ctrl = TextEditingController(text: '١٢٨');
-      final r3Ctrl = TextEditingController(text: '٢٤٥');
+      final r2Ctrl = TextEditingController(text: '٢٦');
+      final r3Ctrl = TextEditingController(text: '');
       final r4Ctrl = TextEditingController(text: '');
 
       showDialog(
         context: context,
         builder: (dCtx) => StatefulBuilder(
           builder: (context, setDState) => AlertDialog(
-            title: const Text('إدراج جمع / طرح عمودي عند المؤشر'),
+            title: const Text('إدراج جمع / طرح / ضرب عمودي عند المؤشر'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1800,7 +1863,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       const Text('العملية: '),
                       DropdownButton<String>(
                         value: op,
-                        items: ['+', '-']
+                        items: ['+', '-', '×']
                             .map((o) => DropdownMenuItem(value: o, child: Text(o, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))))
                             .toList(),
                         onChanged: (v) => setDState(() => op = v!),
@@ -1826,6 +1889,79 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   if (rowCount >= 4 && r4Ctrl.text.trim().isNotEmpty) list.add(r4Ctrl.text.trim());
 
                   final tag = '[عمودي:$op:${list.join(':')}]';
+                  setParentState(() {
+                    insertAtCursor(' $tag ');
+                  });
+                  Navigator.pop(dCtx);
+                },
+                child: const Text('إدراج عند المؤشر'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // نافذة إدراج القسمة المطولة
+    void showLongDivisionDialog(void Function(void Function()) setParentState) {
+      final dividendCtrl = TextEditingController(text: '٨٤٦');
+      final divisorCtrl = TextEditingController(text: '٢');
+      final quotientCtrl = TextEditingController(text: '');
+      bool isArabic = true;
+
+      showDialog(
+        context: context,
+        builder: (dCtx) => StatefulBuilder(
+          builder: (context, setDState) => AlertDialog(
+            title: const Text('إدراج كرسي قسمة مطولة عند المؤشر'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Text('الاتجاه: '),
+                    ChoiceChip(
+                      label: const Text('عربي (يمين)'),
+                      selected: isArabic,
+                      onSelected: (v) => setDState(() => isArabic = true),
+                    ),
+                    const SizedBox(width: 6),
+                    ChoiceChip(
+                      label: const Text('إنجليزي (يسار)'),
+                      selected: !isArabic,
+                      onSelected: (v) => setDState(() => isArabic = false),
+                    ),
+                  ],
+                ),
+                const Divider(),
+                TextField(
+                  controller: dividendCtrl,
+                  decoration: const InputDecoration(labelText: 'المقسوم (داخل الكرسي)'),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: divisorCtrl,
+                  decoration: const InputDecoration(labelText: 'المقسوم عليه (خارج الكرسي)'),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: quotientCtrl,
+                  decoration: const InputDecoration(labelText: 'ناتج القسمة فوق الكرسي (اختياري)'),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
+              ElevatedButton(
+                onPressed: () {
+                  final dividend = dividendCtrl.text.trim();
+                  final divisor = divisorCtrl.text.trim();
+                  final quotient = quotientCtrl.text.trim();
+                  final type = isArabic ? 'قسمة' : 'div';
+                  final tag = quotient.isNotEmpty
+                      ? '[$type:$dividend:$divisor:$quotient]'
+                      : '[$type:$dividend:$divisor]';
+
                   setParentState(() {
                     insertAtCursor(' $tag ');
                   });
@@ -2030,10 +2166,16 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           child: Row(
                             children: [
                               _buildBarBtn(
-                                text: 'عمودي ±',
+                                text: 'عمودي ± ×',
                                 color: const Color(0xFFE11D48),
-                                tooltip: 'جمع / طرح عمودي عند المؤشر',
+                                tooltip: 'جمع / طرح / ضرب عمودي عند المؤشر',
                                 onTap: () => showVerticalMathDialog(setModalState),
+                              ),
+                              _buildBarBtn(
+                                text: 'قسمة ⟌',
+                                color: const Color(0xFF0D9488),
+                                tooltip: 'إدراج كرسي قسمة مطولة عند المؤشر',
+                                onTap: () => showLongDivisionDialog(setModalState),
                               ),
                               _buildBarBtn(
                                 text: 'بسط/مقام',
@@ -2973,7 +3115,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 }
 
-// أداة رسم خط الجذر العربي المتصل هندسياً (RTL)
 class _ArabicRadicalPainter extends CustomPainter {
   final Color color;
   final double strokeWidth;
@@ -3008,7 +3149,6 @@ class _ArabicRadicalPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// أداة رسم خط الجذر الإنجليزي المتصل هندسياً (LTR)
 class _EnglishRadicalPainter extends CustomPainter {
   final Color color;
   final double strokeWidth;
