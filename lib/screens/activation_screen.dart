@@ -15,18 +15,25 @@ class _ActivationScreenState extends State<ActivationScreen> {
   final _keyController = TextEditingController();
   bool _isLoading = true;
   String? _errorMessage;
+  int _remainingDays = 0;
+  bool _isTrialNow = false;
 
   @override
   void initState() {
     super.initState();
-    _loadDevice();
+    _loadDeviceAndStatus();
   }
 
-  Future<void> _loadDevice() async {
+  Future<void> _loadDeviceAndStatus() async {
     final id = await ActivationService.getDeviceId();
+    final status = await ActivationService.getLicenseStatus();
+    final remaining = await ActivationService.getRemainingTrialDays();
+
     setState(() {
       _deviceId = id;
       _isLoading = false;
+      _isTrialNow = (status == LicenseStatus.trial);
+      _remainingDays = remaining;
     });
   }
 
@@ -54,7 +61,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
     } else if (status == LicenseStatus.trial) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('تم تفعيل النسخة التجريبية (مسموح باختبار واحد كامل).'),
+          content: Text('تم تفعيل النسخة التجريبية بنجاح (صالحة لمدة شهر كامل - 30 يوماً).'),
           backgroundColor: Color(0xFF0F766E),
         ),
       );
@@ -110,10 +117,39 @@ class _ActivationScreenState extends State<ActivationScreen> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'للحصول على كود تجربة مجاني أو مفتاح الترخيص الدائم، أرسل رمز جهازك الظاهر بالأسفل إلى المطور.',
+                    'للحصول على كود تجربة مجاني لمدة شهر أو مفتاح الترخيص الدائم، أرسل رمز جهازك الظاهر بالأسفل إلى المطور.',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
+
+                  // شريط توضيحي بالأيام المتبقية في حال كان الترخيص التجريبي سارياً
+                  if (_isTrialNow && _remainingDays > 0) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        border: Border.all(color: Colors.amber.shade400),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.timer_outlined, size: 16, color: Colors.amber.shade900),
+                          const SizedBox(width: 6),
+                          Text(
+                            'أنت حالياً في الفترة التجريبية: متبقي لديك $_remainingDays يوماً',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.amber.shade900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   const Divider(height: 26),
 
                   const Text(
