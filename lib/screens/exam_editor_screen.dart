@@ -1108,11 +1108,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       return Text.rich(
         TextSpan(
           children: q.spans.map((s) {
+            Color spanColor = Colors.black87;
+            try {
+              spanColor = Color(int.parse(s.colorHex.replaceFirst('#', '0xFF')));
+            } catch (_) {}
+
             final style = TextStyle(
               fontFamily: s.fontFamily,
               fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
               decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
               fontSize: s.fontSize,
+              color: spanColor,
               height: 1.5,
             );
             return _buildInlineSpanWithFractions(s.text, style);
@@ -1128,11 +1134,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       return Text.rich(
         TextSpan(
           children: q.spans.map((s) {
+            Color spanColor = Colors.black87;
+            try {
+              spanColor = Color(int.parse(s.colorHex.replaceFirst('#', '0xFF')));
+            } catch (_) {}
+
             final style = TextStyle(
               fontFamily: s.fontFamily,
               fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
               decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
               fontSize: s.fontSize,
+              color: spanColor,
               height: 1.5,
             );
             return _buildInlineSpanWithFractions(s.text, style);
@@ -1389,7 +1401,75 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         );
       case ElementType.mathOperation:
         return _renderMathOperation(el.content);
+      case ElementType.table:
+        return _renderCustomTable(el.content);
+      case ElementType.shape:
+        return _renderCustomShape(el.content);
     }
+  }
+
+  // دالة عرض الجدول التفاعلي المخصص داخل شاشة المحرر
+  Widget _renderCustomTable(String jsonStr) {
+    try {
+      final Map<String, dynamic> data = jsonDecode(jsonStr);
+      final int rows = data['rows'] ?? 2;
+      final int cols = data['cols'] ?? 2;
+      final bool hasHeader = data['hasHeader'] ?? true;
+      final List<dynamic> rawGrid = data['data'] ?? [];
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Table(
+          border: TableBorder.all(color: Colors.black87, width: 1.0),
+          children: List.generate(rows, (r) {
+            final isHeaderRow = (r == 0 && hasHeader);
+            return TableRow(
+              decoration: BoxDecoration(
+                color: isHeaderRow ? Colors.grey.shade200 : Colors.white,
+              ),
+              children: List.generate(cols, (c) {
+                String text = '';
+                if (r < rawGrid.length && c < (rawGrid[r] as List).length) {
+                  text = rawGrid[r][c]?.toString() ?? '';
+                }
+                return TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+                    child: Text(
+                      text,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontWeight: isHeaderRow ? FontWeight.bold : FontWeight.normal,
+                        fontSize: isHeaderRow ? 12 : 11,
+                        fontFamily: 'Amiri',
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            );
+          }),
+        ),
+      );
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
+  }
+
+  // دالة عرض الأشكال المخصصة (محجوزة وجاهزة للخطوة 3)
+  Widget _renderCustomShape(String jsonStr) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.blueGrey),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: const Center(
+        child: Text('شكل هندسي', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+      ),
+    );
   }
 
   Widget _renderMathOperation(String jsonStr) {
@@ -1744,12 +1824,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               isUnderline: s.isUnderline,
               fontSize: s.fontSize,
               fontFamily: s.fontFamily,
+              colorHex: s.colorHex,
             )).toList()
         : [
             TextSpanModel(
               text: textCtrl.text,
               fontSize: 14.0,
               fontFamily: 'Amiri',
+              colorHex: '#000000',
             )
           ];
 
@@ -1757,6 +1839,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     double currentFontSize = 14.0;
     bool isBoldActive = false;
     bool isUnderlineActive = false;
+    String currentColor = '#000000';
 
     void insertAtCursor(String symbol) {
       final target = activeFieldController;
@@ -1776,6 +1859,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       bool? underline,
       String? font,
       double? size,
+      String? color,
     }) {
       final sel = textCtrl.selection;
       if (!sel.isValid || sel.isCollapsed) return;
@@ -1801,6 +1885,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               isUnderline: span.isUnderline,
               fontSize: span.fontSize,
               fontFamily: span.fontFamily,
+              colorHex: span.colorHex,
             ));
           }
 
@@ -1813,6 +1898,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             isUnderline: underline ?? span.isUnderline,
             fontSize: size ?? span.fontSize,
             fontFamily: font ?? span.fontFamily,
+            colorHex: color ?? span.colorHex,
           ));
 
           if (spanEnd > selEnd) {
@@ -1822,6 +1908,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               isUnderline: span.isUnderline,
               fontSize: span.fontSize,
               fontFamily: span.fontFamily,
+              colorHex: span.colorHex,
             ));
           }
         }
@@ -1831,10 +1918,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       workingSpans = newSpans.where((s) => s.text.isNotEmpty).toList();
     }
 
-    // نافذة الجمع / الطرح / الضرب العمودي مع دعم العملية الثالثة (×)
     void showVerticalMathDialog(void Function(void Function()) setParentState) {
       int rowCount = 2;
-      String op = '×'; // الافتراضي أو المختار
+      String op = '×';
       final r1Ctrl = TextEditingController(text: '٥٣٤');
       final r2Ctrl = TextEditingController(text: '٢٦');
       final r3Ctrl = TextEditingController(text: '');
@@ -1902,7 +1988,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       );
     }
 
-    // نافذة إدراج القسمة المطولة
     void showLongDivisionDialog(void Function(void Function()) setParentState) {
       final dividendCtrl = TextEditingController(text: '٨٤٦');
       final divisorCtrl = TextEditingController(text: '٢');
@@ -1968,6 +2053,178 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   Navigator.pop(dCtx);
                 },
                 child: const Text('إدراج عند المؤشر'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // نافذة تصميم وإدراج الجداول التفاعلية المخصصة
+    void showTableDesignerDialog(void Function(void Function()) setParentState, {InsertableElement? existingElement}) {
+      int rowCount = 3;
+      int colCount = 3;
+      bool hasHeader = true;
+      List<List<TextEditingController>> controllers = [];
+
+      if (existingElement != null && existingElement.type == ElementType.table) {
+        try {
+          final Map<String, dynamic> data = jsonDecode(existingElement.content);
+          rowCount = data['rows'] ?? 3;
+          colCount = data['cols'] ?? 3;
+          hasHeader = data['hasHeader'] ?? true;
+          final List<dynamic> gridData = data['data'] ?? [];
+
+          controllers = List.generate(rowCount, (r) {
+            return List.generate(colCount, (c) {
+              String val = '';
+              if (r < gridData.length && c < (gridData[r] as List).length) {
+                val = gridData[r][c]?.toString() ?? '';
+              }
+              return TextEditingController(text: val);
+            });
+          });
+        } catch (_) {}
+      }
+
+      if (controllers.isEmpty) {
+        controllers = List.generate(rowCount, (_) => List.generate(colCount, (_) => TextEditingController()));
+      }
+
+      void resizeControllers(int newRows, int newCols) {
+        List<List<TextEditingController>> newGrid = [];
+        for (int r = 0; r < newRows; r++) {
+          List<TextEditingController> row = [];
+          for (int c = 0; c < newCols; c++) {
+            if (r < controllers.length && c < controllers[r].length) {
+              row.add(controllers[r][c]);
+            } else {
+              row.add(TextEditingController());
+            }
+          }
+          newGrid.add(row);
+        }
+        controllers = newGrid;
+        rowCount = newRows;
+        colCount = newCols;
+      }
+
+      showDialog(
+        context: context,
+        builder: (dCtx) => StatefulBuilder(
+          builder: (context, setDState) => AlertDialog(
+            title: Row(
+              children: const [
+                Icon(Icons.table_chart, color: Color(0xFF1E3A8A)),
+                SizedBox(width: 8),
+                Text('تصميم وإدراج جدول مخصص', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        const Text('الصفوف: '),
+                        DropdownButton<int>(
+                          value: rowCount,
+                          items: List.generate(8, (i) => i + 1)
+                              .map((n) => DropdownMenuItem(value: n, child: Text('$n')))
+                              .toList(),
+                          onChanged: (v) {
+                            if (v != null) setDState(() => resizeControllers(v, colCount));
+                          },
+                        ),
+                        const SizedBox(width: 14),
+                        const Text('الأعمدة: '),
+                        DropdownButton<int>(
+                          value: colCount,
+                          items: List.generate(5, (i) => i + 1)
+                              .map((n) => DropdownMenuItem(value: n, child: Text('$n')))
+                              .toList(),
+                          onChanged: (v) {
+                            if (v != null) setDState(() => resizeControllers(rowCount, v));
+                          },
+                        ),
+                        const Spacer(),
+                        FilterChip(
+                          label: const Text('صف ترويسة', style: TextStyle(fontSize: 11)),
+                          selected: hasHeader,
+                          onSelected: (v) => setDState(() => hasHeader = v),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    const Text('محتويات خلايا الجدول (انقر للكتابة والتعديل):',
+                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                    const SizedBox(height: 8),
+                    Table(
+                      border: TableBorder.all(color: Colors.grey.shade400),
+                      children: List.generate(rowCount, (r) {
+                        final isHeader = (r == 0 && hasHeader);
+                        return TableRow(
+                          decoration: BoxDecoration(color: isHeader ? Colors.blue.shade50 : Colors.white),
+                          children: List.generate(colCount, (c) {
+                            return Padding(
+                              padding: const EdgeInsets.all(4.0),
+                              child: TextField(
+                                controller: controllers[r][c],
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
+                                  fontSize: 12,
+                                  fontFamily: 'Amiri',
+                                ),
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                                  border: const OutlineInputBorder(),
+                                  hintText: isHeader ? 'عمود ${c + 1}' : '...',
+                                ),
+                              ),
+                            );
+                          }),
+                        );
+                      }),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
+                icon: const Icon(Icons.check, color: Colors.white, size: 18),
+                label: const Text('تأكيد وإدراج الجدول', style: TextStyle(color: Colors.white)),
+                onPressed: () {
+                  final List<List<String>> tableData = List.generate(rowCount, (r) {
+                    return List.generate(colCount, (c) => controllers[r][c].text.trim());
+                  });
+
+                  final jsonPayload = jsonEncode({
+                    'rows': rowCount,
+                    'cols': colCount,
+                    'hasHeader': hasHeader,
+                    'data': tableData,
+                  });
+
+                  setParentState(() {
+                    if (existingElement != null) {
+                      existingElement.content = jsonPayload;
+                    } else {
+                      currentElements.add(InsertableElement(
+                        id: const Uuid().v4(),
+                        type: ElementType.table,
+                        content: jsonPayload,
+                      ));
+                    }
+                  });
+                  Navigator.pop(dCtx);
+                },
               ),
             ],
           ),
@@ -2178,6 +2435,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 onTap: () => showLongDivisionDialog(setModalState),
                               ),
                               _buildBarBtn(
+                                text: 'جدول ⊞',
+                                color: const Color(0xFF4338CA),
+                                tooltip: 'تصميم وإدراج جدول مخصص',
+                                onTap: () => showTableDesignerDialog(setModalState),
+                              ),
+                              _buildBarBtn(
                                 text: 'بسط/مقام',
                                 color: const Color(0xFF7C3AED),
                                 tooltip: 'كسر عربي اعتيادي في موضع المؤشر',
@@ -2277,6 +2540,47 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                     applyFormatToSelection(underline: isUnderlineActive);
                                   });
                                 },
+                              ),
+                              PopupMenuButton<String>(
+                                tooltip: 'لون الخط للمحدد',
+                                child: Container(
+                                  height: 38,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                                  decoration: BoxDecoration(
+                                    color: Color(int.parse(currentColor.replaceFirst('#', '0xFF'))),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: Colors.white38),
+                                  ),
+                                  child: const Center(
+                                    child: Text('لون',
+                                        style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12)),
+                                  ),
+                                ),
+                                onSelected: (val) {
+                                  setModalState(() {
+                                    currentColor = val;
+                                    applyFormatToSelection(color: val);
+                                  });
+                                },
+                                itemBuilder: (ctx) => [
+                                  {'name': 'أسود', 'hex': '#000000'},
+                                  {'name': 'أحمر', 'hex': '#B91C1C'},
+                                  {'name': 'أزرق', 'hex': '#1D4ED8'},
+                                  {'name': 'أخضر', 'hex': '#047857'},
+                                ].map((c) => PopupMenuItem(
+                                  value: c['hex'],
+                                  child: Row(
+                                    children: [
+                                      Container(width: 16, height: 16, color: Color(int.parse(c['hex']!.replaceFirst('#', '0xFF')))),
+                                      const SizedBox(width: 8),
+                                      Text(c['name']!),
+                                    ],
+                                  ),
+                                )).toList(),
                               ),
                               _buildBarBtn(
                                 text: 'x²',
@@ -2438,11 +2742,18 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             if (el.type == ElementType.textBox) lbl = 'مربع إرشاد';
                             if (el.type == ElementType.dottedLine) lbl = 'سطر إجابة';
                             if (el.type == ElementType.mathOperation) lbl = 'عملية رياضية / كسر';
+                            if (el.type == ElementType.table) lbl = 'جدول مخصص (تعديل)';
+                            if (el.type == ElementType.shape) lbl = 'شكل هندسي';
 
-                            return Chip(
+                            return ActionChip(
                               label: Text(lbl),
-                              onDeleted: () =>
-                                  setModalState(() => currentElements.removeAt(i)),
+                              avatar: el.type == ElementType.table ? const Icon(Icons.edit, size: 14) : null,
+                              onPressed: () {
+                                if (el.type == ElementType.table) {
+                                  showTableDesignerDialog(setModalState, existingElement: el);
+                                }
+                              },
+                              backgroundColor: el.type == ElementType.table ? Colors.indigo.shade50 : null,
                             );
                           }).toList(),
                         ),
@@ -2461,6 +2772,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                     isUnderline: isUnderlineActive,
                                     fontSize: currentFontSize,
                                     fontFamily: currentFont,
+                                    colorHex: currentColor,
                                   )
                                 ];
 
