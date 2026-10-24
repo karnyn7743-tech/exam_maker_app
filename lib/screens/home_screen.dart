@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import '../models/exam_models.dart';
@@ -21,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<ExamModel> _exams = [];
   bool _isLoading = true;
   bool _isActivated = false;
+  int _remainingDays = 0;
 
   @override
   void initState() {
@@ -31,8 +33,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _checkActivationStatus() async {
     final status = await ActivationService.getLicenseStatus();
+    final remaining = await ActivationService.getRemainingTrialDays();
     if (mounted) {
-      setState(() => _isActivated = (status == LicenseStatus.full));
+      setState(() {
+        _isActivated = (status == LicenseStatus.full);
+        _remainingDays = remaining;
+      });
     }
   }
 
@@ -40,62 +46,136 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadExams() async {
     setState(() => _isLoading = true);
     final list = await ExamStorageService.getAllExams();
-    setState(() {
-      _exams = list;
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _exams = list;
+        _isLoading = false;
+      });
+    }
   }
 
-  /// فحص هل يُسمح له بإنشاء اختبار جديد أو استيراده
+  /// فحص هل يُسمح له بإنشاء اختبار جديد أو استيراده بناءً على صلاحية الـ 30 يوماً
   Future<bool> _verifyTrialOrActivated() async {
     final status = await ActivationService.getLicenseStatus();
-    if (status == LicenseStatus.full) return true;
+    if (status == LicenseStatus.full || status == LicenseStatus.trial) {
+      return true;
+    }
 
-    final createdCount = await ActivationService.getTrialCreatedCount();
-    if (status == LicenseStatus.locked || createdCount >= 1 || _exams.isNotEmpty) {
-      if (!mounted) return false;
-      // توجيهه فوراً لشاشة التنشيط
-      await showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          title: Row(
-            children: const [
-              Icon(Icons.lock_clock, color: Colors.amber),
-              SizedBox(width: 8),
-              Text('انتهت النسخة التجريبية', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ],
+    if (!mounted) return false;
+
+    // توجيهه لشاشة التنشيط عند انتهاء مدة الـ 30 يوماً
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.lock_clock, color: Colors.amber),
+            SizedBox(width: 8),
+            Text('انتهت الفترة التجريبية', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: const Text(
+          'انتهت فترة الـ 30 يوماً المتاحة لتجربة التطبيق.\n'
+          'لإنشاء المزيد من الاختبارات المفتوحة والوصول لجميع الميزات، يرجى تفعيل النسخة الكاملة عبر التواصل مع المطور.',
+          style: TextStyle(fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء'),
           ),
-          content: const Text(
-            'لقد استخدمت الاختبار التجريبي المجاني المتاح على هذا الجهاز.\n'
-            'لإنشاء المزيد من الاختبارات المفتوحة والوصول لجميع الميزات، يرجى تفعيل النسخة الكاملة.',
-            style: TextStyle(fontSize: 13),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ActivationScreen()),
+              ).then((_) {
+                _checkActivationStatus();
+                _loadExams();
+              });
+            },
+            child: const Text('إدخال مفتاح التنشيط', style: TextStyle(color: Colors.white)),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('إلغاء'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
-              onPressed: () {
-                Navigator.pop(ctx);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ActivationScreen()),
-                ).then((_) {
-                  _checkActivationStatus();
-                  _loadExams();
-                });
-              },
-              child: const Text('إدخال مفتاح التنشيط', style: TextStyle(color: Colors.white)),
+        ],
+      ),
+    );
+    return false;
+  }
+
+  // نافذة تعريف المطور وبيانات التواصل
+  void _showDeveloperInfoDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.workspace_premium, color: Color(0xFFD97706), size: 24),
+            SizedBox(width: 8),
+            Text(
+              'عن مطور النظام',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E3A8A)),
             ),
           ],
         ),
-      );
-      return false;
-    }
-    return true;
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'نظام صانع الاختبارات المدرسية والأتمتة الذكية',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F766E)),
+            ),
+            const SizedBox(height: 12),
+            const Center(
+              child: Text(
+                'الأستاذ / فواز سنان البعيثي',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E3A8A)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Divider(),
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.phone_forwarded, color: Color(0xFF0F766E)),
+              title: const Text('اتصال وواتساب', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              subtitle: const Text('00967778064679', textDirection: TextDirection.ltr),
+              trailing: const Icon(Icons.copy, size: 16),
+              onTap: () {
+                Clipboard.setData(const ClipboardData(text: '00967778064679'));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('تم نسخ الرقم: 00967778064679'), duration: Duration(seconds: 2)),
+                );
+              },
+            ),
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.send_rounded, color: Color(0xFF0284C7)),
+              title: const Text('قناة التليجرام التعليمية', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              subtitle: const Text('https://t.me/fawaz132', textDirection: TextDirection.ltr),
+              trailing: const Icon(Icons.copy, size: 16),
+              onTap: () {
+                Clipboard.setData(const ClipboardData(text: 'https://t.me/fawaz132'));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('تم نسخ رابط التليجرام: https://t.me/fawaz132'), duration: Duration(seconds: 2)),
+                );
+              },
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إغلاق', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   // 1. الشروع في الاختبارات الشاملة (التحريرية التقليدية)
@@ -527,6 +607,11 @@ class _HomeScreenState extends State<HomeScreen> {
         centerTitle: true,
         actions: [
           IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'عن مطور النظام',
+            onPressed: _showDeveloperInfoDialog,
+          ),
+          IconButton(
             icon: const Icon(Icons.file_open_outlined),
             tooltip: 'استيراد اختبار (.exam)',
             onPressed: _importExamProjectDialog,
@@ -554,19 +639,21 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          // شريط إشعار النسخة التجريبية إذا لم يكن منشطاً
+          // شريط إشعار النسخة التجريبية بالأيام المتبقية
           if (!_isActivated)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               color: Colors.amber.shade100,
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline, color: Colors.brown, size: 20),
+                  const Icon(Icons.timer_outlined, color: Colors.brown, size: 20),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'نسخة تجريبية (مسموح باختبار مجاني واحد فقط لتجربة التنسيق والطباعة).',
-                      style: TextStyle(color: Colors.brown, fontSize: 11, fontWeight: FontWeight.bold),
+                      _remainingDays > 0
+                          ? 'أنت في الفترة التجريبية: متبقي لديك $_remainingDays يوماً لتجربة كافة الميزات.'
+                          : 'انتهت الفترة التجريبية للاختبار المجاني على هذا الجهاز.',
+                      style: const TextStyle(color: Colors.brown, fontSize: 11, fontWeight: FontWeight.bold),
                     ),
                   ),
                   TextButton(
@@ -590,6 +677,31 @@ class _HomeScreenState extends State<HomeScreen> {
                 : _exams.isEmpty
                     ? _buildEmptyState()
                     : _buildExamsList(),
+          ),
+
+          // شريط توقيع وبصمة المطور الدائم أسفل الشاشة الرئيسية
+          InkWell(
+            onTap: _showDeveloperInfoDialog,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              color: Colors.grey.shade100,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(Icons.workspace_premium, size: 14, color: Color(0xFFD97706)),
+                  SizedBox(width: 6),
+                  Text(
+                    'إعداد وتطوير: أ. فواز سنان البعيثي © 2026',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E3A8A),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
