@@ -774,7 +774,7 @@ class PdfExportService {
     PdfColor textColor = PdfColors.black,
     double lineSpacing = 1.5,
   }) {
-    final regExp = RegExp(r'(\[ (?:كسر|جذر|sqrt|عمودي|قسمة|div):.*? \]|✔|✘|✓|✗)'.replaceAll(' ', ''));
+    final regExp = RegExp(r'(\[ (?:كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):.*? \]|✔|✘|✓|✗)'.replaceAll(' ', ''));
     final matches = regExp.allMatches(text);
 
     if (matches.isEmpty) {
@@ -826,11 +826,12 @@ class PdfExportService {
         final firstColon = inner.indexOf(':');
         final type = firstColon != -1 ? inner.substring(0, firstColon) : inner;
         final rawContent = firstColon != -1 ? inner.substring(firstColon + 1) : '';
+        final parts = rawContent.split(':');
 
         if (type == 'كسر') {
-          final parts = rawContent.split('/');
-          final num = parts.isNotEmpty ? parts[0] : '';
-          final den = parts.length > 1 ? parts[1] : '';
+          final p = rawContent.split('/');
+          final num = p.isNotEmpty ? p[0] : '';
+          final den = p.length > 1 ? p[1] : '';
           final int maxLen = num.length > den.length ? num.length : den.length;
           final double lineWidth = (maxLen * 7.0) + 6.0;
 
@@ -850,7 +851,6 @@ class PdfExportService {
             ),
           );
         } else if (type == 'جذر' || type == 'sqrt') {
-          final parts = rawContent.split(':');
           final bool isRtl = type == 'جذر';
           final String degree = parts.length > 1 ? parts[0] : '';
           final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
@@ -872,8 +872,159 @@ class PdfExportService {
               ),
             ),
           );
+        } else if (type == 'نها') {
+          final v = parts.isNotEmpty ? parts[0] : 'س';
+          final t = parts.length > 1 ? parts[1] : '٠';
+          final fn = parts.length > 2 ? parts[2] : '';
+
+          spans.add(
+            pw.WidgetSpan(
+              alignment: pw.PlaceholderAlignment.middle,
+              child: pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 3.0),
+                child: pw.Row(
+                  mainAxisSize: pw.MainAxisSize.min,
+                  children: [
+                    pw.Column(
+                      mainAxisSize: pw.MainAxisSize.min,
+                      children: [
+                        pw.Text('نهـا', style: pw.TextStyle(font: ttf, fontSize: fontSize * 1.05, color: textColor, fontWeight: pw.FontWeight.bold)),
+                        pw.Text('$v ← $t', style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.65, color: textColor, fontWeight: pw.FontWeight.bold)),
+                      ],
+                    ),
+                    if (fn.isNotEmpty) ...[
+                      pw.SizedBox(width: 3),
+                      pw.Text(fn, style: pw.TextStyle(font: ttf, fontSize: fontSize, color: textColor, fontWeight: pw.FontWeight.bold)),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        } else if (type == 'تباديل' || type == 'توافيق') {
+          final n = parts.isNotEmpty ? parts[0] : 'ن';
+          final r = parts.length > 1 ? parts[1] : 'ر';
+          final sym = type == 'تباديل' ? 'ل' : 'ق';
+
+          spans.add(
+            pw.WidgetSpan(
+              alignment: pw.PlaceholderAlignment.middle,
+              child: pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 2.5),
+                child: pw.Row(
+                  mainAxisSize: pw.MainAxisSize.min,
+                  children: [
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(bottom: 6),
+                      child: pw.Text(n, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.75, color: textColor, fontWeight: pw.FontWeight.bold)),
+                    ),
+                    pw.Text(sym, style: pw.TextStyle(font: ttf, fontSize: fontSize * 1.25, color: textColor, fontWeight: pw.FontWeight.bold)),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(top: 6),
+                      child: pw.Text(r, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.75, color: textColor, fontWeight: pw.FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        } else if (type == 'مجموع' || type == 'تكامل') {
+          final from = parts.isNotEmpty ? parts[0] : '';
+          final to = parts.length > 1 ? parts[1] : '';
+          final body = parts.length > 2 ? parts[2] : '';
+          final sym = type == 'مجموع' ? 'مجـ' : '∫';
+
+          spans.add(
+            pw.WidgetSpan(
+              alignment: pw.PlaceholderAlignment.middle,
+              child: pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 3.0),
+                child: pw.Row(
+                  mainAxisSize: pw.MainAxisSize.min,
+                  children: [
+                    pw.Column(
+                      mainAxisSize: pw.MainAxisSize.min,
+                      children: [
+                        pw.Text(to, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.65, color: textColor, fontWeight: pw.FontWeight.bold)),
+                        pw.Text(sym, style: pw.TextStyle(font: ttf, fontSize: fontSize * 1.2, color: textColor, fontWeight: pw.FontWeight.bold)),
+                        pw.Text(from, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.65, color: textColor, fontWeight: pw.FontWeight.bold)),
+                      ],
+                    ),
+                    if (body.isNotEmpty) ...[
+                      pw.SizedBox(width: 3),
+                      pw.Text(body, style: pw.TextStyle(font: ttf, fontSize: fontSize, color: textColor, fontWeight: pw.FontWeight.bold)),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        } else if (type == 'متجه') {
+          final s = parts.isNotEmpty ? parts[0] : 'ق';
+          spans.add(
+            pw.WidgetSpan(
+              alignment: pw.PlaceholderAlignment.middle,
+              child: pw.Column(
+                mainAxisSize: pw.MainAxisSize.min,
+                children: [
+                  pw.Text('→', style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.75, color: textColor, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(s, style: pw.TextStyle(font: ttf, fontSize: fontSize, color: textColor, fontWeight: pw.FontWeight.bold)),
+                ],
+              ),
+            ),
+          );
+        } else if (type == 'بار') {
+          final s = parts.isNotEmpty ? parts[0] : 'س';
+          spans.add(
+            pw.WidgetSpan(
+              alignment: pw.PlaceholderAlignment.middle,
+              child: pw.Column(
+                mainAxisSize: pw.MainAxisSize.min,
+                children: [
+                  pw.Container(width: 10, height: 1.0, color: textColor),
+                  pw.Text(s, style: pw.TextStyle(font: ttf, fontSize: fontSize, color: textColor, fontWeight: pw.FontWeight.bold)),
+                ],
+              ),
+            ),
+          );
+        } else if (type == 'محدد' || type == 'مصفوفة') {
+          final isMatrix = type == 'مصفوفة';
+          final a = parts.isNotEmpty ? parts[0] : '';
+          final b = parts.length > 1 ? parts[1] : '';
+          final c = parts.length > 2 ? parts[2] : '';
+          final d = parts.length > 3 ? parts[3] : '';
+
+          spans.add(
+            pw.WidgetSpan(
+              alignment: pw.PlaceholderAlignment.middle,
+              child: pw.Container(
+                margin: const pw.EdgeInsets.symmetric(horizontal: 3),
+                padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border(
+                    left: pw.BorderSide(color: textColor, width: isMatrix ? 1.5 : 1.0),
+                    right: pw.BorderSide(color: textColor, width: isMatrix ? 1.5 : 1.0),
+                  ),
+                ),
+                child: pw.Column(
+                  mainAxisSize: pw.MainAxisSize.min,
+                  children: [
+                    pw.Row(mainAxisSize: pw.MainAxisSize.min, children: [
+                      pw.Text(a, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.9, color: textColor)),
+                      pw.SizedBox(width: 6),
+                      pw.Text(b, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.9, color: textColor)),
+                    ]),
+                    pw.Row(mainAxisSize: pw.MainAxisSize.min, children: [
+                      pw.Text(c, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.9, color: textColor)),
+                      pw.SizedBox(width: 6),
+                      pw.Text(d, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.9, color: textColor)),
+                    ]),
+                  ],
+                ),
+              ),
+            ),
+          );
         } else if (type == 'عمودي') {
-          final parts = rawContent.split(':');
           final op = parts.isNotEmpty ? parts[0] : '+';
           final numbers = parts.length > 1 ? parts.sublist(1) : <String>[];
 
@@ -942,7 +1093,6 @@ class PdfExportService {
             ),
           );
         } else if (type == 'قسمة' || type == 'div') {
-          final parts = rawContent.split(':');
           final bool isRtl = type == 'قسمة';
           final String dividend = parts.isNotEmpty ? parts[0] : '';
           final String divisor = parts.length > 1 ? parts[1] : '';
@@ -1219,7 +1369,6 @@ class PdfExportService {
     }
   }
 
-  // رسم الأشكال الهندسية المتجهة في مستند الـ PDF
   static pw.Widget _buildPdfCustomShape(String jsonStr, pw.Font ttf) {
     try {
       final Map<String, dynamic> data = jsonDecode(jsonStr);
@@ -1293,7 +1442,6 @@ class PdfExportService {
                         ..lineTo(2, 2)
                         ..closePath()
                         ..strokePath();
-                      // رمز الزاوية القائمة
                       canvas
                         ..moveTo(2, 12)
                         ..lineTo(12, 12)
