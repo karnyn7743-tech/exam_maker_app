@@ -243,7 +243,7 @@ class PdfExportService {
               ),
               pw.Expanded(
                 child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  mainAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Text(exam.header.basmalaText,
                         style: pw.TextStyle(
@@ -583,16 +583,56 @@ class PdfExportService {
     );
   }
 
-  static pw.Widget _buildPdfQuestionContent(QuestionModel q, pw.Font ttf) {
-    final fullText = q.spans.map((s) => s.text).join('');
+  // تحويل كود HEX النصي إلى كائن لون للطباعة
+  static PdfColor _parsePdfColor(String? hexString, {PdfColor defaultColor = PdfColors.black}) {
+    if (hexString == null || hexString.isEmpty) return defaultColor;
+    try {
+      final clean = hexString.replaceAll('#', '').trim();
+      if (clean.length == 6) {
+        final r = int.parse(clean.substring(0, 2), radix: 16) / 255.0;
+        final g = int.parse(clean.substring(2, 4), radix: 16) / 255.0;
+        final b = int.parse(clean.substring(4, 6), radix: 16) / 255.0;
+        return PdfColor(r, g, b);
+      }
+    } catch (_) {}
+    return defaultColor;
+  }
 
+  static pw.Widget _buildPdfQuestionContent(QuestionModel q, pw.Font ttf) {
     if (!q.isTwoColumns) {
-      return _renderInlineMathText(fullText, ttf, fontSize: 11, lineSpacing: 2);
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: q.spans.map((s) {
+          final spanColor = _parsePdfColor(s.colorHex);
+          return _renderInlineMathText(
+            s.text,
+            ttf,
+            fontSize: s.fontSize,
+            isBold: s.isBold,
+            textColor: spanColor,
+            lineSpacing: 2,
+          );
+        }).toList(),
+      );
     }
 
+    final fullText = q.spans.map((s) => s.text).join('');
     final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
     if (lines.length <= 1) {
-      return _renderInlineMathText(fullText, ttf, fontSize: 11, lineSpacing: 2);
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: q.spans.map((s) {
+          final spanColor = _parsePdfColor(s.colorHex);
+          return _renderInlineMathText(
+            s.text,
+            ttf,
+            fontSize: s.fontSize,
+            isBold: s.isBold,
+            textColor: spanColor,
+            lineSpacing: 2,
+          );
+        }).toList(),
+      );
     }
 
     final intro = lines.first;
@@ -638,7 +678,6 @@ class PdfExportService {
     );
   }
 
-  // رسم علامة الصح المتجهة
   static pw.Widget _drawPdfCheckmark({double size = 11.0, PdfColor color = PdfColors.black}) {
     return pw.CustomPaint(
       size: PdfPoint(size, size),
@@ -654,7 +693,6 @@ class PdfExportService {
     );
   }
 
-  // رسم علامة الخطأ المتجهة
   static pw.Widget _drawPdfCross({double size = 10.0, PdfColor color = PdfColors.black}) {
     return pw.CustomPaint(
       size: PdfPoint(size, size),
@@ -672,7 +710,6 @@ class PdfExportService {
     );
   }
 
-  // رسم رمز كرسي الجذر بدقة هندسية دون الاعتماد على خط غير مدعوم
   static pw.Widget _drawPdfRadical(pw.Widget content, String degree, pw.Font ttf, double fontSize, {bool isRtl = true}) {
     return pw.Directionality(
       textDirection: isRtl ? pw.TextDirection.rtl : pw.TextDirection.ltr,
@@ -692,7 +729,6 @@ class PdfExportService {
                 style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.65, fontWeight: pw.FontWeight.bold),
               ),
             ),
-          // ساق الجذر
           pw.Container(
             height: fontSize * 1.35,
             width: 7,
@@ -718,7 +754,6 @@ class PdfExportService {
               },
             ),
           ),
-          // سقف الجذر فوق المقدار
           pw.Container(
             margin: const pw.EdgeInsets.only(top: 2),
             decoration: const pw.BoxDecoration(
@@ -732,15 +767,14 @@ class PdfExportService {
     );
   }
 
-  // تحويل وسوم الرياضيات المضمنة، وتوليد علامات الصح والخطأ والجذور والقسمة هندسياً
   static pw.Widget _renderInlineMathText(
     String text,
     pw.Font ttf, {
     double fontSize = 11,
     bool isBold = false,
+    PdfColor textColor = PdfColors.black,
     double lineSpacing = 1.5,
   }) {
-    // التعبير النمطي الشامل للوسوم والرموز (بما فيها الصح والخطأ)
     final regExp = RegExp(r'(\[ (?:كسر|جذر|sqrt|عمودي|قسمة|div):.*? \]|✔|✘|✓|✗)'.replaceAll(' ', ''));
     final matches = regExp.allMatches(text);
 
@@ -751,6 +785,7 @@ class PdfExportService {
         style: pw.TextStyle(
           font: ttf,
           fontSize: fontSize,
+          color: textColor,
           fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
           lineSpacing: lineSpacing,
         ),
@@ -767,14 +802,13 @@ class PdfExportService {
 
       final matchedStr = m.group(0) ?? '';
 
-      // 1. معالجة علامات الصح والخطأ هندسياً لتفادي مشكلة الخط
       if (matchedStr == '✔' || matchedStr == '✓') {
         spans.add(
           pw.WidgetSpan(
             alignment: pw.PlaceholderAlignment.middle,
             child: pw.Padding(
               padding: const pw.EdgeInsets.symmetric(horizontal: 2.0),
-              child: _drawPdfCheckmark(size: fontSize * 0.95),
+              child: _drawPdfCheckmark(size: fontSize * 0.95, color: textColor),
             ),
           ),
         );
@@ -784,7 +818,7 @@ class PdfExportService {
             alignment: pw.PlaceholderAlignment.middle,
             child: pw.Padding(
               padding: const pw.EdgeInsets.symmetric(horizontal: 2.0),
-              child: _drawPdfCross(size: fontSize * 0.85),
+              child: _drawPdfCross(size: fontSize * 0.85, color: textColor),
             ),
           ),
         );
@@ -808,9 +842,9 @@ class PdfExportService {
                 child: pw.Column(
                   mainAxisSize: pw.MainAxisSize.min,
                   children: [
-                    pw.Text(num, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.85, fontWeight: pw.FontWeight.bold)),
-                    pw.Container(width: lineWidth, height: 0.8, color: PdfColors.black),
-                    pw.Text(den, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.85, fontWeight: pw.FontWeight.bold)),
+                    pw.Text(num, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.85, color: textColor, fontWeight: pw.FontWeight.bold)),
+                    pw.Container(width: lineWidth, height: 0.8, color: textColor),
+                    pw.Text(den, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.85, color: textColor, fontWeight: pw.FontWeight.bold)),
                   ],
                 ),
               ),
@@ -829,7 +863,7 @@ class PdfExportService {
                 child: _drawPdfRadical(
                   pw.Text(
                     radicand,
-                    style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.95, fontWeight: pw.FontWeight.bold),
+                    style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.95, color: textColor, fontWeight: pw.FontWeight.bold),
                   ),
                   degree,
                   ttf,
@@ -876,6 +910,7 @@ class PdfExportService {
                                       style: pw.TextStyle(
                                         font: ttf,
                                         fontSize: fontSize * 1.15,
+                                        color: textColor,
                                         fontWeight: pw.FontWeight.bold,
                                       ),
                                       textAlign: pw.TextAlign.center,
@@ -888,6 +923,7 @@ class PdfExportService {
                               style: pw.TextStyle(
                                 font: ttf,
                                 fontSize: fontSize * 1.05,
+                                color: textColor,
                                 fontWeight: pw.FontWeight.bold,
                               ),
                             ),
@@ -898,7 +934,7 @@ class PdfExportService {
                         margin: const pw.EdgeInsets.only(top: 2.0, bottom: 4.0),
                         width: lineWidth,
                         height: 1.0,
-                        color: PdfColors.black,
+                        color: textColor,
                       ),
                     ],
                   ),
@@ -934,6 +970,7 @@ class PdfExportService {
                             style: pw.TextStyle(
                               font: ttf,
                               fontSize: fontSize * 0.9,
+                              color: textColor,
                               fontWeight: pw.FontWeight.bold,
                             ),
                           ),
@@ -947,6 +984,7 @@ class PdfExportService {
                             style: pw.TextStyle(
                               font: ttf,
                               fontSize: fontSize,
+                              color: textColor,
                               fontWeight: pw.FontWeight.bold,
                             ),
                           ),
@@ -954,9 +992,9 @@ class PdfExportService {
                           pw.Container(
                             decoration: pw.BoxDecoration(
                               border: pw.Border(
-                                top: const pw.BorderSide(color: PdfColors.black, width: 1.2),
-                                right: isRtl ? const pw.BorderSide(color: PdfColors.black, width: 1.2) : pw.BorderSide.none,
-                                left: !isRtl ? const pw.BorderSide(color: PdfColors.black, width: 1.2) : pw.BorderSide.none,
+                                top: pw.BorderSide(color: textColor, width: 1.2),
+                                right: isRtl ? pw.BorderSide(color: textColor, width: 1.2) : pw.BorderSide.none,
+                                left: !isRtl ? pw.BorderSide(color: textColor, width: 1.2) : pw.BorderSide.none,
                               ),
                             ),
                             padding: const pw.EdgeInsets.only(top: 2, left: 5, right: 5, bottom: 1),
@@ -965,6 +1003,7 @@ class PdfExportService {
                               style: pw.TextStyle(
                                 font: ttf,
                                 fontSize: fontSize,
+                                color: textColor,
                                 fontWeight: pw.FontWeight.bold,
                               ),
                             ),
@@ -994,6 +1033,7 @@ class PdfExportService {
         style: pw.TextStyle(
           font: ttf,
           fontSize: fontSize,
+          color: textColor,
           fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
           lineSpacing: lineSpacing,
         ),
@@ -1033,6 +1073,12 @@ class PdfExportService {
               textAlign: pw.TextAlign.center,
               style: pw.TextStyle(font: ttf, fontSize: 11)),
         );
+
+      case ElementType.table:
+        return _buildPdfCustomTable(el.content, ttf);
+
+      case ElementType.shape:
+        return pw.SizedBox.shrink();
 
       case ElementType.mathOperation:
         try {
@@ -1126,6 +1172,52 @@ class PdfExportService {
           }
         } catch (_) {}
         return pw.SizedBox.shrink();
+    }
+  }
+
+  // رسم الجدول المخصص في مستند الـ PDF
+  static pw.Widget _buildPdfCustomTable(String jsonStr, pw.Font ttf) {
+    try {
+      final Map<String, dynamic> data = jsonDecode(jsonStr);
+      final int rows = data['rows'] ?? 2;
+      final int cols = data['cols'] ?? 2;
+      final bool hasHeader = data['hasHeader'] ?? true;
+      final List<dynamic> rawGrid = data['data'] ?? [];
+
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 4),
+        child: pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
+          children: List.generate(rows, (r) {
+            final isHeaderRow = (r == 0 && hasHeader);
+            return pw.TableRow(
+              decoration: pw.BoxDecoration(
+                color: isHeaderRow ? PdfColors.grey200 : PdfColors.white,
+              ),
+              children: List.generate(cols, (c) {
+                String text = '';
+                if (r < rawGrid.length && c < (rawGrid[r] as List).length) {
+                  text = rawGrid[r][c]?.toString() ?? '';
+                }
+                return pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 3),
+                  child: pw.Text(
+                    text,
+                    textAlign: pw.TextAlign.center,
+                    style: pw.TextStyle(
+                      font: ttf,
+                      fontSize: isHeaderRow ? 10.0 : 9.0,
+                      fontWeight: isHeaderRow ? pw.FontWeight.bold : pw.FontWeight.normal,
+                    ),
+                  ),
+                );
+              }),
+            );
+          }),
+        ),
+      );
+    } catch (_) {
+      return pw.SizedBox.shrink();
     }
   }
 }
