@@ -8,7 +8,6 @@ class DocxGeneratorService {
   static Future<String> generateAndOpenDocx(ExamModel exam) async {
     final docxBytes = await _buildDocxBytes(exam);
 
-    // توجيه الحفظ مباشرة إلى مجلد التنزيلات العام في أندرويد
     Directory dir;
     if (Platform.isAndroid) {
       final downloadDir = Directory('/storage/emulated/0/Download');
@@ -85,7 +84,7 @@ class DocxGeneratorService {
     buffer.write('</w:tblBorders>');
     buffer.write('</w:tblPr>');
 
-    // الصف الأول في الترويسة
+    // صف الترويسة العلوي
     buffer.write('<w:tr>');
 
     // الخانة اليمنى: البيانات الإدارية
@@ -187,6 +186,7 @@ class DocxGeneratorService {
         buffer.write(_buildDocxTwoColumnContent(q));
       }
 
+      // معالجة العناصر المدرجة (جداول، أشكال، مربعات نصية، أسطر إجابة، عمليات)
       for (final el in q.elements) {
         if (el.type == ElementType.textBox) {
           buffer.write('<w:p>');
@@ -200,6 +200,10 @@ class DocxGeneratorService {
           buffer.write('</w:p>');
         } else if (el.type == ElementType.mathOperation) {
           buffer.write(_buildDocxMathOperation(el.content));
+        } else if (el.type == ElementType.table) {
+          buffer.write(_buildDocxCustomTable(el.content));
+        } else if (el.type == ElementType.shape) {
+          buffer.write(_buildDocxCustomShape(el.content));
         }
       }
 
@@ -239,7 +243,139 @@ class DocxGeneratorService {
     return buffer.toString();
   }
 
-  // بناء محتوى السؤال مع دعم رصف العمليات العمودية المضمنة أفقياً متجانبة
+  // بناء جدول Word حقيقي مخصص وقابل للتعديل
+  static String _buildDocxCustomTable(String jsonStr) {
+    try {
+      final Map<String, dynamic> data = jsonDecode(jsonStr);
+      final int rows = data['rows'] ?? 2;
+      final int cols = data['cols'] ?? 2;
+      final bool hasHeader = data['hasHeader'] ?? true;
+      final List<dynamic> rawGrid = data['data'] ?? [];
+
+      final sb = StringBuffer();
+      sb.write('<w:tbl>');
+      sb.write('<w:tblPr>');
+      sb.write('<w:tblW w:w="7600" w:type="dxa"/>');
+      sb.write('<w:jc w:val="center"/>');
+      sb.write('<w:bidiVisual/>');
+      sb.write('<w:tblBorders>');
+      sb.write('<w:top w:val="single" w:sz="8" w:space="0" w:color="000000"/>');
+      sb.write('<w:left w:val="single" w:sz="8" w:space="0" w:color="000000"/>');
+      sb.write('<w:bottom w:val="single" w:sz="8" w:space="0" w:color="000000"/>');
+      sb.write('<w:right w:val="single" w:sz="8" w:space="0" w:color="000000"/>');
+      sb.write('<w:insideH w:val="single" w:sz="6" w:space="0" w:color="000000"/>');
+      sb.write('<w:insideV w:val="single" w:sz="6" w:space="0" w:color="000000"/>');
+      sb.write('</w:tblBorders>');
+      sb.write('</w:tblPr>');
+
+      final int cellWidth = (7600 / (cols > 0 ? cols : 1)).floor();
+
+      for (int r = 0; r < rows; r++) {
+        final isHeaderRow = (r == 0 && hasHeader);
+        sb.write('<w:tr>');
+        if (isHeaderRow) {
+          sb.write('<w:trPr><w:tblHeader/></w:trPr>');
+        }
+
+        for (int c = 0; c < cols; c++) {
+          String val = '';
+          if (r < rawGrid.length && c < (rawGrid[r] as List).length) {
+            val = rawGrid[r][c]?.toString() ?? '';
+          }
+
+          sb.write('<w:tc>');
+          sb.write('<w:tcPr>');
+          sb.write('<w:tcW w:w="$cellWidth" w:type="dxa"/>');
+          sb.write('<w:vAlign w:val="center"/>');
+          if (isHeaderRow) {
+            sb.write('<w:shd w:val="clear" w:color="auto" w:fill="E2E8F0"/>');
+          }
+          sb.write('</w:tcPr>');
+
+          sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="center"/><w:spacing w:line="240" w:lineRule="auto"/></w:pPr>');
+          sb.write('<w:r><w:rPr><w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="Amiri"/><w:rtl/>');
+          if (isHeaderRow) sb.write('<w:b/><w:bCs/>');
+          sb.write('<w:sz w:val="${isHeaderRow ? 22 : 20}"/><w:szCs w:val="${isHeaderRow ? 22 : 20}"/>');
+          sb.write('</w:rPr><w:t>${_xmlEscape(val)}</w:t></w:r></w:p>');
+
+          sb.write('</w:tc>');
+        }
+        sb.write('</w:tr>');
+      }
+
+      sb.write('</w:tbl>');
+      sb.write('<w:p><w:pPr><w:spacing w:after="80"/></w:pPr></w:p>');
+      return sb.toString();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  // بناء الأشكال التلقائية كإطارات وبطاقات هندسية في Word
+  static String _buildDocxCustomShape(String jsonStr) {
+    try {
+      final Map<String, dynamic> data = jsonDecode(jsonStr);
+      final String kind = data['kind'] ?? 'rectangle';
+      final String label = data['label'] ?? '';
+      String stroke = (data['strokeColor'] ?? '000000').replaceAll('#', '').toUpperCase();
+      if (stroke.length != 6) stroke = '000000';
+
+      String fill = 'FAFAFA';
+      if (data['fillColor'] != null && data['fillColor'] != 'transparent') {
+        final cleanFill = (data['fillColor'] as String).replaceAll('#', '').toUpperCase();
+        if (cleanFill.length == 6) fill = cleanFill;
+      }
+
+      final shapeTitles = {
+        'rectangle': 'مستطيل',
+        'circle': 'دائرة / شكل بيضاوي',
+        'triangle': 'مثلث',
+        'rightTriangle': 'مثلث قائم الزاوية',
+        'parallelogram': 'متوازي أضلاع',
+        'line': 'خط مستقيم',
+        'arrow': 'سهم توجيهي',
+      };
+
+      final title = shapeTitles[kind] ?? 'شكل هندسي';
+      final displayText = label.isNotEmpty ? '$title: $label' : title;
+
+      final sb = StringBuffer();
+      sb.write('<w:tbl>');
+      sb.write('<w:tblPr>');
+      sb.write('<w:tblW w:w="3600" w:type="dxa"/>');
+      sb.write('<w:jc w:val="center"/>');
+      sb.write('<w:bidiVisual/>');
+      sb.write('<w:tblBorders>');
+      sb.write('<w:top w:val="single" w:sz="12" w:space="0" w:color="$stroke"/>');
+      sb.write('<w:left w:val="single" w:sz="12" w:space="0" w:color="$stroke"/>');
+      sb.write('<w:bottom w:val="single" w:sz="12" w:space="0" w:color="$stroke"/>');
+      sb.write('<w:right w:val="single" w:sz="12" w:space="0" w:color="$stroke"/>');
+      sb.write('</w:tblBorders>');
+      sb.write('</w:tblPr>');
+
+      sb.write('<w:tr>');
+      sb.write('<w:tc>');
+      sb.write('<w:tcPr>');
+      sb.write('<w:tcW w:w="3600" w:type="dxa"/>');
+      sb.write('<w:shd w:val="clear" w:color="auto" w:fill="$fill"/>');
+      sb.write('<w:vAlign w:val="center"/>');
+      sb.write('</w:tcPr>');
+
+      sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="center"/><w:spacing w:before="120" w:after="120"/></w:pPr>');
+      sb.write('<w:r><w:rPr><w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="Amiri"/><w:b/><w:bCs/><w:rtl/><w:color w:val="$stroke"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>');
+      sb.write('<w:t>${_xmlEscape(displayText)}</w:t></w:r></w:p>');
+
+      sb.write('</w:tc>');
+      sb.write('</w:tr>');
+      sb.write('</w:tbl>');
+      sb.write('<w:p><w:pPr><w:spacing w:after="60"/></w:pPr></w:p>');
+      return sb.toString();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  // بناء محتوى السؤال مع دعم رصف العمليات المضمنة
   static String _renderDocxParagraphOrTable(List<TextSpanModel> spans) {
     final fullText = spans.map((s) => s.text).join('');
     final lines = fullText.split('\n');
@@ -248,6 +384,8 @@ class DocxGeneratorService {
     for (final line in lines) {
       if (line.contains('[عمودي:')) {
         sb.write(_renderDocxLineWithVerticalOps(line));
+      } else if (line.contains('[قسمة:') || line.contains('[div:')) {
+        sb.write(_renderDocxLineWithDivision(line));
       } else {
         sb.write('<w:p>');
         sb.write('<w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:line="320" w:lineRule="auto"/></w:pPr>');
@@ -258,6 +396,7 @@ class DocxGeneratorService {
                 isBold: spans.first.isBold,
                 isUnderline: spans.first.isUnderline,
                 fontFamily: spans.first.fontFamily,
+                colorHex: spans.first.colorHex,
               )
             : TextSpanModel(text: line, fontSize: 11, fontFamily: 'Amiri');
         sb.write(_renderDocxInlineRunsWithMath(dummySpan));
@@ -268,7 +407,7 @@ class DocxGeneratorService {
     return sb.toString();
   }
 
-  // رصف أسطر العمليات العمودية المتجاورة داخل جدول غير مرئي في Word ومحاذاة الآحاد لليمين مع وضع الإشارة قبلها
+  // رصف العمليات الحسابية العمودية (+, -, ×)
   static String _renderDocxLineWithVerticalOps(String line) {
     final regExp = RegExp(r'\[عمودي:(.*?)\]');
     final matches = regExp.allMatches(line).toList();
@@ -301,7 +440,6 @@ class DocxGeneratorService {
       for (int i = 0; i < numbers.length; i++) {
         final isLast = i == numbers.length - 1;
         final val = numbers[i];
-        // وضع الإشارة قبل الآحاد في السطر الأخير مع ترك فراغ مساوٍ في الأسطر السابقة
         final lineStr = isLast ? '$op  $val' : '    $val';
 
         sb.write('<w:p>');
@@ -314,7 +452,6 @@ class DocxGeneratorService {
         sb.write('</w:p>');
       }
 
-      // سطر فارغ تحت العملية للإجابة
       sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:before="60"/></w:pPr></w:p>');
       sb.write('</w:tc>');
     }
@@ -324,17 +461,87 @@ class DocxGeneratorService {
     return sb.toString();
   }
 
-  // دعم تحويل النصوص ووسوم [كسر:بسط/مقام] و [جذر:المقدار] و [جذر:رتبة:مقدار] و [sqrt:...] إلى عناصر Word القياسية
+  // رصف القسمة المطولة كرسم هندسي في Word
+  static String _renderDocxLineWithDivision(String line) {
+    final regExp = RegExp(r'\[(قسمة|div):(.*?)(?::(.*?))?(?::(.*?))?\]');
+    final m = regExp.firstMatch(line);
+
+    if (m == null) {
+      return '<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="Amiri"/><w:rtl/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>${_xmlEscape(line)}</w:t></w:r></w:p>';
+    }
+
+    final isRtl = m.group(1) == 'قسمة';
+    final dividend = m.group(2) ?? '';
+    final divisor = m.group(3) ?? '';
+    final quotient = m.group(4) ?? '';
+
+    final sb = StringBuffer();
+    sb.write('<w:tbl>');
+    sb.write('<w:tblPr>');
+    sb.write('<w:tblW w:w="3200" w:type="dxa"/>');
+    sb.write('<w:jc w:val="right"/>');
+    sb.write('<w:bidiVisual/>');
+    sb.write('<w:tblBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/><w:insideH w:val="none"/><w:insideV w:val="none"/></w:tblBorders>');
+    sb.write('</w:tblPr>');
+
+    // صف الناتج
+    if (quotient.isNotEmpty) {
+      sb.write('<w:tr>');
+      sb.write('<w:tc><w:tcPr><w:tcW w:w="800" w:type="dxa"/></w:tcPr><w:p/></w:tc>');
+      sb.write('<w:tc><w:tcPr><w:tcW w:w="2400" w:type="dxa"/></w:tcPr>');
+      sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="Amiri"/><w:b/><w:rtl/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>${_xmlEscape(quotient)}</w:t></w:r></w:p>');
+      sb.write('</w:tc>');
+      sb.write('</w:tr>');
+    }
+
+    // صف كرسي القسمة والمقسوم
+    sb.write('<w:tr>');
+
+    // المقسوم عليه
+    sb.write('<w:tc>');
+    sb.write('<w:tcPr><w:tcW w:w="800" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>');
+    sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="Amiri"/><w:b/><w:rtl/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>${_xmlEscape(divisor)}</w:t></w:r></w:p>');
+    sb.write('</w:tc>');
+
+    // المقسوم داخل الكرسي مع إطار علوي وفاصل
+    sb.write('<w:tc>');
+    sb.write('<w:tcPr>');
+    sb.write('<w:tcW w:w="2400" w:type="dxa"/>');
+    sb.write('<w:vAlign w:val="center"/>');
+    sb.write('<w:tcBorders>');
+    sb.write('<w:top w:val="single" w:sz="12" w:space="0" w:color="000000"/>');
+    if (isRtl) {
+      sb.write('<w:right w:val="single" w:sz="12" w:space="0" w:color="000000"/>');
+    } else {
+      sb.write('<w:left w:val="single" w:sz="12" w:space="0" w:color="000000"/>');
+    }
+    sb.write('</w:tcBorders>');
+    sb.write('</w:tcPr>');
+    sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="center"/><w:spacing w:before="60" w:after="60"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="Amiri"/><w:b/><w:rtl/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> ${_xmlEscape(dividend)} </w:t></w:r></w:p>');
+    sb.write('</w:tc>');
+
+    sb.write('</w:tr>');
+    sb.write('</w:tbl>');
+    return sb.toString();
+  }
+
+  // دعم تحويل النصوص وجميع وسوم المعادلات المركبة إلى عناصر Word
   static String _renderDocxInlineRunsWithMath(TextSpanModel s) {
     final text = s.text;
-    final regExp = RegExp(r'\[(كسر|جذر|sqrt):(.*?)(?:/(.*?))?\]');
+    final regExp = RegExp(r'\[(كسر|جذر|sqrt|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):(.*?)(?:/(.*?))?\]');
     final matches = regExp.allMatches(text);
+
+    String colorXml = '';
+    if (s.colorHex.isNotEmpty && s.colorHex != '#000000') {
+      final clean = s.colorHex.replaceAll('#', '').toUpperCase();
+      if (clean.length == 6) colorXml = '<w:color w:val="$clean"/>';
+    }
 
     final fontXml = '<w:rFonts w:ascii="Amiri" w:hAnsi="Amiri" w:cs="${s.fontFamily}"/>';
     final boldXml = s.isBold ? '<w:b/><w:bCs/>' : '';
     final underlineXml = s.isUnderline ? '<w:u w:val="single"/>' : '';
     final szVal = (s.fontSize * 2).toInt();
-    final rPr = '<w:rPr>$fontXml<w:rtl/>$boldXml$underlineXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr>';
+    final rPr = '<w:rPr>$fontXml<w:rtl/>$boldXml$underlineXml$colorXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr>';
 
     if (matches.isEmpty) {
       return '<w:r>$rPr<w:t xml:space="preserve">${_xmlEscape(text)}</w:t></w:r>';
@@ -352,24 +559,23 @@ class DocxGeneratorService {
       final type = m.group(1);
       final rawContent = m.group(2) ?? '';
       final rawAlt = m.group(3);
+      final parts = rawContent.split(':');
 
       if (type == 'كسر') {
         String num = rawContent;
         String den = rawAlt ?? '';
         if (rawAlt == null && rawContent.contains('/')) {
-          final parts = rawContent.split('/');
-          num = parts[0];
-          den = parts.length > 1 ? parts[1] : '';
+          final p = rawContent.split('/');
+          num = p[0];
+          den = p.length > 1 ? p[1] : '';
         }
 
-        // حقل الكسر الرأسي القياسي في Word
-        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>');
-        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:instrText xml:space="preserve"> EQ \\f(${_xmlEscape(num)},${_xmlEscape(den)}) </w:instrText></w:r>');
-        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r>');
-        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:t xml:space="preserve">${_xmlEscape(num)}/${_xmlEscape(den)}</w:t></w:r>');
-        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$colorXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$colorXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:instrText xml:space="preserve"> EQ \\f(${_xmlEscape(num)},${_xmlEscape(den)}) </w:instrText></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$colorXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml$colorXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:t xml:space="preserve">${_xmlEscape(num)}/${_xmlEscape(den)}</w:t></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$colorXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>');
       } else if (type == 'جذر' || type == 'sqrt') {
-        final parts = rawContent.split(':');
         final String degree = parts.length > 1 ? parts[0] : '';
         final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
 
@@ -377,13 +583,64 @@ class DocxGeneratorService {
             ? ' EQ \\r(${_xmlEscape(degree)},${_xmlEscape(radicand)}) '
             : ' EQ \\r(${_xmlEscape(radicand)}) ';
 
-        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>');
-        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:instrText xml:space="preserve">$eqInstruction</w:instrText></w:r>');
-        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$colorXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$colorXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:instrText xml:space="preserve">$eqInstruction</w:instrText></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$colorXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r>');
         final prefix = type == 'جذر' ? '⎷' : '√';
         final fallback = degree.isNotEmpty ? '$prefix($degree)$radicand' : '$prefix$radicand';
-        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:t xml:space="preserve">${_xmlEscape(fallback)}</w:t></w:r>');
-        sb.write('<w:r><w:rPr>$fontXml<w:rtl/><w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml$colorXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:t xml:space="preserve">${_xmlEscape(fallback)}</w:t></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$colorXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>');
+      } else if (type == 'نها') {
+        final v = parts.isNotEmpty ? parts[0] : 'س';
+        final t = parts.length > 1 ? parts[1] : '٠';
+        final fn = parts.length > 2 ? parts[2] : '';
+
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$colorXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$colorXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:instrText xml:space="preserve"> EQ \\o(نهـا,${_xmlEscape(v)} \u2190 ${_xmlEscape(t)}) </w:instrText></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$colorXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml$colorXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:t xml:space="preserve">نهـا($v \u2190 $t) $fn</w:t></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$colorXml<w:sz w:val="$szVal"/><w:szCs w:val="$szVal"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>');
+        if (fn.isNotEmpty) {
+          sb.write('<w:r>$rPr<w:t xml:space="preserve"> ${_xmlEscape(fn)}</w:t></w:r>');
+        }
+      } else if (type == 'تباديل' || type == 'توافيق') {
+        final n = parts.isNotEmpty ? parts[0] : 'ن';
+        final r = parts.length > 1 ? parts[1] : 'ر';
+        final sym = type == 'تباديل' ? 'ل' : 'ق';
+
+        // العلم فوق والدليل تحت
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml$colorXml<w:vertAlign w:val="superscript"/><w:sz w:val="${(szVal * 0.75).toInt()}"/></w:rPr><w:t>${_xmlEscape(n)}</w:t></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml$colorXml<w:sz w:val="${(szVal * 1.2).toInt()}"/></w:rPr><w:t>${_xmlEscape(sym)}</w:t></w:r>');
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml$colorXml<w:vertAlign w:val="subscript"/><w:sz w:val="${(szVal * 0.75).toInt()}"/></w:rPr><w:t>${_xmlEscape(r)}</w:t></w:r>');
+      } else if (type == 'مجموع' || type == 'تكامل') {
+        final from = parts.isNotEmpty ? parts[0] : '';
+        final to = parts.length > 1 ? parts[1] : '';
+        final body = parts.length > 2 ? parts[2] : '';
+        final sym = type == 'مجموع' ? 'مجـ' : '∫';
+
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml$colorXml<w:sz w:val="${(szVal * 1.25).toInt()}"/></w:rPr><w:t>${_xmlEscape(sym)}</w:t></w:r>');
+        if (from.isNotEmpty || to.isNotEmpty) {
+          sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$colorXml<w:sz w:val="${(szVal * 0.75).toInt()}"/></w:rPr><w:t xml:space="preserve"> [${_xmlEscape(from)} \u2192 ${_xmlEscape(to)}] </w:t></w:r>');
+        }
+        if (body.isNotEmpty) {
+          sb.write('<w:r>$rPr<w:t xml:space="preserve">${_xmlEscape(body)}</w:t></w:r>');
+        }
+      } else if (type == 'متجه') {
+        final v = parts.isNotEmpty ? parts[0] : 'ق';
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml$colorXml<w:sz w:val="$szVal"/></w:rPr><w:t xml:space="preserve">\u20D7${_xmlEscape(v)}</w:t></w:r>');
+      } else if (type == 'بار') {
+        final v = parts.isNotEmpty ? parts[0] : 'س';
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml$colorXml<w:sz w:val="$szVal"/></w:rPr><w:t xml:space="preserve">\u0304${_xmlEscape(v)}</w:t></w:r>');
+      } else if (type == 'محدد' || type == 'مصفوفة') {
+        final isMatrix = type == 'مصفوفة';
+        final a = parts.isNotEmpty ? parts[0] : '';
+        final b = parts.length > 1 ? parts[1] : '';
+        final c = parts.length > 2 ? parts[2] : '';
+        final d = parts.length > 3 ? parts[3] : '';
+
+        final open = isMatrix ? '[' : '|';
+        final close = isMatrix ? ']' : '|';
+        sb.write('<w:r><w:rPr>$fontXml<w:rtl/>$boldXml$colorXml<w:sz w:val="$szVal"/></w:rPr><w:t xml:space="preserve">$open ${_xmlEscape(a)}  ${_xmlEscape(b)} ; ${_xmlEscape(c)}  ${_xmlEscape(d)} $close</w:t></w:r>');
       }
 
       lastIdx = m.end;
@@ -526,7 +783,6 @@ class DocxGeneratorService {
         sb.write('<w:tblBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/><w:insideH w:val="none"/><w:insideV w:val="none"/></w:tblBorders>');
         sb.write('</w:tblPr>');
 
-        // البسط مع خط فاصل سفلي يمثل شرطة الكسر
         sb.write('<w:tr><w:tc><w:tcPr><w:tcW w:w="$colWidth" w:type="dxa"/>');
         sb.write('<w:tcBorders><w:bottom w:val="single" w:sz="8" w:space="0" w:color="000000"/></w:tcBorders>');
         sb.write('</w:tcPr>');
@@ -534,7 +790,6 @@ class DocxGeneratorService {
         sb.write('<w:r><w:rPr><w:b/><w:rtl/><w:sz w:val="22"/></w:rPr><w:t>${_xmlEscape(num)}</w:t></w:r>');
         sb.write('</w:p></w:tc></w:tr>');
 
-        // المقام
         sb.write('<w:tr><w:tc><w:tcPr><w:tcW w:w="$colWidth" w:type="dxa"/></w:tcPr>');
         sb.write('<w:p><w:pPr><w:bidi/><w:jc w:val="center"/></w:pPr>');
         sb.write('<w:r><w:rPr><w:b/><w:rtl/><w:sz w:val="22"/></w:rPr><w:t>${_xmlEscape(den)}</w:t></w:r>');
