@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.exam_maker_app"
+    namespace = "com.fawaz.exam_maker_app"
     compileSdk = 36
     ndkVersion = "28.2.13676358"
 
@@ -15,7 +15,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.exam_maker_app"
+        applicationId = "com.fawaz.exam_maker_app"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
