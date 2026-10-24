@@ -583,7 +583,6 @@ class PdfExportService {
     );
   }
 
-  // تحويل كود HEX النصي إلى كائن لون للطباعة
   static PdfColor _parsePdfColor(String? hexString, {PdfColor defaultColor = PdfColors.black}) {
     if (hexString == null || hexString.isEmpty) return defaultColor;
     try {
@@ -1078,7 +1077,7 @@ class PdfExportService {
         return _buildPdfCustomTable(el.content, ttf);
 
       case ElementType.shape:
-        return pw.SizedBox.shrink();
+        return _buildPdfCustomShape(el.content, ttf);
 
       case ElementType.mathOperation:
         try {
@@ -1175,7 +1174,6 @@ class PdfExportService {
     }
   }
 
-  // رسم الجدول المخصص في مستند الـ PDF
   static pw.Widget _buildPdfCustomTable(String jsonStr, pw.Font ttf) {
     try {
       final Map<String, dynamic> data = jsonDecode(jsonStr);
@@ -1214,6 +1212,166 @@ class PdfExportService {
               }),
             );
           }),
+        ),
+      );
+    } catch (_) {
+      return pw.SizedBox.shrink();
+    }
+  }
+
+  // رسم الأشكال الهندسية المتجهة في مستند الـ PDF
+  static pw.Widget _buildPdfCustomShape(String jsonStr, pw.Font ttf) {
+    try {
+      final Map<String, dynamic> data = jsonDecode(jsonStr);
+      final String kind = data['kind'] ?? 'rectangle';
+      final double w = (data['width'] as num?)?.toDouble() ?? 120.0;
+      final double h = (data['height'] as num?)?.toDouble() ?? 70.0;
+      final String label = data['label'] ?? '';
+      final PdfColor strokeColor = _parsePdfColor(data['strokeColor'], defaultColor: PdfColors.black);
+      final bool hasFill = data['fillColor'] != null && data['fillColor'] != 'transparent';
+      final PdfColor fillColor = hasFill ? _parsePdfColor(data['fillColor'], defaultColor: PdfColors.grey100) : PdfColors.white;
+
+      return pw.Center(
+        child: pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(vertical: 4),
+          child: pw.Stack(
+            alignment: pw.Alignment.center,
+            children: [
+              pw.CustomPaint(
+                size: PdfPoint(w, h),
+                painter: (pw.Context context, PdfPoint pointSize) {
+                  final canvas = context.canvas;
+                  final pw_x = pointSize.x;
+                  final pw_y = pointSize.y;
+
+                  canvas
+                    ..setColor(strokeColor)
+                    ..setLineWidth(1.2);
+
+                  switch (kind) {
+                    case 'circle':
+                      if (hasFill) {
+                        canvas.setFillColor(fillColor);
+                        canvas.ellipse(pw_x / 2, pw_y / 2, (pw_x - 4) / 2, (pw_y - 4) / 2);
+                        canvas.fillPath();
+                      }
+                      canvas.ellipse(pw_x / 2, pw_y / 2, (pw_x - 4) / 2, (pw_y - 4) / 2);
+                      canvas.strokePath();
+                      break;
+
+                    case 'triangle':
+                      if (hasFill) {
+                        canvas.setFillColor(fillColor);
+                        canvas
+                          ..moveTo(pw_x / 2, pw_y - 2)
+                          ..lineTo(pw_x - 2, 2)
+                          ..lineTo(2, 2)
+                          ..closePath()
+                          ..fillPath();
+                      }
+                      canvas
+                        ..moveTo(pw_x / 2, pw_y - 2)
+                        ..lineTo(pw_x - 2, 2)
+                        ..lineTo(2, 2)
+                        ..closePath()
+                        ..strokePath();
+                      break;
+
+                    case 'rightTriangle':
+                      if (hasFill) {
+                        canvas.setFillColor(fillColor);
+                        canvas
+                          ..moveTo(2, pw_y - 2)
+                          ..lineTo(pw_x - 2, 2)
+                          ..lineTo(2, 2)
+                          ..closePath()
+                          ..fillPath();
+                      }
+                      canvas
+                        ..moveTo(2, pw_y - 2)
+                        ..lineTo(pw_x - 2, 2)
+                        ..lineTo(2, 2)
+                        ..closePath()
+                        ..strokePath();
+                      // رمز الزاوية القائمة
+                      canvas
+                        ..moveTo(2, 12)
+                        ..lineTo(12, 12)
+                        ..lineTo(12, 2)
+                        ..strokePath();
+                      break;
+
+                    case 'parallelogram':
+                      final offset = pw_x * 0.22;
+                      if (hasFill) {
+                        canvas.setFillColor(fillColor);
+                        canvas
+                          ..moveTo(offset, pw_y - 2)
+                          ..lineTo(pw_x - 2, pw_y - 2)
+                          ..lineTo(pw_x - offset, 2)
+                          ..lineTo(2, 2)
+                          ..closePath()
+                          ..fillPath();
+                      }
+                      canvas
+                        ..moveTo(offset, pw_y - 2)
+                        ..lineTo(pw_x - 2, pw_y - 2)
+                        ..lineTo(pw_x - offset, 2)
+                        ..lineTo(2, 2)
+                        ..closePath()
+                        ..strokePath();
+                      break;
+
+                    case 'line':
+                      canvas
+                        ..moveTo(2, pw_y / 2)
+                        ..lineTo(pw_x - 2, pw_y / 2)
+                        ..strokePath();
+                      break;
+
+                    case 'arrow':
+                      final midY = pw_y / 2;
+                      canvas
+                        ..moveTo(2, midY)
+                        ..lineTo(pw_x - 2, midY)
+                        ..strokePath()
+                        ..moveTo(12, midY + 5)
+                        ..lineTo(2, midY)
+                        ..lineTo(12, midY - 5)
+                        ..strokePath();
+                      break;
+
+                    case 'rectangle':
+                    default:
+                      if (hasFill) {
+                        canvas.setFillColor(fillColor);
+                        canvas.drawRect(2, 2, pw_x - 4, pw_y - 4);
+                        canvas.fillPath();
+                      }
+                      canvas.drawRect(2, 2, pw_x - 4, pw_y - 4);
+                      canvas.strokePath();
+                      break;
+                  }
+                },
+              ),
+              if (label.isNotEmpty)
+                pw.Container(
+                  width: w,
+                  height: h,
+                  alignment: pw.Alignment.center,
+                  child: pw.Text(
+                    label,
+                    style: pw.TextStyle(
+                      font: ttf,
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                      color: strokeColor,
+                    ),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                ),
+            ],
+          ),
         ),
       );
     } catch (_) {
