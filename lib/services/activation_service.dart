@@ -11,6 +11,8 @@ class ActivationService {
   static const String _prefLicenseStatus = 'license_status';
   static const String _prefKeyActivationCode = 'app_activation_code';
   static const String _prefTrialExamsCount = 'trial_exams_created_count';
+  static const String _prefTrialStartDate = 'trial_start_timestamp'; // تسجيل بداية التجربة
+  static const int trialDaysDuration = 30; // مدة التجربة: 30 يوماً (شهر كامل)
 
   /// استخراج المعرف الفريد للجهاز
   static Future<String> getDeviceId() async {
@@ -73,7 +75,31 @@ class ActivationService {
     return prefs.getInt(_prefTrialExamsCount) ?? 0;
   }
 
-  /// التحقق من حالة الترخيص الحالية
+  /// حساب عدد الأيام المتبقية في الفترة التجريبية (30 يوماً)
+  static Future<int> getRemainingTrialDays() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedKey = prefs.getString(_prefKeyActivationCode);
+    if (savedKey == null || savedKey.isEmpty) return 0;
+
+    final currentDeviceId = await getDeviceId();
+    final status = verifyKey(savedKey, currentDeviceId);
+
+    if (status == LicenseStatus.full) return 999; // ترخيص كامل دائم
+
+    if (status == LicenseStatus.trial) {
+      final startMillis = prefs.getInt(_prefTrialStartDate);
+      if (startMillis == null) return trialDaysDuration;
+
+      final startDate = DateTime.fromMillisecondsSinceEpoch(startMillis);
+      final daysPassed = DateTime.now().difference(startDate).inDays;
+      final remaining = trialDaysDuration - daysPassed;
+      return remaining > 0 ? remaining : 0;
+    }
+
+    return 0;
+  }
+
+  /// التحقق من حالة الترخيص الحالية (فحص انقضاء مدة الـ 30 يوماً للتجربة)
   static Future<LicenseStatus> getLicenseStatus() async {
     final prefs = await SharedPreferences.getInstance();
     final savedKey = prefs.getString(_prefKeyActivationCode);
@@ -82,9 +108,22 @@ class ActivationService {
     final currentDeviceId = await getDeviceId();
     final status = verifyKey(savedKey, currentDeviceId);
 
+    // إذا كان الترخيص تجريبياً، يتم فحص هل انتهت مدة الشهر (30 يوماً)
     if (status == LicenseStatus.trial) {
-      final count = prefs.getInt(_prefTrialExamsCount) ?? 0;
-      if (count >= 1) {
+      int? startMillis = prefs.getInt(_prefTrialStartDate);
+      final now = DateTime.now();
+
+      if (startMillis == null) {
+        // تسجيل بداية التجربة عند أول فحص للترخيص التجريبي
+        await prefs.setInt(_prefTrialStartDate, now.millisecondsSinceEpoch);
+        return LicenseStatus.trial;
+      }
+
+      final startDate = DateTime.fromMillisecondsSinceEpoch(startMillis);
+      final daysPassed = now.difference(startDate).inDays;
+
+      // إذا تجاوزت المدة 30 يوماً، يقفل التطبيق
+      if (daysPassed >= trialDaysDuration) {
         return LicenseStatus.locked;
       }
     }
@@ -92,14 +131,14 @@ class ActivationService {
     return status;
   }
 
-  /// تسجيل استهلاك الاختبار التجريبي
+  /// تسجيل استهلاك الاختبار التجريبي (لأغراض الإحصاء ومتابعة المعلم دون قفل التطبيق)
   static Future<void> incrementTrialCount() async {
     final prefs = await SharedPreferences.getInstance();
     final current = prefs.getInt(_prefTrialExamsCount) ?? 0;
     await prefs.setInt(_prefTrialExamsCount, current + 1);
   }
 
-  /// تفعيل المفتاح المدخل
+  /// تفعيل المفتاح المدخل وبدء عداد الـ 30 يوماً في حال كان المفتاح تجريبياً
   static Future<LicenseStatus> applyKey(String enteredKey) async {
     final currentDeviceId = await getDeviceId();
     final status = verifyKey(enteredKey, currentDeviceId);
@@ -108,6 +147,11 @@ class ActivationService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefKeyActivationCode, enteredKey.trim().toUpperCase());
       await prefs.setString(_prefLicenseStatus, status == LicenseStatus.full ? 'full' : 'trial');
+
+      // عند إدخال مفتاح تجريبي، نسجل لحظة البداية لبدء حساب الـ 30 يوماً
+      if (status == LicenseStatus.trial) {
+        await prefs.setInt(_prefTrialStartDate, DateTime.now().millisecondsSinceEpoch);
+      }
     }
 
     return status;
