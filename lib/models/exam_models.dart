@@ -18,11 +18,14 @@ enum QuestionTitleOrientation {
   verticalTopToBottom,
 }
 
+/// أنواع العناصر القابلة للإدراج داخل الأسئلة
 enum ElementType {
   image,
   textBox,
   dottedLine,
   mathOperation,
+  table, // الجداول المخصصة القابلة للتحرير والتلوين
+  shape, // الأشكال الهندسية والتلقائية الملونة
 }
 
 class InsertableElement {
@@ -51,15 +54,22 @@ class InsertableElement {
         'alignment': alignment,
       };
 
-  factory InsertableElement.fromMap(Map<String, dynamic> map) =>
-      InsertableElement(
-        id: map['id'] ?? '',
-        type: ElementType.values.byName(map['type'] ?? 'textBox'),
-        content: map['content'] ?? '',
-        width: (map['width'] as num?)?.toDouble() ?? 100.0,
-        height: (map['height'] as num?)?.toDouble() ?? 100.0,
-        alignment: map['alignment'] ?? 'center',
-      );
+  factory InsertableElement.fromMap(Map<String, dynamic> map) {
+    final rawType = map['type']?.toString() ?? 'textBox';
+    final parsedType = ElementType.values.firstWhere(
+      (e) => e.name == rawType,
+      orElse: () => ElementType.textBox,
+    );
+
+    return InsertableElement(
+      id: map['id'] ?? '',
+      type: parsedType,
+      content: map['content'] ?? '',
+      width: (map['width'] as num?)?.toDouble() ?? 100.0,
+      height: (map['height'] as num?)?.toDouble() ?? 100.0,
+      alignment: map['alignment'] ?? 'center',
+    );
+  }
 }
 
 class TextSpanModel {
@@ -68,6 +78,7 @@ class TextSpanModel {
   bool isUnderline;
   double fontSize;
   String fontFamily;
+  String colorHex; // دعم تلوين الكلمات والنصوص بصيغة HEX
 
   TextSpanModel({
     required this.text,
@@ -75,6 +86,7 @@ class TextSpanModel {
     this.isUnderline = false,
     this.fontSize = 14.0,
     this.fontFamily = 'Traditional Arabic',
+    this.colorHex = '#000000',
   });
 
   Map<String, dynamic> toMap() => {
@@ -83,6 +95,7 @@ class TextSpanModel {
         'isUnderline': isUnderline,
         'fontSize': fontSize,
         'fontFamily': fontFamily,
+        'colorHex': colorHex,
       };
 
   factory TextSpanModel.fromMap(Map<String, dynamic> map) => TextSpanModel(
@@ -91,6 +104,7 @@ class TextSpanModel {
         isUnderline: map['isUnderline'] ?? false,
         fontSize: (map['fontSize'] as num?)?.toDouble() ?? 14.0,
         fontFamily: map['fontFamily'] ?? 'Traditional Arabic',
+        colorHex: map['colorHex'] ?? '#000000',
       );
 }
 
@@ -126,24 +140,30 @@ class QuestionModel {
         'isTwoColumns': isTwoColumns,
       };
 
-  factory QuestionModel.fromMap(Map<String, dynamic> map) => QuestionModel(
-        id: map['id'] ?? '',
-        title: map['title'] ?? '',
-        titleOrientation: QuestionTitleOrientation.values.byName(
-          map['titleOrientation'] ?? 'horizontal',
-        ),
-        mark: (map['mark'] as num?)?.toDouble() ?? 0.0,
-        spans: (map['spans'] as List<dynamic>?)
-                ?.map((item) => TextSpanModel.fromMap(item))
-                .toList() ??
-            [],
-        elements: (map['elements'] as List<dynamic>?)
-                ?.map((item) => InsertableElement.fromMap(item))
-                .toList() ??
-            [],
-        answerKey: map['answerKey'] ?? '',
-        isTwoColumns: map['isTwoColumns'] ?? false,
-      );
+  factory QuestionModel.fromMap(Map<String, dynamic> map) {
+    final rawOrientation = map['titleOrientation']?.toString() ?? 'horizontal';
+    final parsedOrientation = QuestionTitleOrientation.values.firstWhere(
+      (e) => e.name == rawOrientation,
+      orElse: () => QuestionTitleOrientation.horizontal,
+    );
+
+    return QuestionModel(
+      id: map['id'] ?? '',
+      title: map['title'] ?? '',
+      titleOrientation: parsedOrientation,
+      mark: (map['mark'] as num?)?.toDouble() ?? 0.0,
+      spans: (map['spans'] as List<dynamic>?)
+              ?.map((item) => TextSpanModel.fromMap(item))
+              .toList() ??
+          [],
+      elements: (map['elements'] as List<dynamic>?)
+              ?.map((item) => InsertableElement.fromMap(item))
+              .toList() ??
+          [],
+      answerKey: map['answerKey'] ?? '',
+      isTwoColumns: map['isTwoColumns'] ?? false,
+    );
+  }
 }
 
 class HeaderModel {
@@ -319,14 +339,19 @@ class AutomatedExamConfig {
         'choiceSymbolType': choiceSymbolType.name,
       };
 
-  factory AutomatedExamConfig.fromMap(Map<String, dynamic> map) =>
-      AutomatedExamConfig(
-        trueFalseCount: map['trueFalseCount'] ?? 10,
-        mcqCount: map['mcqCount'] ?? 10,
-        choiceSymbolType: ChoiceSymbolType.values.byName(
-          map['choiceSymbolType'] ?? 'arabicLetters',
-        ),
-      );
+  factory AutomatedExamConfig.fromMap(Map<String, dynamic> map) {
+    final rawSymbolType = map['choiceSymbolType']?.toString() ?? 'arabicLetters';
+    final parsedSymbolType = ChoiceSymbolType.values.firstWhere(
+      (e) => e.name == rawSymbolType,
+      orElse: () => ChoiceSymbolType.arabicLetters,
+    );
+
+    return AutomatedExamConfig(
+      trueFalseCount: map['trueFalseCount'] ?? 10,
+      mcqCount: map['mcqCount'] ?? 10,
+      choiceSymbolType: parsedSymbolType,
+    );
+  }
 }
 
 class ExamModel {
@@ -382,21 +407,29 @@ class ExamModel {
         'questions': questions.map((q) => q.toMap()).toList(),
       };
 
-  factory ExamModel.fromMap(Map<String, dynamic> map) => ExamModel(
-        id: map['id'] ?? '',
-        fileName: map['fileName'] ?? '',
-        examType: ExamType.values.byName(map['examType'] ?? 'traditional'),
-        automatedConfig: AutomatedExamConfig.fromMap(
-          map['automatedConfig'] ?? {},
-        ),
-        createdAt: DateTime.parse(map['createdAt']),
-        updatedAt: DateTime.parse(map['updatedAt']),
-        header: HeaderModel.fromMap(map['header'] ?? {}),
-        questions: (map['questions'] as List<dynamic>?)
-                ?.map((item) => QuestionModel.fromMap(item))
-                .toList() ??
-            [],
-      );
+  factory ExamModel.fromMap(Map<String, dynamic> map) {
+    final rawType = map['examType']?.toString() ?? 'traditional';
+    final parsedType = ExamType.values.firstWhere(
+      (e) => e.name == rawType,
+      orElse: () => ExamType.traditional,
+    );
+
+    return ExamModel(
+      id: map['id'] ?? '',
+      fileName: map['fileName'] ?? '',
+      examType: parsedType,
+      automatedConfig: AutomatedExamConfig.fromMap(
+        map['automatedConfig'] ?? {},
+      ),
+      createdAt: DateTime.parse(map['createdAt']),
+      updatedAt: DateTime.parse(map['updatedAt']),
+      header: HeaderModel.fromMap(map['header'] ?? {}),
+      questions: (map['questions'] as List<dynamic>?)
+              ?.map((item) => QuestionModel.fromMap(item))
+              .toList() ??
+          [],
+    );
+  }
 
   String toJson() => jsonEncode(toMap());
   factory ExamModel.fromJson(String source) =>
