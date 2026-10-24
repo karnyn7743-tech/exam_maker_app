@@ -1041,7 +1041,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         ),
                       ),
                     Row(
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisSize: minAxisSize(),
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Text(
@@ -1408,7 +1408,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
   }
 
-  // دالة عرض الجدول التفاعلي المخصص داخل شاشة المحرر
   Widget _renderCustomTable(String jsonStr) {
     try {
       final Map<String, dynamic> data = jsonDecode(jsonStr);
@@ -1457,19 +1456,53 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
   }
 
-  // دالة عرض الأشكال المخصصة (محجوزة وجاهزة للخطوة 3)
+  // دالة عرض الأشكال الهندسية التلقائية في المحرر
   Widget _renderCustomShape(String jsonStr) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.blueGrey),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: const Center(
-        child: Text('شكل هندسي', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-      ),
-    );
+    try {
+      final Map<String, dynamic> data = jsonDecode(jsonStr);
+      final String kind = data['kind'] ?? 'rectangle';
+      final double w = (data['width'] as num?)?.toDouble() ?? 120.0;
+      final double h = (data['height'] as num?)?.toDouble() ?? 70.0;
+      final String label = data['label'] ?? '';
+      final Color strokeColor = Color(int.parse((data['strokeColor'] ?? '#000000').replaceFirst('#', '0xFF')));
+      final Color fillColor = (data['fillColor'] == null || data['fillColor'] == 'transparent')
+          ? Colors.transparent
+          : Color(int.parse((data['fillColor'] as String).replaceFirst('#', '0xFF')));
+
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: CustomPaint(
+            size: Size(w, h),
+            painter: _ExamShapePainter(
+              kind: kind,
+              strokeColor: strokeColor,
+              fillColor: fillColor,
+            ),
+            child: SizedBox(
+              width: w,
+              height: h,
+              child: Center(
+                child: label.isNotEmpty
+                    ? Text(
+                        label,
+                        style: TextStyle(
+                          fontFamily: 'Amiri',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: strokeColor,
+                        ),
+                        textAlign: TextAlign.center,
+                      )
+                    : null,
+              ),
+            ),
+          ),
+        ),
+      );
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
   }
 
   Widget _renderMathOperation(String jsonStr) {
@@ -2060,7 +2093,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       );
     }
 
-    // نافذة تصميم وإدراج الجداول التفاعلية المخصصة
     void showTableDesignerDialog(void Function(void Function()) setParentState, {InsertableElement? existingElement}) {
       int rowCount = 3;
       int colCount = 3;
@@ -2219,6 +2251,186 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       currentElements.add(InsertableElement(
                         id: const Uuid().v4(),
                         type: ElementType.table,
+                        content: jsonPayload,
+                      ));
+                    }
+                  });
+                  Navigator.pop(dCtx);
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // نافذة تصميم وإدراج الأشكال التلقائية كما في Word
+    void showShapeDesignerDialog(void Function(void Function()) setParentState, {InsertableElement? existingElement}) {
+      String shapeKind = 'rectangle';
+      double width = 120.0;
+      double height = 70.0;
+      String strokeColor = '#000000';
+      String fillColor = 'transparent';
+      final labelCtrl = TextEditingController();
+
+      if (existingElement != null && existingElement.type == ElementType.shape) {
+        try {
+          final Map<String, dynamic> data = jsonDecode(existingElement.content);
+          shapeKind = data['kind'] ?? 'rectangle';
+          width = (data['width'] as num?)?.toDouble() ?? 120.0;
+          height = (data['height'] as num?)?.toDouble() ?? 70.0;
+          strokeColor = data['strokeColor'] ?? '#000000';
+          fillColor = data['fillColor'] ?? 'transparent';
+          labelCtrl.text = data['label'] ?? '';
+        } catch (_) {}
+      }
+
+      final Map<String, String> shapeNames = {
+        'rectangle': 'مستطيل / مربع',
+        'circle': 'دائرة / بيضاوي',
+        'triangle': 'مثلث متساوي الساقين',
+        'rightTriangle': 'مثلث قائم الزاوية',
+        'parallelogram': 'متوازي أضلاع',
+        'line': 'خط مستقيم',
+        'arrow': 'سهم توجيهي',
+      };
+
+      showDialog(
+        context: context,
+        builder: (dCtx) => StatefulBuilder(
+          builder: (context, setDState) => AlertDialog(
+            title: Row(
+              children: const [
+                Icon(Icons.category, color: Color(0xFF1E3A8A)),
+                SizedBox(width: 8),
+                Text('إدراج شكل تلقائي وهندسي', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: shapeKind,
+                    decoration: const InputDecoration(labelText: 'نوع الشكل الهندسي', border: OutlineInputBorder()),
+                    items: shapeNames.entries
+                        .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setDState(() => shapeKind = v);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: labelCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'نص أو رمز داخل الشكل (اختياري)',
+                      hintText: 'مثال: 5 سم أو أ ب جـ',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('العرض: ${width.toInt()} px', style: const TextStyle(fontSize: 12)),
+                            Slider(
+                              value: width,
+                              min: 50,
+                              max: 260,
+                              divisions: 21,
+                              onChanged: (v) => setDState(() => width = v),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('الارتفاع: ${height.toInt()} px', style: const TextStyle(fontSize: 12)),
+                            Slider(
+                              value: height,
+                              min: 30,
+                              max: 180,
+                              divisions: 15,
+                              onChanged: (v) => setDState(() => height = v),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('لون الإطار: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      DropdownButton<String>(
+                        value: strokeColor,
+                        items: [
+                          {'name': 'أسود', 'hex': '#000000'},
+                          {'name': 'أزرق', 'hex': '#1D4ED8'},
+                          {'name': 'أحمر', 'hex': '#B91C1C'},
+                          {'name': 'أخضر', 'hex': '#047857'},
+                        ].map((c) => DropdownMenuItem(
+                          value: c['hex'],
+                          child: Row(
+                            children: [
+                              Container(width: 14, height: 14, color: Color(int.parse(c['hex']!.replaceFirst('#', '0xFF')))),
+                              const SizedBox(width: 6),
+                              Text(c['name']!),
+                            ],
+                          ),
+                        )).toList(),
+                        onChanged: (v) => setDState(() => strokeColor = v!),
+                      ),
+                      const Text('التعبئة: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      DropdownButton<String>(
+                        value: fillColor,
+                        items: [
+                          {'name': 'شفاف', 'hex': 'transparent'},
+                          {'name': 'رمادي', 'hex': '#F1F5F9'},
+                          {'name': 'أزرق فاتح', 'hex': '#EFF6FF'},
+                          {'name': 'أصفر خفيف', 'hex': '#FEF9C3'},
+                        ].map((c) => DropdownMenuItem(
+                          value: c['hex'],
+                          child: Text(c['name']!),
+                        )).toList(),
+                        onChanged: (v) => setDState(() => fillColor = v!),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
+                icon: const Icon(Icons.check, color: Colors.white, size: 18),
+                label: const Text('إدراج الشكل', style: TextStyle(color: Colors.white)),
+                onPressed: () {
+                  final jsonPayload = jsonEncode({
+                    'kind': shapeKind,
+                    'width': width,
+                    'height': height,
+                    'label': labelCtrl.text.trim(),
+                    'strokeColor': strokeColor,
+                    'fillColor': fillColor,
+                  });
+
+                  setParentState(() {
+                    if (existingElement != null) {
+                      existingElement.content = jsonPayload;
+                    } else {
+                      currentElements.add(InsertableElement(
+                        id: const Uuid().v4(),
+                        type: ElementType.shape,
                         content: jsonPayload,
                       ));
                     }
@@ -2439,6 +2651,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 color: const Color(0xFF4338CA),
                                 tooltip: 'تصميم وإدراج جدول مخصص',
                                 onTap: () => showTableDesignerDialog(setModalState),
+                              ),
+                              _buildBarBtn(
+                                text: 'شكل ▱',
+                                color: const Color(0xFFD97706),
+                                tooltip: 'إدراج أشكال تلقائية وهندسية (Word Shapes)',
+                                onTap: () => showShapeDesignerDialog(setModalState),
                               ),
                               _buildBarBtn(
                                 text: 'بسط/مقام',
@@ -2738,22 +2956,33 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             final i = entry.key;
                             final el = entry.value;
                             String lbl = 'عنصر';
+                            IconData? icon;
                             if (el.type == ElementType.image) lbl = 'صورة مدرجة';
                             if (el.type == ElementType.textBox) lbl = 'مربع إرشاد';
                             if (el.type == ElementType.dottedLine) lbl = 'سطر إجابة';
                             if (el.type == ElementType.mathOperation) lbl = 'عملية رياضية / كسر';
-                            if (el.type == ElementType.table) lbl = 'جدول مخصص (تعديل)';
-                            if (el.type == ElementType.shape) lbl = 'شكل هندسي';
+                            if (el.type == ElementType.table) {
+                              lbl = 'جدول مخصص';
+                              icon = Icons.edit_calendar;
+                            }
+                            if (el.type == ElementType.shape) {
+                              lbl = 'شكل تلقائي';
+                              icon = Icons.category;
+                            }
 
                             return ActionChip(
                               label: Text(lbl),
-                              avatar: el.type == ElementType.table ? const Icon(Icons.edit, size: 14) : null,
+                              avatar: icon != null ? Icon(icon, size: 14) : null,
                               onPressed: () {
                                 if (el.type == ElementType.table) {
                                   showTableDesignerDialog(setModalState, existingElement: el);
+                                } else if (el.type == ElementType.shape) {
+                                  showShapeDesignerDialog(setModalState, existingElement: el);
                                 }
                               },
-                              backgroundColor: el.type == ElementType.table ? Colors.indigo.shade50 : null,
+                              backgroundColor: (el.type == ElementType.table || el.type == ElementType.shape)
+                                  ? Colors.indigo.shade50
+                                  : null,
                             );
                           }).toList(),
                         ),
@@ -3425,6 +3654,110 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       ),
     );
   }
+}
+
+// الرسام الهندسي للأشكال في Flutter
+class _ExamShapePainter extends CustomPainter {
+  final String kind;
+  final Color strokeColor;
+  final Color fillColor;
+
+  _ExamShapePainter({
+    required this.kind,
+    required this.strokeColor,
+    required this.fillColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fillPaint = Paint()
+      ..color = fillColor
+      ..style = PaintingStyle.fill;
+
+    final strokePaint = Paint()
+      ..color = strokeColor
+      ..strokeWidth = 1.6
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final w = size.width;
+    final h = size.height;
+
+    switch (kind) {
+      case 'circle':
+        final rect = Rect.fromLTWH(2, 2, w - 4, h - 4);
+        if (fillColor != Colors.transparent) canvas.drawOval(rect, fillPaint);
+        canvas.drawOval(rect, strokePaint);
+        break;
+
+      case 'triangle':
+        final path = Path()
+          ..moveTo(w / 2, 2)
+          ..lineTo(w - 2, h - 2)
+          ..lineTo(2, h - 2)
+          ..close();
+        if (fillColor != Colors.transparent) canvas.drawPath(path, fillPaint);
+        canvas.drawPath(path, strokePaint);
+        break;
+
+      case 'rightTriangle':
+        final path = Path()
+          ..moveTo(2, 2)
+          ..lineTo(2, h - 2)
+          ..lineTo(w - 2, h - 2)
+          ..close();
+        if (fillColor != Colors.transparent) canvas.drawPath(path, fillPaint);
+        canvas.drawPath(path, strokePaint);
+        // مربع الزاوية القائمة
+        final sqPath = Path()
+          ..moveTo(2, h - 14)
+          ..lineTo(14, h - 14)
+          ..lineTo(14, h - 2);
+        canvas.drawPath(sqPath, strokePaint..strokeWidth = 1.0);
+        break;
+
+      case 'parallelogram':
+        final offset = w * 0.22;
+        final path = Path()
+          ..moveTo(offset, 2)
+          ..lineTo(w - 2, 2)
+          ..lineTo(w - offset, h - 2)
+          ..lineTo(2, h - 2)
+          ..close();
+        if (fillColor != Colors.transparent) canvas.drawPath(path, fillPaint);
+        canvas.drawPath(path, strokePaint);
+        break;
+
+      case 'line':
+        canvas.drawLine(Offset(2, h / 2), Offset(w - 2, h / 2), strokePaint);
+        break;
+
+      case 'arrow':
+        final y = h / 2;
+        canvas.drawLine(Offset(2, y), Offset(w - 2, y), strokePaint);
+        // رأس السهم
+        final arrowPath = Path()
+          ..moveTo(12, y - 6)
+          ..lineTo(2, y)
+          ..lineTo(12, y + 6);
+        canvas.drawPath(arrowPath, strokePaint);
+        break;
+
+      case 'rectangle':
+      default:
+        final rRect = RRect.fromRectAndRadius(Rect.fromLTWH(2, 2, w - 4, h - 4), const Radius.circular(3));
+        if (fillColor != Colors.transparent) canvas.drawRRect(rRect, fillPaint);
+        canvas.drawRRect(rRect, strokePaint);
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ExamShapePainter oldDelegate) =>
+      oldDelegate.kind != kind ||
+      oldDelegate.strokeColor != strokeColor ||
+      oldDelegate.fillColor != fillColor;
 }
 
 class _ArabicRadicalPainter extends CustomPainter {
