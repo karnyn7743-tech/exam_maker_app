@@ -18,16 +18,32 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Install Dependencies
-        run: flutter pub get
+      - name: Locate Project and Generate Icons
+        run: |
+          echo "=== فحص مكان الملفات ==="
+          ls -la
+          
+          # البحث عن ملف pubspec.yaml في كل المستودع
+          PUBSPEC_PATH=$(find . -name "pubspec.yaml" -not -path "*/.*" | head -n 1)
 
-      - name: Generate Icons
-        run: dart run flutter_launcher_icons
+          if [ -z "$PUBSPEC_PATH" ]; then
+            echo "خطأ: لم يتم العثور على ملف pubspec.yaml داخل المستودع!"
+            echo "محتويات المستودع بالكامل:"
+            find . -maxdepth 3
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$PUBSPEC_PATH")
+          echo "تم العثور على مجلد المشروع في: $PROJECT_DIR"
+          
+          cd "$PROJECT_DIR"
+          flutter pub get
+          dart run flutter_launcher_icons
 
       - name: Commit and Push New Icons
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add android/
+          git add .
           git commit -m "Update app launcher icons" || echo "No changes to commit"
           git push
