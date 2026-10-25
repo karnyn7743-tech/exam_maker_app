@@ -1,45 +1,176 @@
 name: exam_maker_app
-description: "تطبيق المحرر البسيط للإختبارات"
+description: "تطبيق صانع ومحرر الاختبارات المدرسية المؤتمتة والشاملة - إعداد وتطوير أ. فواز سنان البعيثي"
+publish_to: "none"
 
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
-  sdk: '>=3.0.0 <4.0.0' # متوافق مع إصدارات فلاتر المستقرة والحديثة
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
-  # لقراءة الأكواد المطبوعة والدرجات المكتوبة بخط اليد بدقة (يدعم العربية)
-  google_mlkit_text_recognition: ^0.14.0
-
-  # لفتح، قراءة، تعديل، وحفظ ملفات الأكسيل مباشرة في ذاكرة الهاتف
-  excel: ^4.0.7
-
-  # لتمكين المستخدم من تصفح واختيار ملف الأكسيل من الذاكرة الداخلية
-  file_picker: ^8.1.7
-
-  # لإدارة وفحص أذونات الكاميرا والتخزين على أنظمة الأندرويد المختلفة
-  permission_handler: ^11.3.1
-
-  # للوصول التلقائي إلى مسارات المجلدات الأساسية في نظام التشغيل
-  path_provider: ^2.1.3
+  # حزم معالجة الوثائق والملفات
+  pdf: ^3.12.0
+  archive: ^3.6.1
+  path_provider: ^2.1.2
+  file_picker: ^8.0.0
+  image_picker: ^1.1.0
+  excel: ^4.0.3
+  barcode: ^2.2.8
+  uuid: ^4.4.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true
 
-  # تهيئة مجلد الأصول (Assets) لإضافة خط القاهرة وصوت تنبيه المسح
   assets:
-    - assets/
+    - assets/fonts/
 
   fonts:
-    - family: Cairo
+    # 1. الخطوط الأساسية والقرآنية والزخرفية
+    - family: Amiri
       fonts:
-        - asset: assets/fonts/Cairo-Regular.ttf
-        - asset: assets/fonts/Cairo-Bold.ttf
-          weight: 700
+        - asset: assets/fonts/Amiri.ttf
+
+    - family: Hafs
+      fonts:
+        - asset: assets/fonts/hafs_v22.ttf
+
+    - family: Thuluth
+      fonts:
+        - asset: assets/fonts/Thuluth.ttf
+
+    - family: Almarai
+      fonts:
+        - asset: assets/fonts/Almarai.ttf
+
+    - family: Changa
+      fonts:
+        - asset: assets/fonts/Changa.ttf
+
+    - family: Kufam
+      fonts:
+        - asset: assets/fonts/Kufam.ttf
+
+    - family: Rubik
+      fonts:
+        - asset: assets/fonts/Rubik-Medium.ttf
+
+    - family: Arial
+      fonts:
+        - asset: assets/fonts/arial-bold.ttf
+
+    # 2. خطوط العناوين والزخارف الإسلامية
+    - family: ElHijaz
+      fonts:
+        - asset: assets/fonts/ElHijaz-Normal.ttf
+
+    - family: ElSHijazAdorn
+      fonts:
+        - asset: assets/fonts/ElS-Hijaz-Adorn.ttf
+
+    - family: ElourQuraaKufi
+      fonts:
+        - asset: assets/fonts/Elour-Quraa-Kufi.ttf
+
+    - family: ElghAnSrame
+      fonts:
+        - asset: assets/fonts/Elgh-an-Srame.ttf
+
+    - family: ElAfrica
+      fonts:
+        - asset: assets/fonts/ElAfrica-V2.ttf
+
+    - family: SultanCtangle
+      fonts:
+        - asset: assets/fonts/Sultan ctangle.ttf
+
+    - family: Tahrir
+      fonts:
+        - asset: assets/fonts/Tahrir-mob3.ttf
+
+    - family: DTUTH
+      fonts:
+        - asset: assets/fonts/DTUTH-II-1.ttf
+
+    - family: Lishposter
+      fonts:
+        - asset: assets/fonts/Lishposter.ttf
+
+    - family: Axdf
+      fonts:
+        - asset: assets/fonts/Axdf.ttf
+
+    - family: Banyeh
+      fonts:
+        - asset: assets/fonts/Banyeh.ttf
+
+    - family: Meshref
+      fonts:
+        - asset: assets/fonts/meshref.ttf
+
+    - family: Minder
+      fonts:
+        - asset: assets/fonts/minder.ttf
+
+    - family: Mobv2
+      fonts:
+        - asset: assets/fonts/mobv2-regular.ttf
+
+    - family: GSoon
+      fonts:
+        - asset: assets/fonts/gSoon-Regular.ttf
+
+    - family: DeApple
+      fonts:
+        - asset: assets/fonts/deApple-Regular.ttf
+
+    # 3. خط الرموز والمعادلات الرياضية
+    - family: JsMath
+      fonts:
+        - asset: assets/fonts/jsMath-cmbx10.ttf
+
+    # 4. خطوط إنجليزية ومتنوعة
+    - family: Satisfy
+      fonts:
+        - asset: assets/fonts/Satisfy-Regular.ttf
+
+    - family: Schoolbell
+      fonts:
+        - asset: assets/fonts/Schoolbell-Regular.ttf
+
+    - family: Caps
+      fonts:
+        - asset: assets/fonts/Caps-Regular.ttf
+
+    - family: Chewy
+      fonts:
+        - asset: assets/fonts/Chewy-Regular.ttf
+
+    - family: Crushed
+      fonts:
+        - asset: assets/fonts/Crushed-Regular.ttf
+
+    - family: Girls
+      fonts:
+        - asset: assets/fonts/Girls-Regular.ttf
+
+    - family: Grover
+      fonts:
+        - asset: assets/fonts/Grover-Regular.ttf
+
+    - family: RSwanky
+      fonts:
+        - asset: assets/fonts/rSwanky-Regular.ttf
+
+    - family: SMono
+      fonts:
+        - asset: assets/fonts/sMono[wght].ttf
