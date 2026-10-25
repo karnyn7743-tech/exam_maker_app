@@ -29,14 +29,13 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
 
   # تهيئة مجلد الأصول (Assets) لإضافة خط القاهرة وصوت تنبيه المسح
   assets:
-    - assets/audio/
+    - assets/
 
   fonts:
     - family: Cairo
@@ -44,11 +43,3 @@ flutter:
         - asset: assets/fonts/Cairo-Regular.ttf
         - asset: assets/fonts/Cairo-Bold.ttf
           weight: 700
-
-flutter_launcher_icons:
-  android: true
-  ios: true
-  image_path: "assets/app_icon.png" # عدل المسار حسب المكان الذي وضعت فيه الصورة
-  adaptive_icon_background: "#FFFFFF" # لون خلفية الأيقونة التكيفية (Adaptive Icon)
-  adaptive_icon_foreground: "assets/app_icon.png"
-
