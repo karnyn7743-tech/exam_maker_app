@@ -1,0 +1,33 @@
+name: Update Launcher Icon
+
+on:
+  workflow_dispatch:
+
+permissions: write-all
+
+jobs:
+  update-icon:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Generate Icons
+        run: dart run flutter_launcher_icons
+
+      - name: Commit and Push New Icons
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add android/
+          git commit -m "Update app launcher icons" || echo "No changes to commit"
+          git push
