@@ -14,6 +14,44 @@ import '../services/student_excel_service.dart';
 import '../services/omr_sheet_service.dart';
 import '../widgets/exam_custom_keyboard.dart';
 
+// قائمة الخطوط الـ 30 الرسمية المعتمدة والمطابقة تماماً لملف pubspec.yaml
+const List<Map<String, String>> appFontsList = [
+  {'id': 'Amiri', 'name': 'خط الأميري (الافتراضي)'},
+  {'id': 'Hafs', 'name': 'مصحف حفص (عثماني)'},
+  {'id': 'Thuluth', 'name': 'خط الثلث'},
+  {'id': 'Almarai', 'name': 'المراعي'},
+  {'id': 'Changa', 'name': 'تشانجا'},
+  {'id': 'Kufam', 'name': 'كوفام'},
+  {'id': 'Rubik', 'name': 'روبيك'},
+  {'id': 'Arial', 'name': 'أريال (Arial)'},
+  {'id': 'ElHijaz', 'name': 'الحجاز عادي'},
+  {'id': 'ElSHijazAdorn', 'name': 'زخارف الحجاز (ElS-Hijaz Adorn)'},
+  {'id': 'ElourQuraaKufi', 'name': 'قراء كوفي'},
+  {'id': 'ElghAnSrame', 'name': 'الغصن الصارم'},
+  {'id': 'ElAfrica', 'name': 'إفريقيا (ElAfrica)'},
+  {'id': 'SultanCtangle', 'name': 'سلطان (Sultan)'},
+  {'id': 'Tahrir', 'name': 'تحرير'},
+  {'id': 'DTUTH', 'name': 'ديتوث (DTUTH)'},
+  {'id': 'Lishposter', 'name': 'ليش بوستر'},
+  {'id': 'Axdf', 'name': 'أكسدف (Axdf)'},
+  {'id': 'Banyeh', 'name': 'بنية (Banyeh)'},
+  {'id': 'Meshref', 'name': 'مشرف'},
+  {'id': 'Minder', 'name': 'ميندر'},
+  {'id': 'Mobv2', 'name': 'موب V2'},
+  {'id': 'GSoon', 'name': 'غصون'},
+  {'id': 'DeApple', 'name': 'دي آبل'},
+  {'id': 'JsMath', 'name': 'رموز الرياضيات (JsMath)'},
+  {'id': 'Satisfy', 'name': 'Satisfy'},
+  {'id': 'Schoolbell', 'name': 'Schoolbell'},
+  {'id': 'Caps', 'name': 'Caps Regular'},
+  {'id': 'Chewy', 'name': 'Chewy'},
+  {'id': 'Crushed', 'name': 'Crushed'},
+  {'id': 'Girls', 'name': 'Girls'},
+  {'id': 'Grover', 'name': 'Grover'},
+  {'id': 'RSwanky', 'name': 'R-Swanky'},
+  {'id': 'SMono', 'name': 'خط أحادي (SMono)'},
+];
+
 class ExamEditorScreen extends StatefulWidget {
   final ExamModel initialExam;
   final bool isNewExam;
@@ -2053,7 +2091,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       workingSpans = newSpans.where((s) => s.text.isNotEmpty).toList();
     }
 
-    // نافذة إدراج الصيغ الرياضية والفيزيائية المركبة الحرة
     void showAdvancedEquationDialog(void Function(void Function()) setParentState) {
       String eqType = 'نها';
       final f1Ctrl = TextEditingController(text: 'س');
@@ -2693,6 +2730,22 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     void showSymbolsModal(void Function(void Function()) setParentState) {
       final Map<String, List<String>> categories = {
+        'زخارف وفواصل': [
+          '﴾   ﴿',
+          '«   »',
+          '۞',
+          '۩',
+          '۝',
+          '✦ ✦ ✦',
+          '❖ ❖ ❖',
+          '~*~*~*~*~',
+          '— — ❖ — —',
+          '•┈┈┈┈•✿•┈┈┈┈•',
+          '━━━ ❀ ━━━',
+          '■ □ ■',
+          '● ○ ●',
+          '※ ※ ※',
+        ],
         'رياضيات عربية RTL': ['[جذر:س]', '[جذر:٢٥]', '[جذر:٣:٢٧]', 'نهـا', 'مجـ', 'تـ', 'ط', 'هـ', '∆', 'س', 'ص', 'ع', 'د', 'ل', 'ك', 'ن', 'ق'],
         'إحصاء وفيزياء': ['س̄', 'ع', 'ر', 'ف', 'كجم', 'نيوتن', 'جول', 'م/ث', 'أوم', 'فولت', 'أمبير', 'سم³', 'م²'],
         'تقييم وأقواس': ['✔', '✘', '✓', '✗', '(   )', '[   ]', '○', '●', '□', '■', '« »'],
@@ -3062,13 +3115,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                     applyFormatToSelection(font: val);
                                   });
                                 },
-                                itemBuilder: (ctx) => [
-                                  'Amiri',
-                                  'Sultan',
-                                  'Thuluth',
-                                  'Traditional Arabic',
-                                  'Arial'
-                                ].map((f) => PopupMenuItem(value: f, child: Text(f))).toList(),
+                                itemBuilder: (ctx) => appFontsList.map((f) => PopupMenuItem(
+                                  value: f['id']!,
+                                  child: Text(
+                                    f['name']!,
+                                    style: TextStyle(fontFamily: f['id']!, fontSize: 13),
+                                  ),
+                                )).toList(),
                               ),
                               PopupMenuButton<double>(
                                 tooltip: 'حجم الخط للمحدد',
@@ -3570,10 +3623,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     DropdownButton<String>(
-                      value: font,
-                      items: ['Amiri', 'Sultan', 'Thuluth', 'Traditional Arabic']
-                          .map((f) => DropdownMenuItem(value: f, child: Text(f)))
-                          .toList(),
+                      value: appFontsList.any((e) => e['id'] == font) ? font : 'Amiri',
+                      items: appFontsList.map((f) => DropdownMenuItem(
+                        value: f['id']!,
+                        child: Text(f['name']!, style: TextStyle(fontFamily: f['id']!, fontSize: 13)),
+                      )).toList(),
                       onChanged: (v) {
                         if (v != null) setDlgState(() => font = v);
                       },
@@ -3649,10 +3703,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     DropdownButton<String>(
-                      value: font,
-                      items: ['Amiri', 'Sultan', 'Thuluth', 'Traditional Arabic']
-                          .map((f) => DropdownMenuItem(value: f, child: Text(f)))
-                          .toList(),
+                      value: appFontsList.any((e) => e['id'] == font) ? font : 'Amiri',
+                      items: appFontsList.map((f) => DropdownMenuItem(
+                        value: f['id']!,
+                        child: Text(f['name']!, style: TextStyle(fontFamily: f['id']!, fontSize: 13)),
+                      )).toList(),
                       onChanged: (v) {
                         if (v != null) setDlgState(() => font = v);
                       },
@@ -3728,10 +3783,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   DropdownButton<String>(
-                    value: font,
-                    items: ['Amiri', 'Sultan', 'Thuluth', 'Traditional Arabic']
-                        .map((f) => DropdownMenuItem(value: f, child: Text(f)))
-                        .toList(),
+                    value: appFontsList.any((e) => e['id'] == font) ? font : 'Amiri',
+                    items: appFontsList.map((f) => DropdownMenuItem(
+                      value: f['id']!,
+                      child: Text(f['name']!, style: TextStyle(fontFamily: f['id']!, fontSize: 13)),
+                    )).toList(),
                     onChanged: (v) {
                       if (v != null) setDlgState(() => font = v);
                     },
@@ -3778,7 +3834,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     String font = _exam.header.basmalaFont;
     double size = _exam.header.basmalaFontSize;
     bool bold = _exam.header.basmalaBold;
-    final List<String> fonts = ['Amiri', 'Sultan', 'Thuluth', 'ZagharefBesm'];
 
     showDialog(
       context: context,
@@ -3805,8 +3860,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   DropdownButton<String>(
-                    value: font,
-                    items: fonts.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
+                    value: appFontsList.any((e) => e['id'] == font) ? font : 'Amiri',
+                    items: appFontsList.map((f) => DropdownMenuItem(
+                      value: f['id']!,
+                      child: Text(f['name']!, style: TextStyle(fontFamily: f['id']!, fontSize: 13)),
+                    )).toList(),
                     onChanged: (v) {
                       if (v != null) setDlgState(() => font = v);
                     },
@@ -4043,4 +4101,3 @@ class _EnglishRadicalPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-
