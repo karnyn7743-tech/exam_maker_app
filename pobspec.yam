@@ -1,1 +1,54 @@
+name: exam_maker_app
+description: "تطبيق المحرر البسيط للإختبارات"
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0' # متوافق مع إصدارات فلاتر المستقرة والحديثة
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # لقراءة الأكواد المطبوعة والدرجات المكتوبة بخط اليد بدقة (يدعم العربية)
+  google_mlkit_text_recognition: ^0.14.0
+
+  # لفتح، قراءة، تعديل، وحفظ ملفات الأكسيل مباشرة في ذاكرة الهاتف
+  excel: ^4.0.7
+
+  # لتمكين المستخدم من تصفح واختيار ملف الأكسيل من الذاكرة الداخلية
+  file_picker: ^8.1.7
+
+  # لإدارة وفحص أذونات الكاميرا والتخزين على أنظمة الأندرويد المختلفة
+  permission_handler: ^11.3.1
+
+  # للوصول التلقائي إلى مسارات المجلدات الأساسية في نظام التشغيل
+  path_provider: ^2.1.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+
+  # تهيئة مجلد الأصول (Assets) لإضافة خط القاهرة وصوت تنبيه المسح
+  assets:
+    - assets/audio/
+
+  fonts:
+    - family: Cairo
+      fonts:
+        - asset: assets/fonts/Cairo-Regular.ttf
+        - asset: assets/fonts/Cairo-Bold.ttf
+          weight: 700
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/app_icon.png" # عدل المسار حسب المكان الذي وضعت فيه الصورة
+  adaptive_icon_background: "#FFFFFF" # لون خلفية الأيقونة التكيفية (Adaptive Icon)
+  adaptive_icon_foreground: "assets/app_icon.png"
 
