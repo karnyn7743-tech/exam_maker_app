@@ -91,7 +91,7 @@ flutter:
 
     - family: SultanCtangle
       fonts:
-        - asset: assets/fonts/Sultan ctangle.ttf
+        - asset: assets/fonts/Sultan-ctangle.ttf
 
     - family: Tahrir
       fonts:
@@ -173,4 +173,4 @@ flutter:
 
     - family: SMono
       fonts:
-        - asset: assets/fonts/sMono[wght].ttf
+        - asset: assets/fonts/sMono.ttf
