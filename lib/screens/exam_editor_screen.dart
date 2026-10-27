@@ -3437,7 +3437,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['xlsx', 'xls'],
+        allowedExtensions: ['xlsb', 'xlsm', 'xlsx', 'xls'],
       );
 
       if (result != null && result.files.single.path != null) {
