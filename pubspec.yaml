@@ -43,7 +43,7 @@ flutter:
     # 1. الخطوط الأساسية والقرآنية والزخرفية
     - family: Amiri
       fonts:
-        - asset: assets/fonts/Amiri.ttf
+        - asset: assets/fonts/Amiri-Regular.ttf
 
     - family: Hafs
       fonts:
