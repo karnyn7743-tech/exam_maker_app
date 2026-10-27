@@ -13,6 +13,11 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
+  # حزم النظام والتخزين المحلي والصلاحيات
+  device_info_plus: ^10.1.0
+  shared_preferences: ^2.2.3
+  permission_handler: ^11.3.1
+
   # حزم معالجة الوثائق والملفات
   pdf: ^3.12.0
   archive: ^3.6.1
