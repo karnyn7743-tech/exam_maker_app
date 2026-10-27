@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="exam_maker_app"
+        android:label="المحرر البسيط للإختبارات"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
