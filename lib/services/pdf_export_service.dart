@@ -155,8 +155,8 @@ class PdfExportService {
                               pw.SizedBox(width: 40, height: 40),
                             pw.SizedBox(width: 10),
                             pw.Container(
-                              width: 50,
-                              height: 60,
+                              width: 60,
+                              height: 50,
                               decoration: pw.BoxDecoration(
                                 border: pw.Border.all(color: PdfColors.black, width: 1.2),
                               ),
