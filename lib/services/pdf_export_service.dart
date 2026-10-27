@@ -243,7 +243,7 @@ class PdfExportService {
               ),
               pw.Expanded(
                 child: pw.Column(
-                  mainAxisAlignment: pw.CrossAxisAlignment.center,
+                  mainAxisAlignment: pw.MainAxisAlignment.center, // تم التصحيح هنا
                   children: [
                     pw.Text(exam.header.basmalaText,
                         style: pw.TextStyle(
