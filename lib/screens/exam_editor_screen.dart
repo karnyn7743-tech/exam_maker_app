@@ -3852,4 +3852,383 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   _exam.header.examTime = cTime.text;
                   _exam.header.period = cPeriod.text;
                   _exam.header.detailsFont = font;
-                  _exam.header.detailsFontSize =
+                  _exam.header.detailsFontSize = size;
+                  _exam.header.detailsBold = bold;
+                });
+                Navigator.pop(ctx);
+              },
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _editExamTitleDialog() {
+    final cTitle = TextEditingController(text: _exam.header.examTitle);
+    String font = _exam.header.titleFont;
+    double size = _exam.header.titleFontSize;
+    bool bold = _exam.header.titleBold;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          title: const Text('تعديل عنوان الاختبار الرئيسي'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: cTitle,
+                style: TextStyle(fontFamily: font, fontSize: size, fontWeight: bold ? FontWeight.bold : FontWeight.normal),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  DropdownButton<String>(
+                    value: appFontsList.any((e) => e['id'] == font) ? font : 'Amiri',
+                    items: appFontsList.map((f) => DropdownMenuItem(
+                      value: f['id']!,
+                      child: Text(f['name']!, style: TextStyle(fontFamily: f['id']!, fontSize: 13)),
+                    )).toList(),
+                    onChanged: (v) {
+                      if (v != null) setDlgState(() => font = v);
+                    },
+                  ),
+                  DropdownButton<double>(
+                    value: size,
+                    items: [11.0, 12.0, 14.0, 16.0, 18.0]
+                        .map((s) => DropdownMenuItem(value: s, child: Text('${s.toInt()} pt')))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setDlgState(() => size = v);
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.format_bold, color: bold ? Colors.blue : Colors.grey),
+                    onPressed: () => setDlgState(() => bold = !bold),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _exam.header.examTitle = cTitle.text;
+                  _exam.header.titleFont = font;
+                  _exam.header.titleFontSize = size;
+                  _exam.header.titleBold = bold;
+                });
+                Navigator.pop(ctx);
+              },
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _editBasmalaDialog() {
+    final cBasmala = TextEditingController(text: _exam.header.basmalaText);
+    String font = _exam.header.basmalaFont;
+    double size = _exam.header.basmalaFontSize;
+    bool bold = _exam.header.basmalaBold;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          title: const Text('تنسيق وتحرير البسملة'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: cBasmala,
+                style: TextStyle(
+                  fontFamily: font,
+                  fontSize: size,
+                  fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'نص البسملة / العبارة الافتتاحية',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  DropdownButton<String>(
+                    value: appFontsList.any((e) => e['id'] == font) ? font : 'Amiri',
+                    items: appFontsList.map((f) => DropdownMenuItem(
+                      value: f['id']!,
+                      child: Text(f['name']!, style: TextStyle(fontFamily: f['id']!, fontSize: 13)),
+                    )).toList(),
+                    onChanged: (v) {
+                      if (v != null) setDlgState(() => font = v);
+                    },
+                  ),
+                  DropdownButton<double>(
+                    value: size,
+                    items: [10.0, 11.0, 12.0, 14.0, 16.0, 18.0, 22.0]
+                        .map((s) => DropdownMenuItem(value: s, child: Text('${s.toInt()} pt')))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setDlgState(() => size = v);
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.format_bold, color: bold ? Colors.blue : Colors.grey),
+                    onPressed: () => setDlgState(() => bold = !bold),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _exam.header.basmalaText = cBasmala.text;
+                  _exam.header.basmalaFont = font;
+                  _exam.header.basmalaFontSize = size;
+                  _exam.header.basmalaBold = bold;
+                });
+                Navigator.pop(ctx);
+              },
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _editInstructionDialog() {
+    final cInst = TextEditingController(text: _exam.header.instructionText);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تعديل عبارة التوجيه'),
+        content: TextField(
+          controller: cInst,
+          decoration: const InputDecoration(
+            labelText: 'عبارة التوجيه أعلى الأسئلة',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          ElevatedButton(
+            onPressed: () {
+              setState(() => _exam.header.instructionText = cInst.text);
+              Navigator.pop(ctx);
+            },
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LimitArrowPainter extends CustomPainter {
+  final Color color;
+  _LimitArrowPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final path = Path()
+      ..moveTo(size.width, size.height / 2)
+      ..lineTo(0, size.height / 2)
+      ..moveTo(2.5, 0)
+      ..lineTo(0, size.height / 2)
+      ..lineTo(2.5, size.height);
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _ExamShapePainter extends CustomPainter {
+  final String kind;
+  final Color strokeColor;
+  final Color fillColor;
+
+  _ExamShapePainter({
+    required this.kind,
+    required this.strokeColor,
+    required this.fillColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fillPaint = Paint()
+      ..color = fillColor
+      ..style = PaintingStyle.fill;
+
+    final strokePaint = Paint()
+      ..color = strokeColor
+      ..strokeWidth = 1.6
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final w = size.width;
+    final h = size.height;
+
+    switch (kind) {
+      case 'circle':
+        final rect = Rect.fromLTWH(2, 2, w - 4, h - 4);
+        if (fillColor != Colors.transparent) canvas.drawOval(rect, fillPaint);
+        canvas.drawOval(rect, strokePaint);
+        break;
+
+      case 'triangle':
+        final path = Path()
+          ..moveTo(w / 2, 2)
+          ..lineTo(w - 2, h - 2)
+          ..lineTo(2, h - 2)
+          ..close();
+        if (fillColor != Colors.transparent) canvas.drawPath(path, fillPaint);
+        canvas.drawPath(path, strokePaint);
+        break;
+
+      case 'rightTriangle':
+        final path = Path()
+          ..moveTo(2, 2)
+          ..lineTo(2, h - 2)
+          ..lineTo(w - 2, h - 2)
+          ..close();
+        if (fillColor != Colors.transparent) canvas.drawPath(path, fillPaint);
+        canvas.drawPath(path, strokePaint);
+        final sqPath = Path()
+          ..moveTo(2, h - 14)
+          ..lineTo(14, h - 14)
+          ..lineTo(14, h - 2);
+        canvas.drawPath(sqPath, strokePaint..strokeWidth = 1.0);
+        break;
+
+      case 'parallelogram':
+        final offset = w * 0.22;
+        final path = Path()
+          ..moveTo(offset, 2)
+          ..lineTo(w - 2, 2)
+          ..lineTo(w - offset, h - 2)
+          ..lineTo(2, h - 2)
+          ..close();
+        if (fillColor != Colors.transparent) canvas.drawPath(path, fillPaint);
+        canvas.drawPath(path, strokePaint);
+        break;
+
+      case 'line':
+        canvas.drawLine(Offset(2, h / 2), Offset(w - 2, h / 2), strokePaint);
+        break;
+
+      case 'arrow':
+        final y = h / 2;
+        canvas.drawLine(Offset(2, y), Offset(w - 2, y), strokePaint);
+        final arrowPath = Path()
+          ..moveTo(12, y - 6)
+          ..lineTo(2, y)
+          ..lineTo(12, y + 6);
+        canvas.drawPath(arrowPath, strokePaint);
+        break;
+
+      case 'rectangle':
+      default:
+        final rRect = RRect.fromRectAndRadius(Rect.fromLTWH(2, 2, w - 4, h - 4), const Radius.circular(3));
+        if (fillColor != Colors.transparent) canvas.drawRRect(rRect, fillPaint);
+        canvas.drawRRect(rRect, strokePaint);
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ExamShapePainter oldDelegate) =>
+      oldDelegate.kind != kind ||
+      oldDelegate.strokeColor != strokeColor ||
+      oldDelegate.fillColor != fillColor;
+}
+
+class _ArabicRadicalPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+
+  _ArabicRadicalPainter({
+    this.color = Colors.black87,
+    this.strokeWidth = 1.6,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final path = Path();
+    final startX = size.width;
+    final bottomY = size.height - 2;
+
+    path.moveTo(startX, bottomY - 6);
+    path.lineTo(startX - 3, bottomY);
+    path.lineTo(startX - 7, 2);
+    path.lineTo(0, 2);
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _EnglishRadicalPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+
+  _EnglishRadicalPainter({
+    this.color = Colors.black87,
+    this.strokeWidth = 1.6,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final path = Path();
+    final bottomY = size.height - 2;
+
+    path.moveTo(0, bottomY - 6);
+    path.lineTo(3, bottomY);
+    path.lineTo(7, 2);
+    path.lineTo(size.width, 2);
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
