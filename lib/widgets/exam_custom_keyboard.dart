@@ -25,7 +25,7 @@ class ExamCustomKeyboard extends StatefulWidget {
 class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
   KeyboardMode _mode = KeyboardMode.arabic;
   bool _isShift = false;
-  bool _arabicShift = false; // التبديل بين شاشتي الوضع العربي
+  bool _arabicShift = false;
 
   void _insertText(String text) {
     final c = widget.controller;
@@ -48,7 +48,6 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     }
   }
 
-  // إدراج قالب وسومي ووضع المؤشر في المنتصف داخله للكتابة الفورية
   void _insertTemplateTag(String prefix, String suffix) {
     final c = widget.controller;
     final selection = c.selection;
@@ -180,14 +179,14 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     }
   }
 
-  // 1. لوحة الحروف العربية ذات الشاشتين (الشاشة 1: الحروف الأساسية | الشاشة 2: التشكيل والهمزات والترقيم)
+  // 1. لوحة الحروف العربية ذات الشاشتين بعد توسيع الأزرار وحذف التكرار
   Widget _buildArabicLayout() {
     if (!_arabicShift) {
-      // --- الشاشة الأولى: الأحرف والأرقام العربية الأساسية ---
+      // --- الشاشة الأولى: الأرقام والحروف اليومية الأكثر استخداماً (أزرار كبيرة واسعة) ---
       final nums = ['١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '٠'];
-      final r1 = ['ض', 'ص', 'ث', 'ق', 'ف', 'غ', 'ع', 'ه', 'خ', 'ح', 'ج', 'د'];
-      final r2 = ['ش', 'س', 'ي', 'ب', 'ل', 'ا', 'ت', 'ن', 'م', 'ك', 'ط'];
-      final r3 = ['ئ', 'ء', 'ؤ', 'ر', 'لا', 'ى', 'ة', 'و', 'ز', 'ظ', 'ذ'];
+      final r1 = ['ض', 'ص', 'ث', 'ق', 'ف', 'غ', 'ع', 'ه', 'خ'];
+      final r2 = ['ح', 'ج', 'د', 'ش', 'س', 'ي', 'ب', 'ل', 'ا'];
+      final r3 = ['ت', 'ن', 'م', 'ك', 'ط', 'ر', 'و', 'ز'];
 
       return Column(
         children: [
@@ -197,17 +196,19 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // زر Shift الثابت للتبديل للشاشة الثانية
+              // زر Shift للتنقل للشاشة الثانية (حركات وهمزات وبقية الحروف)
               _buildSpecialKey(
                 icon: Icons.arrow_upward,
                 color: Colors.blueGrey.shade800,
                 onTap: () => setState(() => _arabicShift = true),
+                flex: 2,
               ),
               ...r3.map((k) => _buildKey(k)),
               _buildSpecialKey(
                 icon: Icons.backspace_outlined,
                 color: Colors.red.shade900,
                 onTap: _backspace,
+                flex: 2,
               ),
             ],
           ),
@@ -215,9 +216,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
         ],
       );
     } else {
-      // --- الشاشة الثانية: حركات الضبط والتشكيل والهمزات وأنواع السكون وعلامات الترقيم ---
-      // الصف 1: حركات التشكيل والتنوين والسكون
-      // َ (فتحة)، ً (تنوين فتح)، ُ (ضمة)، ٌ (تنوين ضم)، ِ (كسرة)، ٍ (تنوين كسر)، ّ (شدة)، ْ (سكون دائري)، ۡ (سكون قرآني رأس حاء)، ـٰ (ألف خنجرية)
+      // --- الشاشة الثانية: الحروف التكميلية النادرة، الهمزات، الحركات، والترقيم ---
       final rDiacritics = [
         '\u064E', // فتحة
         '\u064B', // تنوين فتح
@@ -227,34 +226,33 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
         '\u064D', // تنوين كسر
         '\u0651', // شدة
         '\u0652', // سكون دائري
-        '\u06E1', // سكون قرآني شبيه برأس الحاء
-        '\u0670', // ألف خنجرية صغيرة
       ];
 
-      // الصف 2: أشكال الهمزات والمدود
-      final rHamzas = ['أ', 'إ', 'آ', 'ٱ', 'ء', 'ئ', 'ؤ', 'ـ', '«', '»'];
-
-      // الصف 3: علامات الترقيم والأقواس
-      final rPunctuation = [':', '،', '؛', '؟', '!', '.', '—', '"', '(', ')'];
+      // حروف تكميلية غير موجودة في الشاشة 1 (بدون تكرار)
+      final rExtraLetters = ['ذ', 'ظ', 'ة', 'ى', 'أ', 'إ', 'آ', 'ء'];
+      // همزات وعلامات ترقيم
+      final rPunctuation = ['ئ', 'ؤ', 'لا', ':', '،', '؟', '!', '.'];
 
       return Column(
         children: [
           _buildDiacriticsRow(rDiacritics),
-          _buildRow(rHamzas),
+          _buildRow(rExtraLetters),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // زر Shift نشط باللون الأزرق للعودة للشاشة الأساسية
+              // زر Shift مفعّل للعودة للشاشة الأولى
               _buildSpecialKey(
                 icon: Icons.arrow_upward,
                 color: const Color(0xFF2563EB),
                 onTap: () => setState(() => _arabicShift = false),
+                flex: 2,
               ),
               ...rPunctuation.map((k) => _buildKey(k)),
               _buildSpecialKey(
                 icon: Icons.backspace_outlined,
                 color: Colors.red.shade900,
                 onTap: _backspace,
+                flex: 2,
               ),
             ],
           ),
@@ -264,7 +262,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     }
   }
 
-  // 2. لوحة الإنجليزية القياسية QWERTY
+  // 2. لوحة الإنجليزية القياسية
   Widget _buildEnglishLayout() {
     final nums = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
     final r1 = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'];
@@ -286,12 +284,14 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
               icon: Icons.arrow_upward,
               color: _isShift ? const Color(0xFF2563EB) : Colors.blueGrey.shade800,
               onTap: () => setState(() => _isShift = !_isShift),
+              flex: 2,
             ),
             ...mapShift(r3).map((k) => _buildKey(k)),
             _buildSpecialKey(
               icon: Icons.backspace_outlined,
               color: Colors.red.shade900,
               onTap: _backspace,
+              flex: 2,
             ),
           ],
         ),
@@ -300,12 +300,12 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     );
   }
 
-  // 3. لوحة الرياضيات العربية مع إدراج الجذر الممتد [جذر: ]
+  // 3. لوحة الرياضيات العربية بأزرار واسعة
   Widget _buildMathArabicLayout() {
-    final r1 = ['س', 'ص', 'ع', 'د', 'ن', 'ل', 'ك', 'ق', 'ط', 'هـ'];
-    final r2 = ['نهـا', 'مجـ', 'جا', 'جتا', 'ظا', 'ظتا', 'قا', 'قتا', 'لو', '∆'];
-    final r3 = ['½', '¼', '¾', 'س²', 'ص²', 'س³', 'ص³', 'ـ', '(   )'];
-    final r4 = ['+', '-', '×', '÷', '=', '≠', '≈', '<', '>', '±'];
+    final r1 = ['س', 'ص', 'ع', 'د', 'ن', 'ل', 'ك', 'ق'];
+    final r2 = ['نهـا', 'مجـ', 'جا', 'جتا', 'ظا', 'لو', '∆', 'ط'];
+    final r3 = ['س²', 'ص²', 'س³', '½', '¼', '¾', '(   )'];
+    final r4 = ['+', '-', '×', '÷', '=', '≠', '<', '>'];
 
     return Column(
       children: [
@@ -319,12 +319,12 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
                 padding: const EdgeInsets.symmetric(horizontal: 1.5),
                 child: InkWell(
                   onTap: () => _insertTemplateTag('[جذر:', ']'),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(5),
                   child: Container(
-                    height: 38,
+                    height: 44,
                     decoration: BoxDecoration(
                       color: const Color(0xFF0284C7),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(5),
                       boxShadow: const [
                         BoxShadow(color: Colors.black26, offset: Offset(0, 1), blurRadius: 1),
                       ],
@@ -332,6 +332,68 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
                     alignment: Alignment.center,
                     child: const Text(
                       '⎷ـ',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            ...r3.map((k) => _buildKey(k)),
+          ],
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ...r4.map((k) => _buildKey(k)),
+            _buildSpecialKey(
+              icon: Icons.backspace_outlined,
+              color: Colors.red.shade900,
+              onTap: _backspace,
+              flex: 2,
+            ),
+          ],
+        ),
+        _buildBottomControlRow(excludeBackspace: true),
+      ],
+    );
+  }
+
+  // 4. لوحة الرياضيات الإنجليزية
+  Widget _buildMathEnglishLayout() {
+    final r1 = ['x', 'y', 'z', 'a', 'b', 'c', 'f(x)', 'lim'];
+    final r2 = ['sin', 'cos', 'tan', 'log', 'ln', 'π', 'θ', 'Δ'];
+    final r3 = ['∫', '∑', '∞', 'x²', 'y²', '(', ')'];
+    final r4 = ['+', '-', '×', '÷', '=', '≠', '≤', '≥'];
+
+    return Column(
+      children: [
+        _buildRow(r1),
+        _buildRow(r2),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                child: InkWell(
+                  onTap: () => _insertTemplateTag('[sqrt:', ']'),
+                  borderRadius: BorderRadius.circular(5),
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0284C7),
+                      borderRadius: BorderRadius.circular(5),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black26, offset: Offset(0, 1), blurRadius: 1),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: const Text(
+                      '√x',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -353,67 +415,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
               icon: Icons.backspace_outlined,
               color: Colors.red.shade900,
               onTap: _backspace,
-            ),
-          ],
-        ),
-        _buildBottomControlRow(excludeBackspace: true),
-      ],
-    );
-  }
-
-  // 4. لوحة الرياضيات الإنجليزية مع إدراج الجذر الممتد [sqrt: ]
-  Widget _buildMathEnglishLayout() {
-    final r1 = ['x', 'y', 'z', 'a', 'b', 'c', 'f(x)', 'lim', 'log', 'ln'];
-    final r2 = ['sin', 'cos', 'tan', 'π', 'θ', 'α', 'β', 'λ', 'μ', 'Δ'];
-    final r3 = ['∫', '∑', '∞', 'x²', 'y²', 'xⁿ', '(', ')', '[   ]'];
-    final r4 = ['+', '-', '×', '÷', '=', '≠', '≤', '≥', '±', '%'];
-
-    return Column(
-      children: [
-        _buildRow(r1),
-        _buildRow(r2),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                child: InkWell(
-                  onTap: () => _insertTemplateTag('[sqrt:', ']'),
-                  borderRadius: BorderRadius.circular(4),
-                  child: Container(
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0284C7),
-                      borderRadius: BorderRadius.circular(4),
-                      boxShadow: const [
-                        BoxShadow(color: Colors.black26, offset: Offset(0, 1), blurRadius: 1),
-                      ],
-                    ),
-                    alignment: Alignment.center,
-                    child: const Text(
-                      '√x',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            ...r3.map((k) => _buildKey(k)),
-          ],
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ...r4.map((k) => _buildKey(k)),
-            _buildSpecialKey(
-              icon: Icons.backspace_outlined,
-              color: Colors.red.shade900,
-              onTap: _backspace,
+              flex: 2,
             ),
           ],
         ),
@@ -426,8 +428,8 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
   Widget _buildSymbolsLayout() {
     final r1 = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
     final r2 = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉'];
-    final r3 = ['∈', '∉', '⊂', '⊄', '∪', '∩', '∅', '←', '→', '↔'];
-    final r4 = ['✔', '✘', '°', '·', ':', '؟', '!', '"', '«', '»'];
+    final r3 = ['∈', '∉', '⊂', '⊄', '∪', '∩', '∅', '←', '→'];
+    final r4 = ['✔', '✘', '°', '·', '«', '»', '—', '±'];
 
     return Column(
       children: [
@@ -442,6 +444,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
               icon: Icons.backspace_outlined,
               color: Colors.red.shade900,
               onTap: _backspace,
+              flex: 2,
             ),
           ],
         ),
@@ -452,7 +455,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
 
   Widget _buildRow(List<String> keys) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 2.5),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: keys.map((k) => _buildKey(k)).toList(),
@@ -460,24 +463,23 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     );
   }
 
-  // صف الحركات مع حرف استرشادي عائم لعرض الحركة بوضوح
   Widget _buildDiacriticsRow(List<String> diacritics) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 2.5),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: diacritics.map((d) {
           return Expanded(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 1.5),
+              padding: const EdgeInsets.symmetric(horizontal: 2),
               child: InkWell(
                 onTap: () => _insertText(d),
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(5),
                 child: Container(
-                  height: 38,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E3A8A), // لون تمييزي لحركات التشكيل
-                    borderRadius: BorderRadius.circular(4),
+                    color: const Color(0xFF1E3A8A),
+                    borderRadius: BorderRadius.circular(5),
                     boxShadow: const [
                       BoxShadow(color: Colors.black26, offset: Offset(0, 1), blurRadius: 1),
                     ],
@@ -487,7 +489,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
                     'ـ$d',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'Amiri',
                     ),
@@ -504,15 +506,15 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
   Widget _buildKey(String label) {
     return Expanded(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 1.5),
+        padding: const EdgeInsets.symmetric(horizontal: 2),
         child: InkWell(
           onTap: () => _insertText(label),
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(5),
           child: Container(
-            height: 38,
+            height: 44,
             decoration: BoxDecoration(
               color: const Color(0xFF334155),
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(5),
               boxShadow: const [
                 BoxShadow(color: Colors.black26, offset: Offset(0, 1), blurRadius: 1),
               ],
@@ -522,7 +524,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
               label,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 13,
+                fontSize: 15,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -545,17 +547,24 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(5),
           child: Container(
-            height: 38,
+            height: 44,
             decoration: BoxDecoration(
               color: color,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(5),
             ),
             alignment: Alignment.center,
             child: icon != null
-                ? Icon(icon, color: Colors.white, size: 18)
-                : Text(label ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                ? Icon(icon, color: Colors.white, size: 20)
+                : Text(
+                    label ?? '',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
           ),
         ),
       ),
@@ -564,7 +573,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
 
   Widget _buildBottomControlRow({bool excludeBackspace = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 2.5),
       child: Row(
         children: [
           _buildSpecialKey(
@@ -577,7 +586,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
             label: 'مسافة Space',
             color: const Color(0xFF475569),
             onTap: () => _insertText(' '),
-            flex: 5,
+            flex: 6,
           ),
           if (!excludeBackspace)
             _buildSpecialKey(
