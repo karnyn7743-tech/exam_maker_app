@@ -823,7 +823,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // دعم رسم البلوكات الرياضية والفيزيائية المضمنة بدقة
   InlineSpan _buildInlineSpanWithFractions(String text, TextStyle baseStyle) {
     final regExp = RegExp(r'\[(كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):(.*?)\]');
     final matches = regExp.allMatches(text);
@@ -1178,7 +1177,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       Container(
                         margin: const EdgeInsets.only(top: 3.0, bottom: 6.0),
                         height: 1.5,
-                        color: baseStyle.color ?? Colors.black87,
+                        color: Colors.black87,
                       ),
                     ],
                   ),
@@ -1233,9 +1232,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         Container(
                           decoration: BoxDecoration(
                             border: Border(
-                              top: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
-                              right: isRtl ? BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5) : BorderSide.none,
-                              left: !isRtl ? BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5) : BorderSide.none,
+                              top: const BorderSide(color: Colors.black87, width: 1.5),
+                              right: isRtl ? const BorderSide(color: Colors.black87, width: 1.5) : BorderSide.none,
+                              left: !isRtl ? const BorderSide(color: Colors.black87, width: 1.5) : BorderSide.none,
                             ),
                           ),
                           padding: const EdgeInsets.only(top: 2.0, left: 6.0, right: 6.0, bottom: 2.0),
@@ -2051,7 +2050,16 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     void _rebuildSpansWithInsertedText(int offset, String inserted, TextSpanModel template) {
       if (textCtrl.text.isEmpty) {
-        workingSpans = [template.copyWith(text: inserted)];
+        workingSpans = [
+          TextSpanModel(
+            text: inserted,
+            colorHex: template.colorHex,
+            fontFamily: template.fontFamily,
+            fontSize: template.fontSize,
+            isBold: template.isBold,
+            isUnderline: template.isUnderline,
+          )
+        ];
         return;
       }
       List<TextSpanModel> nextSpans = [];
@@ -2066,11 +2074,32 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           final after = span.text.substring(rel);
 
           if (before.isNotEmpty) {
-            nextSpans.add(span.copyWith(text: before));
+            nextSpans.add(TextSpanModel(
+              text: before,
+              colorHex: span.colorHex,
+              fontFamily: span.fontFamily,
+              fontSize: span.fontSize,
+              isBold: span.isBold,
+              isUnderline: span.isUnderline,
+            ));
           }
-          nextSpans.add(template.copyWith(text: inserted));
+          nextSpans.add(TextSpanModel(
+            text: inserted,
+            colorHex: template.colorHex,
+            fontFamily: template.fontFamily,
+            fontSize: template.fontSize,
+            isBold: template.isBold,
+            isUnderline: template.isUnderline,
+          ));
           if (after.isNotEmpty) {
-            nextSpans.add(span.copyWith(text: after));
+            nextSpans.add(TextSpanModel(
+              text: after,
+              colorHex: span.colorHex,
+              fontFamily: span.fontFamily,
+              fontSize: span.fontSize,
+              isBold: span.isBold,
+              isUnderline: span.isUnderline,
+            ));
           }
           handled = true;
         } else {
@@ -2080,7 +2109,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       }
 
       if (!handled) {
-        nextSpans.add(template.copyWith(text: inserted));
+        nextSpans.add(TextSpanModel(
+          text: inserted,
+          colorHex: template.colorHex,
+          fontFamily: template.fontFamily,
+          fontSize: template.fontSize,
+          isBold: template.isBold,
+          isUnderline: template.isUnderline,
+        ));
       }
       workingSpans = nextSpans.where((s) => s.text.isNotEmpty).toList();
     }
