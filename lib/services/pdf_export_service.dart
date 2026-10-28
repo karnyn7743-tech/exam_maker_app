@@ -17,9 +17,17 @@ class PdfExportService {
 
     ByteData fontData;
     try {
-      fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
+      fontData = await rootBundle.load('assets/fonts/Arial.ttf');
     } catch (_) {
-      fontData = await rootBundle.load('assets/fonts/amiri-regular.ttf');
+      try {
+        fontData = await rootBundle.load('assets/fonts/arial.ttf');
+      } catch (_) {
+        try {
+          fontData = await rootBundle.load('assets/fonts/Amiri.ttf');
+        } catch (_) {
+          fontData = await rootBundle.load('assets/fonts/amiri-regular.ttf');
+        }
+      }
     }
     final ttf = pw.Font.ttf(fontData);
 
@@ -243,7 +251,7 @@ class PdfExportService {
               ),
               pw.Expanded(
                 child: pw.Column(
-                  mainAxisAlignment: pw.MainAxisAlignment.center, // تم التصحيح هنا
+                  mainAxisAlignment: pw.MainAxisAlignment.center,
                   children: [
                     pw.Text(exam.header.basmalaText,
                         style: pw.TextStyle(
@@ -882,20 +890,80 @@ class PdfExportService {
           spans.add(
             pw.WidgetSpan(
               child: pw.Padding(
-                padding: const pw.EdgeInsets.symmetric(horizontal: 3.0),
+                padding: const pw.EdgeInsets.symmetric(horizontal: 2.0),
                 child: pw.Row(
                   mainAxisSize: pw.MainAxisSize.min,
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Column(
                       mainAxisSize: pw.MainAxisSize.min,
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
                       children: [
-                        pw.Text('نهـا', style: pw.TextStyle(font: ttf, fontSize: fontSize * 1.05, color: textColor, fontWeight: pw.FontWeight.bold)),
-                        pw.Text('$v ← $t', style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.65, color: textColor, fontWeight: pw.FontWeight.bold)),
+                        pw.Text(
+                          'نهـا',
+                          style: pw.TextStyle(
+                            font: ttf,
+                            fontSize: fontSize * 1.05,
+                            color: textColor,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 1),
+                        pw.Row(
+                          mainAxisSize: pw.MainAxisSize.min,
+                          crossAxisAlignment: pw.CrossAxisAlignment.center,
+                          children: [
+                            pw.Text(
+                              v,
+                              style: pw.TextStyle(
+                                font: ttf,
+                                fontSize: fontSize * 0.7,
+                                color: textColor,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.symmetric(horizontal: 2.0),
+                              child: pw.CustomPaint(
+                                size: const PdfPoint(8, 5),
+                                painter: (PdfGraphics canvas, PdfPoint pSize) {
+                                  canvas
+                                    ..setColor(textColor)
+                                    ..setLineWidth(0.8)
+                                    ..moveTo(pSize.x, pSize.y * 0.5)
+                                    ..lineTo(0, pSize.y * 0.5)
+                                    ..strokePath()
+                                    ..moveTo(2.5, pSize.y)
+                                    ..lineTo(0, pSize.y * 0.5)
+                                    ..lineTo(2.5, 0)
+                                    ..strokePath();
+                                },
+                              ),
+                            ),
+                            pw.Text(
+                              t,
+                              style: pw.TextStyle(
+                                font: ttf,
+                                fontSize: fontSize * 0.7,
+                                color: textColor,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                     if (fn.isNotEmpty) ...[
-                      pw.SizedBox(width: 3),
-                      pw.Text(fn, style: pw.TextStyle(font: ttf, fontSize: fontSize, color: textColor, fontWeight: pw.FontWeight.bold)),
+                      pw.SizedBox(width: 4),
+                      pw.Text(
+                        fn,
+                        style: pw.TextStyle(
+                          font: ttf,
+                          fontSize: fontSize,
+                          color: textColor,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
                     ],
                   ],
                 ),
@@ -1382,145 +1450,4 @@ class PdfExportService {
         child: pw.Padding(
           padding: const pw.EdgeInsets.symmetric(vertical: 4),
           child: pw.Stack(
-            alignment: pw.Alignment.center,
-            children: [
-              pw.CustomPaint(
-                size: PdfPoint(w, h),
-                painter: (PdfGraphics canvas, PdfPoint pointSize) {
-                  final pw_x = pointSize.x;
-                  final pw_y = pointSize.y;
-
-                  canvas
-                    ..setColor(strokeColor)
-                    ..setLineWidth(1.2);
-
-                  switch (kind) {
-                    case 'circle':
-                      if (hasFill) {
-                        canvas.setFillColor(fillColor);
-                        canvas.drawEllipse(pw_x / 2, pw_y / 2, (pw_x - 4) / 2, (pw_y - 4) / 2);
-                        canvas.fillPath();
-                      }
-                      canvas.drawEllipse(pw_x / 2, pw_y / 2, (pw_x - 4) / 2, (pw_y - 4) / 2);
-                      canvas.strokePath();
-                      break;
-
-                    case 'triangle':
-                      if (hasFill) {
-                        canvas.setFillColor(fillColor);
-                        canvas
-                          ..moveTo(pw_x / 2, pw_y - 2)
-                          ..lineTo(pw_x - 2, 2)
-                          ..lineTo(2, 2)
-                          ..closePath()
-                          ..fillPath();
-                      }
-                      canvas
-                        ..moveTo(pw_x / 2, pw_y - 2)
-                        ..lineTo(pw_x - 2, 2)
-                        ..lineTo(2, 2)
-                        ..closePath()
-                        ..strokePath();
-                      break;
-
-                    case 'rightTriangle':
-                      if (hasFill) {
-                        canvas.setFillColor(fillColor);
-                        canvas
-                          ..moveTo(2, pw_y - 2)
-                          ..lineTo(pw_x - 2, 2)
-                          ..lineTo(2, 2)
-                          ..closePath()
-                          ..fillPath();
-                      }
-                      canvas
-                        ..moveTo(2, pw_y - 2)
-                        ..lineTo(pw_x - 2, 2)
-                        ..lineTo(2, 2)
-                        ..closePath()
-                        ..strokePath();
-                      canvas
-                        ..moveTo(2, 12)
-                        ..lineTo(12, 12)
-                        ..lineTo(12, 2)
-                        ..strokePath();
-                      break;
-
-                    case 'parallelogram':
-                      final offset = pw_x * 0.22;
-                      if (hasFill) {
-                        canvas.setFillColor(fillColor);
-                        canvas
-                          ..moveTo(offset, pw_y - 2)
-                          ..lineTo(pw_x - 2, pw_y - 2)
-                          ..lineTo(pw_x - offset, 2)
-                          ..lineTo(2, 2)
-                          ..closePath()
-                          ..fillPath();
-                      }
-                      canvas
-                        ..moveTo(offset, pw_y - 2)
-                        ..lineTo(pw_x - 2, pw_y - 2)
-                        ..lineTo(pw_x - offset, 2)
-                        ..lineTo(2, 2)
-                        ..closePath()
-                        ..strokePath();
-                      break;
-
-                    case 'line':
-                      canvas
-                        ..moveTo(2, pw_y / 2)
-                        ..lineTo(pw_x - 2, pw_y / 2)
-                        ..strokePath();
-                      break;
-
-                    case 'arrow':
-                      final midY = pw_y / 2;
-                      canvas
-                        ..moveTo(2, midY)
-                        ..lineTo(pw_x - 2, midY)
-                        ..strokePath()
-                        ..moveTo(12, midY + 5)
-                        ..lineTo(2, midY)
-                        ..lineTo(12, midY - 5)
-                        ..strokePath();
-                      break;
-
-                    case 'rectangle':
-                    default:
-                      if (hasFill) {
-                        canvas.setFillColor(fillColor);
-                        canvas.drawRect(2, 2, pw_x - 4, pw_y - 4);
-                        canvas.fillPath();
-                      }
-                      canvas.drawRect(2, 2, pw_x - 4, pw_y - 4);
-                      canvas.strokePath();
-                      break;
-                  }
-                },
-              ),
-              if (label.isNotEmpty)
-                pw.Container(
-                  width: w,
-                  height: h,
-                  alignment: pw.Alignment.center,
-                  child: pw.Text(
-                    label,
-                    style: pw.TextStyle(
-                      font: ttf,
-                      fontSize: 10,
-                      fontWeight: pw.FontWeight.bold,
-                      color: strokeColor,
-                    ),
-                    textAlign: pw.TextAlign.center,
-                  ),
-                ),
-            ],
-          ),
-        ),
-      );
-    } catch (_) {
-      return pw.SizedBox.shrink();
-    }
-  }
-}
+            alignment: pw.Alignment.
