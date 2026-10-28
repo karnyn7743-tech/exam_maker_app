@@ -68,10 +68,13 @@ flutter:
     - family: Rubik
       fonts:
         - asset: assets/fonts/Rubik-Medium.ttf
-
+      
     - family: Arial
       fonts:
-        - asset: assets/fonts/arial-bold.ttf
+        - asset: assets/fonts/Arial.ttf
+          weight: 400
+        - asset: assets/fonts/Arial-bold.ttf
+          weight: 700
 
     # 2. خطوط العناوين والزخارف الإسلامية
     - family: ElHijaz
