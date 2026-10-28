@@ -517,14 +517,13 @@ class PdfExportService {
     );
   }
 
-  // جدول الأسئلة مع الترتيب الصحيح للأعمدة (يسار: الدرجة، وسط: المحتوى، يمين: السؤال)
   static pw.Widget _buildTraditionalQuestionsTable(ExamModel exam, pw.Font ttf) {
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
       columnWidths: {
-        0: const pw.FixedColumnWidth(35), // يسار الصفحة
-        1: const pw.FlexColumnWidth(),     // وسط الصفحة
-        2: const pw.FixedColumnWidth(35), // يمين الصفحة
+        0: const pw.FixedColumnWidth(35),
+        1: const pw.FlexColumnWidth(),
+        2: const pw.FixedColumnWidth(35),
       },
       children: [
         pw.TableRow(
@@ -557,7 +556,6 @@ class PdfExportService {
         ...exam.questions.map((q) {
           return pw.TableRow(
             children: [
-              // عمود اليسار: الدرجة
               pw.Padding(
                 padding: const pw.EdgeInsets.symmetric(vertical: 6),
                 child: pw.Center(
@@ -567,7 +565,6 @@ class PdfExportService {
                   ),
                 ),
               ),
-              // عمود الوسط: المحتوى
               pw.Padding(
                 padding: const pw.EdgeInsets.all(6),
                 child: pw.Column(
@@ -579,7 +576,6 @@ class PdfExportService {
                   ],
                 ),
               ),
-              // عمود اليمين: عنوان السؤال
               pw.Padding(
                 padding: const pw.EdgeInsets.symmetric(vertical: 6),
                 child: pw.Center(
@@ -786,7 +782,7 @@ class PdfExportService {
     PdfColor textColor = PdfColors.black,
     double lineSpacing = 1.5,
   }) {
-    final regExp = RegExp(r'(\[ (?:كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):.*? \]|✔|✘|✓|✗)'.replaceAll(' ', ''));
+    final regExp = RegExp(r'(\[(?:كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):.*?\]|✔|✘|✓|✗)');
     final matches = regExp.allMatches(text);
 
     if (matches.isEmpty) {
@@ -1388,7 +1384,6 @@ class PdfExportService {
     }
   }
 
-  // رسم الجدول المخصص مع عكس الأعمدة لتبدأ من اليمين
   static pw.Widget _buildPdfCustomTable(String jsonStr, pw.Font ttf) {
     try {
       final Map<String, dynamic> data = jsonDecode(jsonStr);
@@ -1408,7 +1403,7 @@ class PdfExportService {
                 color: isHeaderRow ? PdfColors.grey200 : PdfColors.white,
               ),
               children: List.generate(cols, (colIndex) {
-                final c = cols - 1 - colIndex; // البدء من اليمين لليسار
+                final c = cols - 1 - colIndex;
                 String text = '';
                 if (r < rawGrid.length && c < (rawGrid[r] as List).length) {
                   text = rawGrid[r][c]?.toString() ?? '';
@@ -1450,4 +1445,145 @@ class PdfExportService {
         child: pw.Padding(
           padding: const pw.EdgeInsets.symmetric(vertical: 4),
           child: pw.Stack(
-            alignment: pw.Alignment.
+            alignment: pw.Alignment.center,
+            children: [
+              pw.CustomPaint(
+                size: PdfPoint(w, h),
+                painter: (PdfGraphics canvas, PdfPoint pointSize) {
+                  final pw_x = pointSize.x;
+                  final pw_y = pointSize.y;
+
+                  canvas
+                    ..setColor(strokeColor)
+                    ..setLineWidth(1.2);
+
+                  switch (kind) {
+                    case 'circle':
+                      if (hasFill) {
+                        canvas.setFillColor(fillColor);
+                        canvas.drawEllipse(pw_x / 2, pw_y / 2, (pw_x - 4) / 2, (pw_y - 4) / 2);
+                        canvas.fillPath();
+                      }
+                      canvas.drawEllipse(pw_x / 2, pw_y / 2, (pw_x - 4) / 2, (pw_y - 4) / 2);
+                      canvas.strokePath();
+                      break;
+
+                    case 'triangle':
+                      if (hasFill) {
+                        canvas.setFillColor(fillColor);
+                        canvas
+                          ..moveTo(pw_x / 2, pw_y - 2)
+                          ..lineTo(pw_x - 2, 2)
+                          ..lineTo(2, 2)
+                          ..closePath()
+                          ..fillPath();
+                      }
+                      canvas
+                        ..moveTo(pw_x / 2, pw_y - 2)
+                        ..lineTo(pw_x - 2, 2)
+                        ..lineTo(2, 2)
+                        ..closePath()
+                        ..strokePath();
+                      break;
+
+                    case 'rightTriangle':
+                      if (hasFill) {
+                        canvas.setFillColor(fillColor);
+                        canvas
+                          ..moveTo(2, pw_y - 2)
+                          ..lineTo(pw_x - 2, 2)
+                          ..lineTo(2, 2)
+                          ..closePath()
+                          ..fillPath();
+                      }
+                      canvas
+                        ..moveTo(2, pw_y - 2)
+                        ..lineTo(pw_x - 2, 2)
+                        ..lineTo(2, 2)
+                        ..closePath()
+                        ..strokePath();
+                      canvas
+                        ..moveTo(2, 12)
+                        ..lineTo(12, 12)
+                        ..lineTo(12, 2)
+                        ..strokePath();
+                      break;
+
+                    case 'parallelogram':
+                      final offset = pw_x * 0.22;
+                      if (hasFill) {
+                        canvas.setFillColor(fillColor);
+                        canvas
+                          ..moveTo(offset, pw_y - 2)
+                          ..lineTo(pw_x - 2, pw_y - 2)
+                          ..lineTo(pw_x - offset, 2)
+                          ..lineTo(2, 2)
+                          ..closePath()
+                          ..fillPath();
+                      }
+                      canvas
+                        ..moveTo(offset, pw_y - 2)
+                        ..lineTo(pw_x - 2, pw_y - 2)
+                        ..lineTo(pw_x - offset, 2)
+                        ..lineTo(2, 2)
+                        ..closePath()
+                        ..strokePath();
+                      break;
+
+                    case 'line':
+                      canvas
+                        ..moveTo(2, pw_y / 2)
+                        ..lineTo(pw_x - 2, pw_y / 2)
+                        ..strokePath();
+                      break;
+
+                    case 'arrow':
+                      final midY = pw_y / 2;
+                      canvas
+                        ..moveTo(2, midY)
+                        ..lineTo(pw_x - 2, midY)
+                        ..strokePath()
+                        ..moveTo(12, midY + 5)
+                        ..lineTo(2, midY)
+                        ..lineTo(12, midY - 5)
+                        ..strokePath();
+                      break;
+
+                    case 'rectangle':
+                    default:
+                      if (hasFill) {
+                        canvas.setFillColor(fillColor);
+                        canvas.drawRect(2, 2, pw_x - 4, pw_y - 4);
+                        canvas.fillPath();
+                      }
+                      canvas.drawRect(2, 2, pw_x - 4, pw_y - 4);
+                      canvas.strokePath();
+                      break;
+                  }
+                },
+              ),
+              if (label.isNotEmpty)
+                pw.Container(
+                  width: w,
+                  height: h,
+                  alignment: pw.Alignment.center,
+                  child: pw.Text(
+                    label,
+                    style: pw.TextStyle(
+                      font: ttf,
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                      color: strokeColor,
+                    ),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    } catch (_) {
+      return pw.SizedBox.shrink();
+    }
+  }
+}
