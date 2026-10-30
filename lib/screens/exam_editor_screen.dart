@@ -6,7 +6,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 import '../models/exam_models.dart';
 import '../utils/save_dialog_helper.dart';
-import '../services/docx_generator_service.dart';
 import '../services/exam_storage_service.dart';
 import '../services/pdf_export_service.dart';
 import '../services/exam_share_service.dart';
@@ -15,7 +14,7 @@ import '../services/omr_sheet_service.dart';
 import '../widgets/exam_custom_keyboard.dart';
 
 // قائمة الخطوط الـ 30 الرسمية المعتمدة والمطابقة تماماً لملف pubspec.yaml
-const List<Map<String, String>> appFontsList = [
+const List> appFontsList = [
   {'id': 'Amiri', 'name': 'خط الأميري (الافتراضي)'},
   {'id': 'Hafs', 'name': 'مصحف حفص (عثماني)'},
   {'id': 'Thuluth', 'name': 'خط الثلث'},
@@ -148,35 +147,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('تعذر تصدير ملف المشروع: $e'),
-            backgroundColor: Colors.red.shade700,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _exportAndOpenOffice() async {
-    await ExamStorageService.saveOrUpdateExam(_exam);
-    final isAnswerKey = await _showExportChoiceDialog('تصدير إلى Word');
-    if (isAnswerKey == null) return;
-
-    try {
-      final examToExport = isAnswerKey ? _buildAnswerKeyExam() : _exam;
-      final path = await DocxGeneratorService.generateAndOpenDocx(examToExport);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تم حفظ ملف Word بنجاح في مجلد التنزيلات:\n$path'),
-            backgroundColor: Colors.green.shade800,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تعذر تصدير Word: $e'),
             backgroundColor: Colors.red.shade700,
           ),
         );
@@ -332,11 +302,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
             tooltip: 'تصدير PDF',
             onPressed: _exportPdfToDownloads,
-          ),
-          IconButton(
-            icon: const Icon(Icons.print, color: Colors.white),
-            tooltip: 'تصدير Word',
-            onPressed: _exportAndOpenOffice,
           ),
           IconButton(
             icon: const Icon(Icons.view_column, color: Colors.white),
@@ -824,7 +789,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   InlineSpan _buildInlineSpanWithFractions(String text, TextStyle baseStyle) {
-    final regExp = RegExp(r'\[(كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):(.*?)\]');
+    final regExp = RegExp(r'(\[فاصل_صفحة\]|\[(كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):(.*?)\])');
     final matches = regExp.allMatches(text);
 
     if (matches.isEmpty) {
@@ -842,419 +807,453 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         ));
       }
 
-      final type = match.group(1);
-      final rawContent = match.group(2) ?? '';
-      final parts = rawContent.split(':');
+      final fullMatched = match.group(0) ?? '';
 
-      if (type == 'كسر') {
-        final p = rawContent.split('/');
-        final num = p.isNotEmpty ? p[0] : '';
-        final den = p.length > 1 ? p[1] : '';
-
+      if (fullMatched == '[فاصل_صفحة]') {
         children.add(
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-              child: IntrinsicWidth(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      num,
-                      textAlign: TextAlign.center,
-                      style: baseStyle.copyWith(
-                        fontSize: (baseStyle.fontSize ?? 14) * 0.85,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Container(
-                      height: 1.2,
-                      color: baseStyle.color ?? Colors.black87,
-                      margin: const EdgeInsets.symmetric(vertical: 1.0),
-                    ),
-                    Text(
-                      den,
-                      textAlign: TextAlign.center,
-                      style: baseStyle.copyWith(
-                        fontSize: (baseStyle.fontSize ?? 14) * 0.85,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 8),
+              decoration: BoxDecoration(
+                color: Colors.blueGrey.shade100,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: Colors.blueGrey.shade300, style: BorderStyle.solid),
               ),
-            ),
-          ),
-        );
-      } else if (type == 'جذر') {
-        final String degree = parts.length > 1 ? parts[0] : '';
-        final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
-
-        children.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: Directionality(
-              textDirection: TextDirection.rtl,
-              child: IntrinsicWidth(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (degree.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 0.0, left: 1.5),
-                        child: Text(
-                          degree,
-                          style: baseStyle.copyWith(
-                            fontSize: (baseStyle.fontSize ?? 14) * 0.70,
-                            fontWeight: FontWeight.bold,
-                            height: 0.9,
-                          ),
-                        ),
-                      ),
-                    CustomPaint(
-                      painter: _ArabicRadicalPainter(color: baseStyle.color ?? Colors.black87),
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 4.0, right: 10.0, left: 4.0, bottom: 2.0),
-                        child: Text(
-                          radicand,
-                          style: baseStyle.copyWith(
-                            fontWeight: FontWeight.bold,
-                            fontSize: (baseStyle.fontSize ?? 14) * 0.95,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      } else if (type == 'نها') {
-        final v = parts.isNotEmpty ? parts[0] : 'س';
-        final t = parts.length > 1 ? parts[1] : '٠';
-        final fn = parts.length > 2 ? parts[2] : '';
-
-        children.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 3.0),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Column(
+                children: const [
+                  Icon(Icons.insert_page_break_outlined, size: 16, color: Color(0xFF1E3A8A)),
+                  SizedBox(width: 6),
+                  Text(
+                    '--- فاصل صفحة جديدة (يبدأ ما بعده في صفحة جديدة) ---',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E3A8A),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      } else {
+        final type = match.group(2);
+        final rawContent = match.group(3) ?? '';
+        final parts = rawContent.split(':');
+
+        if (type == 'كسر') {
+          final p = rawContent.split('/');
+          final num = p.isNotEmpty ? p[0] : '';
+          final den = p.length > 1 ? p[1] : '';
+
+          children.add(
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                child: IntrinsicWidth(
+                  child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        'نهـا',
+                        num,
+                        textAlign: TextAlign.center,
                         style: baseStyle.copyWith(
+                          fontSize: (baseStyle.fontSize ?? 14) * 0.85,
                           fontWeight: FontWeight.bold,
-                          fontSize: (baseStyle.fontSize ?? 14) * 1.05,
                         ),
                       ),
+                      Container(
+                        height: 1.2,
+                        color: baseStyle.color ?? Colors.black87,
+                        margin: const EdgeInsets.symmetric(vertical: 1.0),
+                      ),
+                      Text(
+                        den,
+                        textAlign: TextAlign.center,
+                        style: baseStyle.copyWith(
+                          fontSize: (baseStyle.fontSize ?? 14) * 0.85,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        } else if (type == 'جذر') {
+          final String degree = parts.length > 1 ? parts[0] : '';
+          final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
+
+          children.add(
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Directionality(
+                textDirection: TextDirection.rtl,
+                child: IntrinsicWidth(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (degree.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 0.0, left: 1.5),
+                          child: Text(
+                            degree,
+                            style: baseStyle.copyWith(
+                              fontSize: (baseStyle.fontSize ?? 14) * 0.70,
+                              fontWeight: FontWeight.bold,
+                              height: 0.9,
+                            ),
+                          ),
+                        ),
+                      CustomPaint(
+                        painter: _ArabicRadicalPainter(color: baseStyle.color ?? Colors.black87),
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 4.0, right: 10.0, left: 4.0, bottom: 2.0),
+                          child: Text(
+                            radicand,
+                            style: baseStyle.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: (baseStyle.fontSize ?? 14) * 0.95,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        } else if (type == 'نها') {
+          final v = parts.isNotEmpty ? parts[0] : 'س';
+          final t = parts.length > 1 ? parts[1] : '٠';
+          final fn = parts.length > 2 ? parts[2] : '';
+
+          children.add(
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          'نهـا',
+                          style: baseStyle.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: (baseStyle.fontSize ?? 14) * 1.05,
+                          ),
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              v,
+                              style: baseStyle.copyWith(
+                                fontSize: (baseStyle.fontSize ?? 14) * 0.7,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                              child: CustomPaint(
+                                size: const Size(8, 6),
+                                painter: _LimitArrowPainter(color: baseStyle.color ?? Colors.black87),
+                              ),
+                            ),
+                            Text(
+                              t,
+                              style: baseStyle.copyWith(
+                                fontSize: (baseStyle.fontSize ?? 14) * 0.7,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    if (fn.isNotEmpty) ...[
+                      const SizedBox(width: 4),
+                      Text(
+                        fn,
+                        style: baseStyle.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        } else if (type == 'تباديل' || type == 'توافيق') {
+          final n = parts.isNotEmpty ? parts[0] : 'ن';
+          final r = parts.length > 1 ? parts[1] : 'ر';
+          final sym = type == 'تباديل' ? 'ل' : 'ق';
+
+          children.add(
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Text(n, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.75, fontWeight: FontWeight.bold)),
+                    ),
+                    Text(sym, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 1.25, fontWeight: FontWeight.bold)),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(r, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.75, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        } else if (type == 'مجموع' || type == 'تكامل') {
+          final from = parts.isNotEmpty ? parts[0] : '';
+          final to = parts.length > 1 ? parts[1] : '';
+          final body = parts.length > 2 ? parts[2] : '';
+          final sym = type == 'مجموع' ? 'مجـ' : '∫';
+
+          children.add(
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(to, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.65, fontWeight: FontWeight.bold)),
+                        Text(sym, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 1.2, fontWeight: FontWeight.bold)),
+                        Text(from, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.65, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    if (body.isNotEmpty) ...[
+                      const SizedBox(width: 4),
+                      Text(body, style: baseStyle.copyWith(fontWeight: FontWeight.bold)),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        } else if (type == 'متجه') {
+          final symbol = parts.isNotEmpty ? parts[0] : 'ق';
+          children.add(
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('→', style: TextStyle(fontSize: 10, height: 0.8, fontWeight: FontWeight.bold)),
+                  Text(symbol, style: baseStyle.copyWith(fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          );
+        } else if (type == 'بار') {
+          final symbol = parts.isNotEmpty ? parts[0] : 'س';
+          children.add(
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 12, height: 1.2, color: baseStyle.color ?? Colors.black87),
+                  Text(symbol, style: baseStyle.copyWith(fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          );
+        } else if (type == 'محدد' || type == 'مصفوفة') {
+          final isMatrix = type == 'مصفوفة';
+          final a = parts.isNotEmpty ? parts[0] : '';
+          final b = parts.length > 1 ? parts[1] : '';
+          final c = parts.length > 2 ? parts[2] : '';
+          final d = parts.length > 3 ? parts[3] : '';
+
+          children.add(
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                  border: isMatrix
+                      ? Border(
+                          left: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
+                          right: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
+                        )
+                      : Border(
+                          left: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.2),
+                          right: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.2),
+                        ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(mainAxisSize: MainAxisSize.min, children: [Text(a, style: baseStyle), const SizedBox(width: 8), Text(b, style: baseStyle)]),
+                    Row(mainAxisSize: MainAxisSize.min, children: [Text(c, style: baseStyle), const SizedBox(width: 8), Text(d, style: baseStyle)]),
+                  ],
+                ),
+              ),
+            ),
+          );
+        } else if (type == 'عمودي') {
+          final op = parts.isNotEmpty ? parts[0] : '+';
+          final numbers = parts.length > 1 ? parts.sublist(1) : <String>[];
+
+          children.add(
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 3.0),
+                child: Directionality(
+                  textDirection: TextDirection.rtl,
+                  child: IntrinsicWidth(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ...numbers.asMap().entries.map((entry) {
+                          final idx = entry.key;
+                          final val = entry.value;
+                          final isLast = idx == numbers.length - 1;
+
+                          return Row(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                child: isLast
+                                    ? Text(
+                                        op,
+                                        textAlign: TextAlign.center,
+                                        style: baseStyle.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: (baseStyle.fontSize ?? 14) * 1.15,
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  val,
+                                  textAlign: TextAlign.right,
+                                  style: baseStyle.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: (baseStyle.fontSize ?? 14) * 1.1,
+                                    letterSpacing: 2.0,
+                                    fontFamily: 'Amiri',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        }),
+                        Container(
+                          margin: const EdgeInsets.only(top: 3.0, bottom: 6.0),
+                          height: 1.5,
+                          color: baseStyle.color ?? Colors.black87,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        } else if (type == 'قسمة' || type == 'div') {
+          final bool isRtl = type == 'قسمة';
+          final String dividend = parts.isNotEmpty ? parts[0] : '';
+          final String divisor = parts.length > 1 ? parts[1] : '';
+          final String quotient = parts.length > 2 ? parts[2] : '';
+
+          children.add(
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+                child: Directionality(
+                  textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (quotient.isNotEmpty)
+                        Padding(
+                          padding: EdgeInsets.only(
+                            right: isRtl ? 22.0 : 0.0,
+                            left: !isRtl ? 22.0 : 0.0,
+                          ),
+                          child: Text(
+                            quotient,
+                            style: baseStyle.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: (baseStyle.fontSize ?? 14) * 0.9,
+                            ),
+                          ),
+                        ),
                       Row(
                         mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Text(
-                            v,
+                            divisor,
                             style: baseStyle.copyWith(
-                              fontSize: (baseStyle.fontSize ?? 14) * 0.7,
                               fontWeight: FontWeight.bold,
+                              fontSize: baseStyle.fontSize,
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                            child: CustomPaint(
-                              size: const Size(8, 6),
-                              painter: _LimitArrowPainter(color: baseStyle.color ?? Colors.black87),
+                          const SizedBox(width: 4),
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border(
+                                top: const BorderSide(color: Colors.black87, width: 1.5),
+                                right: isRtl ? const BorderSide(color: Colors.black87, width: 1.5) : BorderSide.none,
+                                left: !isRtl ? const BorderSide(color: Colors.black87, width: 1.5) : BorderSide.none,
+                              ),
                             ),
-                          ),
-                          Text(
-                            t,
-                            style: baseStyle.copyWith(
-                              fontSize: (baseStyle.fontSize ?? 14) * 0.7,
-                              fontWeight: FontWeight.bold,
+                            padding: const EdgeInsets.only(top: 2.0, left: 6.0, right: 6.0, bottom: 2.0),
+                            child: Text(
+                              dividend,
+                              style: baseStyle.copyWith(
+                                fontWeight: FontWeight.bold,
+                                fontSize: baseStyle.fontSize,
+                                letterSpacing: 1.5,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ],
                   ),
-                  if (fn.isNotEmpty) ...[
-                    const SizedBox(width: 4),
-                    Text(
-                      fn,
-                      style: baseStyle.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        );
-      } else if (type == 'تباديل' || type == 'توافيق') {
-        final n = parts.isNotEmpty ? parts[0] : 'ن';
-        final r = parts.length > 1 ? parts[1] : 'ر';
-        final sym = type == 'تباديل' ? 'ل' : 'ق';
-
-        children.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 3.0),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8.0),
-                    child: Text(n, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.75, fontWeight: FontWeight.bold)),
-                  ),
-                  Text(sym, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 1.25, fontWeight: FontWeight.bold)),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(r, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.75, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      } else if (type == 'مجموع' || type == 'تكامل') {
-        final from = parts.isNotEmpty ? parts[0] : '';
-        final to = parts.length > 1 ? parts[1] : '';
-        final body = parts.length > 2 ? parts[2] : '';
-        final sym = type == 'مجموع' ? 'مجـ' : '∫';
-
-        children.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(to, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.65, fontWeight: FontWeight.bold)),
-                      Text(sym, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 1.2, fontWeight: FontWeight.bold)),
-                      Text(from, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.65, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                  if (body.isNotEmpty) ...[
-                    const SizedBox(width: 4),
-                    Text(body, style: baseStyle.copyWith(fontWeight: FontWeight.bold)),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        );
-      } else if (type == 'متجه') {
-        final symbol = parts.isNotEmpty ? parts[0] : 'ق';
-        children.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('→', style: TextStyle(fontSize: 10, height: 0.8, fontWeight: FontWeight.bold)),
-                Text(symbol, style: baseStyle.copyWith(fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-        );
-      } else if (type == 'بار') {
-        final symbol = parts.isNotEmpty ? parts[0] : 'س';
-        children.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(width: 12, height: 1.2, color: baseStyle.color ?? Colors.black87),
-                Text(symbol, style: baseStyle.copyWith(fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-        );
-      } else if (type == 'محدد' || type == 'مصفوفة') {
-        final isMatrix = type == 'مصفوفة';
-        final a = parts.isNotEmpty ? parts[0] : '';
-        final b = parts.length > 1 ? parts[1] : '';
-        final c = parts.length > 2 ? parts[2] : '';
-        final d = parts.length > 3 ? parts[3] : '';
-
-        children.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              decoration: BoxDecoration(
-                border: isMatrix
-                    ? Border(
-                        left: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
-                        right: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
-                      )
-                    : Border(
-                        left: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.2),
-                        right: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.2),
-                      ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(mainAxisSize: MainAxisSize.min, children: [Text(a, style: baseStyle), const SizedBox(width: 8), Text(b, style: baseStyle)]),
-                  Row(mainAxisSize: MainAxisSize.min, children: [Text(c, style: baseStyle), const SizedBox(width: 8), Text(d, style: baseStyle)]),
-                ],
-              ),
-            ),
-          ),
-        );
-      } else if (type == 'عمودي') {
-        final op = parts.isNotEmpty ? parts[0] : '+';
-        final numbers = parts.length > 1 ? parts.sublist(1) : <String>[];
-
-        children.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 3.0),
-              child: Directionality(
-                textDirection: TextDirection.rtl,
-                child: IntrinsicWidth(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      ...numbers.asMap().entries.map((entry) {
-                        final idx = entry.key;
-                        final val = entry.value;
-                        final isLast = idx == numbers.length - 1;
-
-                        return Row(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              width: 16,
-                              child: isLast
-                                  ? Text(
-                                      op,
-                                      textAlign: TextAlign.center,
-                                      style: baseStyle.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: (baseStyle.fontSize ?? 14) * 1.15,
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                val,
-                                textAlign: TextAlign.right,
-                                style: baseStyle.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: (baseStyle.fontSize ?? 14) * 1.1,
-                                  letterSpacing: 2.0,
-                                  fontFamily: 'Amiri',
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      }),
-                      Container(
-                        margin: const EdgeInsets.only(top: 3.0, bottom: 6.0),
-                        height: 1.5,
-                        color: Colors.black87,
-                      ),
-                    ],
-                  ),
                 ),
               ),
             ),
-          ),
-        );
-      } else if (type == 'قسمة' || type == 'div') {
-        final bool isRtl = type == 'قسمة';
-        final String dividend = parts.isNotEmpty ? parts[0] : '';
-        final String divisor = parts.length > 1 ? parts[1] : '';
-        final String quotient = parts.length > 2 ? parts[2] : '';
-
-        children.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
-              child: Directionality(
-                textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (quotient.isNotEmpty)
-                      Padding(
-                        padding: EdgeInsets.only(
-                          right: isRtl ? 22.0 : 0.0,
-                          left: !isRtl ? 22.0 : 0.0,
-                        ),
-                        child: Text(
-                          quotient,
-                          style: baseStyle.copyWith(
-                            fontWeight: FontWeight.bold,
-                            fontSize: (baseStyle.fontSize ?? 14) * 0.9,
-                          ),
-                        ),
-                      ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          divisor,
-                          style: baseStyle.copyWith(
-                            fontWeight: FontWeight.bold,
-                            fontSize: baseStyle.fontSize,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border(
-                              top: const BorderSide(color: Colors.black87, width: 1.5),
-                              right: isRtl ? const BorderSide(color: Colors.black87, width: 1.5) : BorderSide.none,
-                              left: !isRtl ? const BorderSide(color: Colors.black87, width: 1.5) : BorderSide.none,
-                            ),
-                          ),
-                          padding: const EdgeInsets.only(top: 2.0, left: 6.0, right: 6.0, bottom: 2.0),
-                          child: Text(
-                            dividend,
-                            style: baseStyle.copyWith(
-                              fontWeight: FontWeight.bold,
-                              fontSize: baseStyle.fontSize,
-                              letterSpacing: 1.5,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
+          );
+        }
       }
 
       lastIndex = match.end;
@@ -3039,6 +3038,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           child: Row(
                             children: [
                               _buildBarBtn(
+                                text: 'صفحة ⤶',
+                                color: const Color(0xFF475569),
+                                tooltip: 'إدراج فاصل صفحة جديدة إجبارياً',
+                                onTap: () => setModalState(() => insertAtCursor(' [فاصل_صفحة] ')),
+                              ),
+                              _buildBarBtn(
                                 text: 'معادلة f(x)',
                                 color: const Color(0xFF2563EB),
                                 tooltip: 'إدراج نهايات، مجـ، تكامل، تباديل وتوافيق، متجهات',
@@ -3403,43 +3408,101 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ],
                       const SizedBox(height: 10),
 
-                      ElevatedButton(
-                        onPressed: () {
-                          final spansToSave = workingSpans.isNotEmpty &&
-                                  workingSpans.map((s) => s.text).join('') == textCtrl.text
-                              ? workingSpans
-                              : [
-                                  TextSpanModel(
-                                    text: textCtrl.text,
-                                    isBold: isBoldActive,
-                                    isUnderline: isUnderlineActive,
-                                    fontSize: currentFontSize,
-                                    fontFamily: currentFont,
-                                    colorHex: currentColor,
-                                  )
-                                ];
+                      Row(
+                        children: [
+                          if (isEdit) ...[
+                            OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red.shade700,
+                                side: BorderSide(color: Colors.red.shade700),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              ),
+                              icon: const Icon(Icons.delete_outline, size: 20),
+                              label: const Text('حذف السؤال'),
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (dCtx) => AlertDialog(
+                                    title: const Text('تأكيد حذف السؤال'),
+                                    content: Text('هل أنت متأكد من حذف (${q.title}) نهائياً؟'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(dCtx),
+                                        child: const Text('إلغاء'),
+                                      ),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade800),
+                                        onPressed: () {
+                                          setState(() {
+                                            _exam.questions.removeAt(questionIndex);
+                                          });
+                                          Navigator.pop(dCtx);
+                                          Navigator.pop(ctx);
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('تم حذف السؤال بنجاح'),
+                                              backgroundColor: Colors.red,
+                                              duration: Duration(seconds: 2),
+                                            ),
+                                          );
+                                        },
+                                        child: const Text('نعم، احذف', style: TextStyle(color: Colors.white)),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          Expanded(
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF1E3A8A),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                              onPressed: () {
+                                final spansToSave = workingSpans.isNotEmpty &&
+                                        workingSpans.map((s) => s.text).join('') == textCtrl.text
+                                    ? workingSpans
+                                    : [
+                                        TextSpanModel(
+                                          text: textCtrl.text,
+                                          isBold: isBoldActive,
+                                          isUnderline: isUnderlineActive,
+                                          fontSize: currentFontSize,
+                                          fontFamily: currentFont,
+                                          colorHex: currentColor,
+                                        )
+                                      ];
 
-                          final newQ = QuestionModel(
-                            id: q.id,
-                            title: titleCtrl.text,
-                            titleOrientation: orientation,
-                            mark: double.tryParse(markCtrl.text) ?? 0.0,
-                            spans: spansToSave,
-                            elements: currentElements,
-                            answerKey: answerCtrl.text.trim(),
-                            isTwoColumns: isTwoCols,
-                          );
+                                final newQ = QuestionModel(
+                                  id: q.id,
+                                  title: titleCtrl.text,
+                                  titleOrientation: orientation,
+                                  mark: double.tryParse(markCtrl.text) ?? 0.0,
+                                  spans: spansToSave,
+                                  elements: currentElements,
+                                  answerKey: answerCtrl.text.trim(),
+                                  isTwoColumns: isTwoCols,
+                                );
 
-                          setState(() {
-                            if (isEdit) {
-                              _exam.questions[questionIndex] = newQ;
-                            } else {
-                              _exam.questions.add(newQ);
-                            }
-                          });
-                          Navigator.pop(ctx);
-                        },
-                        child: const Text('تأكيد السؤال وحفظ التنسيق'),
+                                setState(() {
+                                  if (isEdit) {
+                                    _exam.questions[questionIndex] = newQ;
+                                  } else {
+                                    _exam.questions.add(newQ);
+                                  }
+                                });
+                                Navigator.pop(ctx);
+                              },
+                              child: const Text(
+                                'تأكيد السؤال وحفظ التنسيق',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 10),
                     ],
