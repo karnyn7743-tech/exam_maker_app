@@ -186,7 +186,7 @@ class PdfExportService {
               if (isAutomated)
                 ..._buildAutomatedQuestionsList(exam, symbols, ttf)
               else
-                _buildTraditionalQuestionsTable(exam, ttf),
+                ..._buildTraditionalExamWidgets(exam, ttf),
             ];
           },
         ),
@@ -517,7 +517,37 @@ class PdfExportService {
     );
   }
 
-  static pw.Widget _buildTraditionalQuestionsTable(ExamModel exam, pw.Font ttf) {
+  // دعم تقسيم الأسئلة مع فاصل الصفحات [فاصل_صفحة]
+  static List<pw.Widget> _buildTraditionalExamWidgets(ExamModel exam, pw.Font ttf) {
+    final List<pw.Widget> widgets = [];
+    List<QuestionModel> currentChunk = [];
+
+    for (int i = 0; i < exam.questions.length; i++) {
+      final q = exam.questions[i];
+      final fullText = q.spans.map((s) => s.text).join('');
+      final bool hasPageBreak = fullText.contains('[فاصل_صفحة]');
+
+      currentChunk.add(q);
+
+      if (hasPageBreak && i < exam.questions.length - 1) {
+        widgets.add(_buildQuestionsSubTable(currentChunk, exam.header.instructionText, ttf));
+        widgets.add(pw.NewPage()); // إجبار التصدير على بدء صفحة جديدة فوراً
+        currentChunk = [];
+      }
+    }
+
+    if (currentChunk.isNotEmpty) {
+      widgets.add(_buildQuestionsSubTable(currentChunk, exam.header.instructionText, ttf));
+    }
+
+    return widgets;
+  }
+
+  static pw.Widget _buildQuestionsSubTable(
+    List<QuestionModel> questions,
+    String instructionText,
+    pw.Font ttf,
+  ) {
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
       columnWidths: {
@@ -537,7 +567,7 @@ class PdfExportService {
             ),
             pw.Padding(
               padding: const pw.EdgeInsets.all(4),
-              child: pw.Text(exam.header.instructionText,
+              child: pw.Text(instructionText,
                   textAlign: pw.TextAlign.center,
                   style: pw.TextStyle(
                       font: ttf,
@@ -553,7 +583,7 @@ class PdfExportService {
             ),
           ],
         ),
-        ...exam.questions.map((q) {
+        ...questions.map((q) {
           return pw.TableRow(
             children: [
               pw.Padding(
@@ -611,8 +641,11 @@ class PdfExportService {
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: q.spans.map((s) {
           final spanColor = _parsePdfColor(s.colorHex);
+          // تنظيف نص الفاصل حتى لا يظهر في الطباعة الورقية
+          final cleanText = s.text.replaceAll('[فاصل_صفحة]', '').trim();
+          if (cleanText.isEmpty) return pw.SizedBox.shrink();
           return _renderInlineMathText(
-            s.text,
+            cleanText,
             ttf,
             fontSize: s.fontSize,
             isBold: s.isBold,
@@ -623,15 +656,17 @@ class PdfExportService {
       );
     }
 
-    final fullText = q.spans.map((s) => s.text).join('');
+    final fullText = q.spans.map((s) => s.text).join('').replaceAll('[فاصل_صفحة]', '').trim();
     final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
     if (lines.length <= 1) {
       return pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: q.spans.map((s) {
           final spanColor = _parsePdfColor(s.colorHex);
+          final cleanText = s.text.replaceAll('[فاصل_صفحة]', '').trim();
+          if (cleanText.isEmpty) return pw.SizedBox.shrink();
           return _renderInlineMathText(
-            s.text,
+            cleanText,
             ttf,
             fontSize: s.fontSize,
             isBold: s.isBold,
