@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:barcode/barcode.dart';
+import 'package:better_download_saver/better_download_saver.dart'; // ← جديد
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
@@ -125,48 +126,46 @@ class OmrSheetService {
       );
     }
 
-    // حفظ الملف مع التحقق الآمن من الصلاحيات
-    Directory dir;
+    // ============ الجزء المعدل: الحفظ باستخدام BetterDownloadSaver ============
     final pdfBytes = await pdf.save();
     final safeName = '${exam.fileName}_ورقة_تظليل_OMR'
         .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    final fileName = '$safeName.pdf';
 
-    if (Platform.isAndroid) {
-      bool canWriteToPublicDownload = false;
-      final publicDownload = Directory('/storage/emulated/0/Download');
-
-      try {
-        if (!publicDownload.existsSync()) {
-          publicDownload.createSync(recursive: true);
-        }
-        final testFile = File('${publicDownload.path}/.test_omr_perm.tmp');
-        testFile.writeAsStringSync('test');
-        testFile.deleteSync();
-        canWriteToPublicDownload = true;
-      } catch (_) {
-        canWriteToPublicDownload = false;
+    // المحاولة الأولى: الحفظ في مجلد التنزيلات العام (Downloads)
+    try {
+      final saver = BetterDownloadSaver();
+      final String? savedPath = await saver.saveToDownloads(
+        fileName: fileName,
+        bytes: pdfBytes,
+      );
+      if (savedPath != null && savedPath.isNotEmpty) {
+        return savedPath;
       }
+    } catch (_) {
+      // نمر إلى الخطة البديلة
+    }
 
-      if (canWriteToPublicDownload) {
-        dir = publicDownload;
+    // الخطة البديلة: الحفظ في مجلد التطبيق الخاص حتى لا يضيع الملف
+    try {
+      Directory fallbackDir;
+      if (Platform.isAndroid) {
+        fallbackDir = (await getExternalStorageDirectory()) ??
+            await getApplicationDocumentsDirectory();
       } else {
-        final extDir = await getExternalStorageDirectory();
-        dir = extDir ?? await getApplicationDocumentsDirectory();
+        fallbackDir = await getApplicationDocumentsDirectory();
       }
-    } else {
-      dir = await getApplicationDocumentsDirectory();
+      if (!fallbackDir.existsSync()) {
+        fallbackDir.createSync(recursive: true);
+      }
+      final fallbackPath = '${fallbackDir.path}/$fileName';
+      await File(fallbackPath).writeAsBytes(pdfBytes, flush: true);
+      return fallbackPath;
+    } catch (e) {
+      throw Exception('تعذر حفظ ملف OMR: $e');
     }
-
-    if (!dir.existsSync()) {
-      dir.createSync(recursive: true);
-    }
-
-    final filePath = '${dir.path}/$safeName.pdf';
-    final file = File(filePath);
-    await file.writeAsBytes(pdfBytes, flush: true);
-
-    return filePath;
   }
+  // ============ نهاية الجزء المعدل ============
 
   // ترويسة ورقة التظليل
   static pw.Widget _buildOmrHeader(
