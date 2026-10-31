@@ -89,16 +89,16 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
   }
 
   Map<String, dynamic> _processOmrData(img.Image image) {
-    int totalQuestions = widget.exam.questions.length;
+    final int totalQuestions = widget.exam.questions.length;
     int correctCount = 0;
     double totalEarnedMark = 0.0;
-    List> detailedAnswers = [];
+    final detailedAnswers = >[];
 
     for (int i = 0; i < totalQuestions; i++) {
       final q = widget.exam.questions[i];
       final String expected = q.answerKey.trim();
 
-      bool isCorrect = expected.isNotEmpty;
+      final bool isCorrect = expected.isNotEmpty;
       if (isCorrect) {
         correctCount++;
         totalEarnedMark += q.mark;
