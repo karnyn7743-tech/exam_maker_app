@@ -1502,8 +1502,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                 ),
               ),
-            );
-          } else if (type == 'قسمة' || type == 'div') {
+            ),
+          );
+        } else if (type == 'قسمة' || type == 'div') {
           final bool isRtl = type == 'قسمة';
           final String dividend = parts.isNotEmpty ? parts[0] : '';
           final String divisor = parts.length > 1 ? parts[1] : '';
@@ -4154,6 +4155,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       return;
     }
 
+    final gradeFilterCtrl = TextEditingController(text: _exam.header.grade);
+
     final choice = await showDialog<String>(
       context: context,
       barrierDismissible: false,
@@ -4162,8 +4165,24 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           'إدراج بيانات الطلاب في رأس الصفحة',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
-        content: const Text(
-          'تم تفعيل فراغ رأس الصفحة.\nهل ترغب في جلب بيانات الطلاب لتوليد نسخ مخصصة لكل طالب؟',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'تم تفعيل فراغ رأس الصفحة.\nهل ترغب في جلب بيانات الطلاب لتوليد نسخ مخصصة لكل طالب؟',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: gradeFilterCtrl,
+              decoration: const InputDecoration(
+                labelText: 'الصف الدراسي المطلوب استيراده فقط',
+                hintText: 'مثال: التاسع',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.school, color: Color(0xFF1E3A8A)),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -4203,13 +4222,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         final excelRes = await StudentExcelService.parseExcelFile(
           path,
           expectedSubject: _exam.header.subject,
+          targetGrade: gradeFilterCtrl.text.trim(),
         );
 
         setDlgState(() {
           _exam.header.topMargin1cm = true;
           _exam.header.studentDataMode = choice;
           _exam.header.excelFilePath = path;
-          _exam.header.subjectCode = int.tryParse(excelRes.subjectCode) ?? 1;
+          _exam.header.subjectCode = excelRes.subjectCode;
         });
 
         if (mounted) {
