@@ -2893,35 +2893,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       };
 
       showModalBottomSheet(
-          void showSymbolsModal(void Function(void Function()) setParentState) {
-      final Map<String, List<String>> categories = {
-        'زخارف وفواصل': [
-          '﴾   ﴿',
-          '«   »',
-          '۞',
-          '۩',
-          '۝',
-          '✦ ✦ ✦',
-          '❖ ❖ ❖',
-          '~*~*~*~*~',
-          '— — ❖ — —',
-          '•┈┈┈┈•✿•┈┈┈┈•',
-          '━━━ ❀ ━━━',
-          '■ □ ■',
-          '● ○ ●',
-          '※ ※ ※',
-        ],
-        'رياضيات عربية RTL': ['[جذر:س]', '[جذر:٢٥]', '[جذر:٣:٢٧]', 'نهـا', 'مجـ', 'تـ', 'ط', 'هـ', '∆', 'س', 'ص', 'ع', 'د', 'ل', 'ك', 'ن', 'ق'],
-        'إحصاء وفيزياء': ['س̄', 'ع', 'ر', 'ف', 'كجم', 'نيوتن', 'جول', 'م/ث', 'أوم', 'فولت', 'أمبير', 'سم³', 'م²'],
-        'تقييم وأقواس': ['✔', '✘', '✓', '✗', '(   )', '[   ]', '○', '●', '□', '■', '« »'],
-        'أسس علوية (س²)': ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹', '⁺', '⁻', 'ⁿ', 'ˣ', 'ʸ'],
-        'صيغ كيميائية (H₂O)': ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉', '₊', '₋', 'ₐ', 'ₑ', 'ₒ', 'ₓ'],
-        'عمليات ومقارنات': ['×', '÷', '+', '-', '=', '≠', '≈', '<', '>', '≤', '≥', '±'],
-        'دوال وجذور': ['[sqrt:x]', '[sqrt:25]', '[sqrt:3:27]', 'π', '∞', '%', '°', '½', '¼', '¾', '∑', '∫'],
-        'أسهم وتوجيه': ['←', '→', '↑', '↓', '↔', '⇐', '⇒', '⇔'],
-      };
-
-      showModalBottomSheet(
         context: context,
         isScrollControlled: true,
         builder: (bCtx) => DefaultTabController(
@@ -2939,6 +2910,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 Expanded(
                   child: TabBarView(
                     children: categories.values.map<Widget>((List<String> symbols) {
+                      final List<String> symbolsList = symbols;
                       return GridView.builder(
                         padding: const EdgeInsets.all(12),
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -2946,9 +2918,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           mainAxisSpacing: 8,
                           crossAxisSpacing: 8,
                         ),
-                        itemCount: symbols.length,
+                        itemCount: symbolsList.length,
                         itemBuilder: (context, i) {
-                          final sym = symbols[i];
+                          final String sym = symbolsList[i];
                           return InkWell(
                             onTap: () {
                               setParentState(() => insertAtCursor(sym));
@@ -4296,18 +4268,18 @@ class _ExamShapePainter extends CustomPainter {
 
 class _ArabicRadicalPainter extends CustomPainter {
   final Color color;
-  final double strokeWidth;
+  final double radicalStrokeWidth;
 
   _ArabicRadicalPainter({
     this.color = Colors.black87,
-    this.strokeWidth = 1.6,
+    this.radicalStrokeWidth = 1.6,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
-      ..strokeWidth = strokeWidth
+      ..strokeWidth = radicalStrokeWidth
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
@@ -4330,18 +4302,18 @@ class _ArabicRadicalPainter extends CustomPainter {
 
 class _EnglishRadicalPainter extends CustomPainter {
   final Color color;
-  final double strokeWidth;
+  final double radicalStrokeWidth;
 
   _EnglishRadicalPainter({
     this.color = Colors.black87,
-    this.strokeWidth = 1.6,
+    this.radicalStrokeWidth = 1.6,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
-      ..strokeWidth = strokeWidth
+      ..strokeWidth = radicalStrokeWidth
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
