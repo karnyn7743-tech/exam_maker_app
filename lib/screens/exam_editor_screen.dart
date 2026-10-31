@@ -15,7 +15,6 @@ import '../widgets/exam_custom_keyboard.dart';
 
 typedef FontItem = Map<String, String>;
 
-// قائمة الخطوط الـ 30 الرسمية المعتمدة والمطابقة تماماً لملف pubspec.yaml
 const List<FontItem> appFontsList = [
   {'id': 'Amiri', 'name': 'خط الأميري (الافتراضي)'},
   {'id': 'Hafs', 'name': 'مصحف حفص (عثماني)'},
