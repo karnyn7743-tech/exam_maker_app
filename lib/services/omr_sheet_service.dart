@@ -64,7 +64,6 @@ class OmrSheetService {
         pw.Page(
           pageFormat: PdfPageFormat.a4,
           textDirection: pw.TextDirection.rtl,
-          // 3 مم من الأعلى، و 4 مم من الأسفل
           margin: const pw.EdgeInsets.only(
             top: 3.0 * mm,     // 3 مم حتى بيانات رأس الورقة
             bottom: 4.0 * mm,  // 4 مم حتى كود المادة والـ QR
@@ -117,7 +116,7 @@ class OmrSheetService {
 
                 pw.SizedBox(height: 4),
 
-                // د. التذييل: يستقر على بعد 4 مم من الحافة السفلية
+                // د. التذييل
                 _buildOmrFooter(exam, student, showQr, currentSubjectCode, ttf),
               ],
             );
@@ -126,25 +125,45 @@ class OmrSheetService {
       );
     }
 
-    // حفظ الملف في مجلد التنزيلات
+    // حفظ الملف مع التحقق الآمن من الصلاحيات
     Directory dir;
+    final pdfBytes = await pdf.save();
+    final safeName = '${exam.fileName}_ورقة_تظليل_OMR'
+        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+
     if (Platform.isAndroid) {
-      final downloadDir = Directory('/storage/emulated/0/Download');
-      if (downloadDir.existsSync()) {
-        dir = downloadDir;
+      bool canWriteToPublicDownload = false;
+      final publicDownload = Directory('/storage/emulated/0/Download');
+
+      try {
+        if (!publicDownload.existsSync()) {
+          publicDownload.createSync(recursive: true);
+        }
+        final testFile = File('${publicDownload.path}/.test_omr_perm.tmp');
+        testFile.writeAsStringSync('test');
+        testFile.deleteSync();
+        canWriteToPublicDownload = true;
+      } catch (_) {
+        canWriteToPublicDownload = false;
+      }
+
+      if (canWriteToPublicDownload) {
+        dir = publicDownload;
       } else {
-        dir = (await getExternalStorageDirectory()) ??
-            await getApplicationDocumentsDirectory();
+        final extDir = await getExternalStorageDirectory();
+        dir = extDir ?? await getApplicationDocumentsDirectory();
       }
     } else {
       dir = await getApplicationDocumentsDirectory();
     }
 
-    final safeName = '${exam.fileName}_ورقة_تظليل_OMR'
-        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    if (!dir.existsSync()) {
+      dir.createSync(recursive: true);
+    }
+
     final filePath = '${dir.path}/$safeName.pdf';
     final file = File(filePath);
-    await file.writeAsBytes(await pdf.save(), flush: true);
+    await file.writeAsBytes(pdfBytes, flush: true);
 
     return filePath;
   }
@@ -442,7 +461,7 @@ class OmrSheetService {
     );
   }
 
-  // تذييل ورقة التظليل: بدون طباعة الرقم السري نهائياً لحفظ السرية التامة
+  // تذييل ورقة التظليل
   static pw.Widget _buildOmrFooter(
     ExamModel exam,
     StudentData student,
@@ -451,13 +470,12 @@ class OmrSheetService {
     pw.Font ttf,
   ) {
     return pw.Container(
-      height: 62, // ارتفاع مريح يستوعب مربع الـ 60 pt بدقة
+      height: 62,
       padding: const pw.EdgeInsets.symmetric(horizontal: 4),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         crossAxisAlignment: pw.CrossAxisAlignment.end,
         children: [
-          // الجهة اليمنى: توقيع وملاحظة الكنترول فقط بدون الرقم السري
           pw.Column(
             mainAxisAlignment: pw.MainAxisAlignment.end,
             crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -468,14 +486,10 @@ class OmrSheetService {
               ),
             ],
           ),
-
-          // الجهة اليسرى:
-          // [كود المادة: خط 20 عريض بدون إطار] -> [رمز QR: 40x40 مشفر داخله الرقم السري] -> [مربع فارغ تماماً: 50 × 40]
           pw.Row(
             mainAxisSize: pw.MainAxisSize.min,
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
-              // 1. رقم كود المادة: خط 20 عريض وبدون إطار
               pw.Text(
                 '$subjectCode',
                 style: pw.TextStyle(
@@ -484,10 +498,7 @@ class OmrSheetService {
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
-
               pw.SizedBox(width: 8),
-
-              // 2. رمز الاستجابة السريع للطالب بمقاس 40 × 40
               if (showQr && student.secretCode.isNotEmpty)
                 pw.Container(
                   width: 40,
@@ -500,10 +511,7 @@ class OmrSheetService {
                 )
               else
                 pw.SizedBox(width: 40, height: 40),
-
               pw.SizedBox(width: 10),
-
-              // 3. مربع الدرجة المستحقة: فارغ تماماً وبمقاس 50 × 60
               pw.Container(
                 width: 50,
                 height: 40,
