@@ -363,6 +363,7 @@ class ExamModel {
   DateTime updatedAt;
   HeaderModel header;
   List<QuestionModel> questions;
+  double targetTotalMarks; // الدرجة المستهدفة لميزان تدقيق الدرجات التراكمي
 
   ExamModel({
     required this.id,
@@ -373,6 +374,7 @@ class ExamModel {
     required this.updatedAt,
     required this.header,
     required this.questions,
+    this.targetTotalMarks = 50.0,
   }) : automatedConfig = automatedConfig ?? AutomatedExamConfig();
 
   double get totalMarks =>
@@ -382,17 +384,23 @@ class ExamModel {
     String? newId,
     String? newFileName,
     ExamType? newExamType,
+    AutomatedExamConfig? newAutomatedConfig,
+    HeaderModel? newHeader,
+    List<QuestionModel>? newQuestions,
+    double? newTargetTotalMarks,
   }) {
     return ExamModel(
       id: newId ?? id,
       fileName: newFileName ?? fileName,
       examType: newExamType ?? examType,
-      automatedConfig:
+      automatedConfig: newAutomatedConfig ??
           AutomatedExamConfig.fromMap(automatedConfig.toMap()),
       createdAt: createdAt,
       updatedAt: DateTime.now(),
-      header: HeaderModel.fromMap(header.toMap()),
-      questions: questions.map((q) => QuestionModel.fromMap(q.toMap())).toList(),
+      header: newHeader ?? HeaderModel.fromMap(header.toMap()),
+      questions: newQuestions ??
+          questions.map((q) => QuestionModel.fromMap(q.toMap())).toList(),
+      targetTotalMarks: newTargetTotalMarks ?? targetTotalMarks,
     );
   }
 
@@ -405,6 +413,7 @@ class ExamModel {
         'updatedAt': updatedAt.toIso8601String(),
         'header': header.toMap(),
         'questions': questions.map((q) => q.toMap()).toList(),
+        'targetTotalMarks': targetTotalMarks,
       };
 
   factory ExamModel.fromMap(Map<String, dynamic> map) {
@@ -421,13 +430,18 @@ class ExamModel {
       automatedConfig: AutomatedExamConfig.fromMap(
         map['automatedConfig'] ?? {},
       ),
-      createdAt: DateTime.parse(map['createdAt']),
-      updatedAt: DateTime.parse(map['updatedAt']),
+      createdAt: map['createdAt'] != null
+          ? DateTime.parse(map['createdAt'])
+          : DateTime.now(),
+      updatedAt: map['updatedAt'] != null
+          ? DateTime.parse(map['updatedAt'])
+          : DateTime.now(),
       header: HeaderModel.fromMap(map['header'] ?? {}),
       questions: (map['questions'] as List<dynamic>?)
               ?.map((item) => QuestionModel.fromMap(item))
               .toList() ??
           [],
+      targetTotalMarks: (map['targetTotalMarks'] as num?)?.toDouble() ?? 50.0,
     );
   }
 
@@ -435,4 +449,3 @@ class ExamModel {
   factory ExamModel.fromJson(String source) =>
       ExamModel.fromMap(jsonDecode(source));
 }
-
