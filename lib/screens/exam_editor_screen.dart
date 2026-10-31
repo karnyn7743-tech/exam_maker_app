@@ -1008,6 +1008,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 3.0),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
@@ -1098,14 +1099,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 decoration: BoxDecoration(
                   border: isMatrix
-                    ? Border(
-                        left: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
-                        right: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
-                      )
-                    : Border(
-                        left: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.2),
-                        right: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.2),
-                      ),
+                      ? Border(
+                          left: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
+                          right: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
+                        )
+                      : Border(
+                          left: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.2),
+                          right: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.2),
+                        ),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1120,6 +1121,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         } else if (type == 'عمودي') {
           final op = parts.isNotEmpty ? parts[0] : '+';
           final numbers = parts.length > 1 ? parts.sublist(1) : <String>[];
+
+          int maxDigits = 0;
+          for (final num in numbers) {
+            if (num.length > maxDigits) maxDigits = num.length;
+          }
+          final double lineWidth = (maxDigits * 8.0) + 20.0;
 
           children.add(
             WidgetSpan(
@@ -1154,29 +1161,30 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                         ),
                                       )
                                     : null,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                val,
-                                textAlign: TextAlign.right,
-                                style: baseStyle.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: (baseStyle.fontSize ?? 14) * 1.1,
-                                  letterSpacing: 2.0,
-                                  fontFamily: 'Amiri',
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  val,
+                                  textAlign: TextAlign.right,
+                                  style: baseStyle.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: (baseStyle.fontSize ?? 14) * 1.1,
+                                    letterSpacing: 2.0,
+                                    fontFamily: 'Amiri',
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        );
-                      }),
-                      Container(
-                        margin: const EdgeInsets.only(top: 3.0, bottom: 6.0),
-                        height: 1.5,
-                        color: baseStyle.color ?? Colors.black87,
-                      ),
-                    ],
+                            ],
+                          );
+                        }),
+                        Container(
+                          margin: const EdgeInsets.only(top: 3.0, bottom: 6.0),
+                          height: 1.5,
+                          color: baseStyle.color ?? Colors.black87,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -2868,7 +2876,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showSymbolsModal(void Function(void Function()) setParentState) {
-      final Map<String, dynamic> categories = {
+      final Map<String, List<String>> categories = {
         'زخارف وفواصل': [
           '﴾   ﴿',
           '«   »',
@@ -2912,48 +2920,39 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 Expanded(
                   child: TabBarView(
-                    children: [
-                      for (final entry in categories.values)
-                        Builder(
-                          builder: (context) {
-                            final items = (entry as Iterable).map((e) => e.toString()).toList();
-                            return GridView.builder(
-                              padding: const EdgeInsets.all(12),
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 6,
-                                mainAxisSpacing: 8,
-                                crossAxisSpacing: 8,
-                              ),
-                              itemCount: items.length,
-                              itemBuilder: (context, i) {
-                                final sym = items[i];
-                                return InkWell(
-                                  onTap: () {
-                                    setParentState(() => insertAtCursor(sym));
-                                    Navigator.pop(bCtx);
-                                  },
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.grey.shade300),
-                                      borderRadius: BorderRadius.circular(6),
-                                      color: Colors.grey.shade50,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        sym,
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
+                    children: categories.values.map<Widget>((symbols) {
+                      final List<String> symbolsList = (symbols as List).cast<String>();
+                      return GridView.builder(
+                        padding: const EdgeInsets.all(12),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 6,
+                          mainAxisSpacing: 8,
+                          crossAxisSpacing: 8,
                         ),
-                    ],
+                        itemCount: symbolsList.length,
+                        itemBuilder: (context, i) {
+                          final sym = symbolsList[i];
+                          return InkWell(
+                            onTap: () {
+                              setParentState(() => insertAtCursor(sym));
+                              Navigator.pop(bCtx);
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade300),
+                                borderRadius: BorderRadius.circular(6),
+                                color: Colors.grey.shade50,
+                              ),
+                              child: Center(
+                                child: Text(sym,
+                                    style: const TextStyle(
+                                        fontSize: 16, fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    }).toList(),
                   ),
                 ),
               ],
