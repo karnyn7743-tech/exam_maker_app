@@ -11,10 +11,12 @@ import '../services/pdf_export_service.dart';
 import '../services/exam_share_service.dart';
 import '../services/student_excel_service.dart';
 import '../services/omr_sheet_service.dart';
+import '../services/question_bank_service.dart';
 import '../widgets/exam_custom_keyboard.dart';
 
 typedef FontItem = Map<String, String>;
 
+// قائمة الخطوط الرسمية المعتمدة
 const List<FontItem> appFontsList = [
   {'id': 'Amiri', 'name': 'خط الأميري (الافتراضي)'},
   {'id': 'Hafs', 'name': 'مصحف حفص (عثماني)'},
@@ -256,8 +258,248 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     return keyExam;
   }
 
+  void _generateAlternativeExamModel() {
+    final ctrl = TextEditingController(text: 'نموذج (ب)');
+    showDialog(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.alt_route, color: Color(0xFF1E3A8A)),
+            SizedBox(width: 8),
+            Text('توليد نموذج اختباري بديل (خلط آلي)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'سيقوم النظام بإنشاء نسخة جديدة من الاختبار مع خلط ترتيب فقرات الأسئلة تلقائياً لمنع الغش، مع الحفاظ التام على الدرجات ونموذج الإجابة.',
+              style: TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              decoration: const InputDecoration(
+                labelText: 'تمييز النموذج الجديد',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
+            onPressed: () {
+              final newExam = _exam.copyWith(
+                newId: const Uuid().v4(),
+                newFileName: '${_exam.fileName} - ${ctrl.text.trim()}',
+              );
+              newExam.header.examTitle = '${_exam.header.examTitle} - ${ctrl.text.trim()}';
+
+              newExam.questions = _exam.questions.map((q) {
+                final copiedQ = QuestionModel.fromMap(q.toMap());
+                final fullText = copiedQ.spans.map((s) => s.text).join('');
+                final lines = fullText.split('\n');
+                if (lines.length > 2) {
+                  final headerLine = lines.first;
+                  final bodyLines = lines.sublist(1)..shuffle();
+                  copiedQ.spans = [
+                    TextSpanModel(
+                      text: '$headerLine\n${bodyLines.join('\n')}',
+                      fontFamily: copiedQ.spans.isNotEmpty ? copiedQ.spans.first.fontFamily : 'Amiri',
+                      fontSize: copiedQ.spans.isNotEmpty ? copiedQ.spans.first.fontSize : 14.0,
+                    )
+                  ];
+                }
+                return copiedQ;
+              }).toList();
+
+              setState(() {
+                _exam = newExam;
+                _isNew = true;
+              });
+              Navigator.pop(dCtx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('تم توليد ${ctrl.text.trim()} بنجاح مع خلط الفقرات!'),
+                  backgroundColor: Colors.green.shade800,
+                ),
+              );
+            },
+            child: const Text('توليد النموذج الآن', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMarkBalancingDialog() {
+    final targetCtrl = TextEditingController(text: _exam.targetTotalMarks.toStringAsFixed(1));
+    showDialog(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.scale, color: Color(0xFF1E3A8A)),
+            SizedBox(width: 8),
+            Text('ميزان الدرجات وتوزيعها الذكي', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('مجموع درجات الأسئلة الحالية: ${_exam.totalMarks.toStringAsFixed(1)} د',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: targetCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'الدرجة الكلية المعتمدة (المستهدفة)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 14),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F766E)),
+              icon: const Icon(Icons.auto_fix_high, color: Colors.white, size: 18),
+              label: const Text('توزيع الدرجة الكلية بالتساوي على الأسئلة', style: TextStyle(color: Colors.white)),
+              onPressed: () {
+                final target = double.tryParse(targetCtrl.text) ?? _exam.targetTotalMarks;
+                if (_exam.questions.isNotEmpty) {
+                  final markPerQ = double.parse((target / _exam.questions.length).toStringAsFixed(2));
+                  setState(() {
+                    _exam.targetTotalMarks = target;
+                    for (var q in _exam.questions) {
+                      q.mark = markPerQ;
+                    }
+                  });
+                  Navigator.pop(dCtx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('تم توزيع الدرجات بالتساوي: $markPerQ د لكل سؤال'), backgroundColor: Colors.teal.shade800),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _exam.targetTotalMarks = double.tryParse(targetCtrl.text) ?? _exam.targetTotalMarks;
+              });
+              Navigator.pop(dCtx);
+            },
+            child: const Text('حفظ الميزان'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showQuestionBankImportDialog() async {
+    final bankQuestions = await QuestionBankService.getAllQuestions();
+    if (!mounted) return;
+
+    if (bankQuestions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('بنك الأسئلة فارغ حالياً. يمكنك حفظ أي سؤال في البنك من خلال نافذة تعديل السؤال.')),
+      );
+      return;
+    }
+
+    String filterSubject = 'الكل';
+    final subjects = {'الكل', ...bankQuestions.map((e) => e.subject)};
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (bCtx) => StatefulBuilder(
+        builder: (context, setBState) {
+          final filtered = filterSubject == 'الكل'
+              ? bankQuestions
+              : bankQuestions.where((e) => e.subject == filterSubject).toList();
+
+          return SizedBox(
+            height: MediaQuery.of(context).size.height * 0.85,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.account_balance, color: Color(0xFF1E3A8A)),
+                      const SizedBox(width: 8),
+                      const Text('بنك الأسئلة الشخصي', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      const Spacer(),
+                      DropdownButton<String>(
+                        value: filterSubject,
+                        items: subjects.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                        onChanged: (v) => setBState(() => filterSubject = v!),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, i) {
+                      final item = filtered[i];
+                      final preview = item.question.spans.map((s) => s.text).join('').split('\n').first;
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.indigo.shade50,
+                          child: Text('${i + 1}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
+                        ),
+                        title: Text(item.question.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        subtitle: Text(
+                          '$preview\n[ ${item.subject} - ${item.grade} ] (الدرجة: ${item.question.mark} د)',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                          onPressed: () async {
+                            await QuestionBankService.deleteQuestion(item.id);
+                            setBState(() => bankQuestions.removeWhere((q) => q.id == item.id));
+                          },
+                        ),
+                        onTap: () {
+                          final imported = QuestionModel.fromMap(item.question.toMap());
+                          imported.title = 'السؤال ${_exam.questions.length + 1}';
+                          setState(() => _exam.questions.add(imported));
+                          Navigator.pop(bCtx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('تم إدراج (${item.question.title}) بنجاح.'), backgroundColor: Colors.green.shade800),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final double diff = _exam.totalMarks - _exam.targetTotalMarks;
+    final bool isBalanced = diff.abs() < 0.05;
+
     return Scaffold(
       backgroundColor: const Color(0xFFD6D9E0),
       appBar: AppBar(
@@ -270,6 +512,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         backgroundColor: _showAnswerKeyMode ? const Color(0xFF0F766E) : const Color(0xFF1E3A8A),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.alt_route, color: Colors.white),
+            tooltip: 'توليد نموذج بديل (أ / ب / جـ)',
+            onPressed: _generateAlternativeExamModel,
+          ),
           IconButton(
             icon: Icon(
               _showAnswerKeyMode ? Icons.visibility : Icons.visibility_off,
@@ -429,7 +676,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         ),
       ),
       bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         color: Colors.white,
         child: Row(
           children: [
@@ -440,16 +687,51 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 onPressed: () => _openQuestionDialog(),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             OutlinedButton.icon(
-              icon: const Icon(Icons.auto_awesome, color: Color(0xFF1E3A8A)),
-              label: const Text('قوالب جاهزة', style: TextStyle(color: Color(0xFF1E3A8A))),
+              icon: const Icon(Icons.account_balance, color: Color(0xFF1E3A8A), size: 18),
+              label: const Text('بنك الأسئلة', style: TextStyle(color: Color(0xFF1E3A8A), fontSize: 12)),
+              onPressed: _showQuestionBankImportDialog,
+            ),
+            const SizedBox(width: 6),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.auto_awesome, color: Color(0xFF1E3A8A), size: 18),
+              label: const Text('قوالب جاهزة', style: TextStyle(color: Color(0xFF1E3A8A), fontSize: 12)),
               onPressed: () => _showQuestionTemplatesDialog(),
             ),
-            const SizedBox(width: 12),
-            Text(
-              'المجموع: ${_exam.totalMarks} د',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            const SizedBox(width: 8),
+            InkWell(
+              onTap: _showMarkBalancingDialog,
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: isBalanced ? Colors.green.shade50 : Colors.amber.shade50,
+                  border: Border.all(color: isBalanced ? Colors.green.shade300 : Colors.amber.shade600),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${_exam.totalMarks.toStringAsFixed(1)} / ${_exam.targetTotalMarks.toStringAsFixed(0)} د',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: isBalanced ? Colors.green.shade900 : Colors.amber.shade900,
+                      ),
+                    ),
+                    Text(
+                      isBalanced ? 'الميزان مضبوط ✓' : (diff > 0 ? '+${diff.toStringAsFixed(1)} زيادة' : '${diff.toStringAsFixed(1)} عجز'),
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        color: isBalanced ? Colors.green.shade800 : Colors.red.shade800,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -1279,7 +1561,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _buildQuestionContent(QuestionModel q) {
-    final fullText = q.spans.map((s) => s.text.toString()).join('');
+    final fullText = q.spans.map((s) => s.text).join('');
     final bool isAutomatedMcq = _exam.examType == ExamType.automated &&
         (fullText.contains('[') && (fullText.contains('أ-') || fullText.contains('١-') || fullText.contains('1-')));
 
@@ -1304,7 +1586,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               color: spanColor,
               height: 1.5,
             );
-            return _buildInlineSpanWithFractions(s.text.toString(), style);
+            return _buildInlineSpanWithFractions(s.text, style);
           }).toList(),
         ),
         textAlign: TextAlign.right,
@@ -1330,7 +1612,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               color: spanColor,
               height: 1.5,
             );
-            return _buildInlineSpanWithFractions(s.text.toString(), style);
+            return _buildInlineSpanWithFractions(s.text, style);
           }).toList(),
         ),
         textAlign: TextAlign.right,
@@ -1399,7 +1681,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _buildAutomatedEditorMcqGrid(QuestionModel q) {
-    final fullText = q.spans.map((s) => s.text.toString()).join('');
+    final fullText = q.spans.map((s) => s.text).join('');
     final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
 
     final String intro = lines.isNotEmpty ? lines.first : '';
@@ -2021,7 +2303,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     final titleCtrl = TextEditingController(text: q.title);
     final textCtrl =
-        TextEditingController(text: q.spans.map((e) => e.text.toString()).join(''));
+        TextEditingController(text: q.spans.map((e) => e.text).join(''));
     final markCtrl =
         TextEditingController(text: q.mark > 0 ? q.mark.toString() : '5');
     final answerCtrl = TextEditingController(text: q.answerKey);
@@ -2034,7 +2316,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     List<TextSpanModel> workingSpans = q.spans.isNotEmpty
         ? q.spans.map((s) => TextSpanModel(
-              text: s.text.toString(),
+              text: s.text,
               isBold: s.isBold,
               isUnderline: s.isUnderline,
               fontSize: s.fontSize,
@@ -2075,7 +2357,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       bool handled = false;
 
       for (final span in workingSpans) {
-        final String spanText = span.text.toString();
+        final String spanText = span.text;
         final int spanLen = spanText.length;
         final int spanEnd = (currentOffset + spanLen).toInt();
 
@@ -2129,7 +2411,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           isUnderline: template.isUnderline,
         ));
       }
-      workingSpans = nextSpans.where((s) => s.text.toString().isNotEmpty).toList();
+      workingSpans = nextSpans.where((s) => s.text.isNotEmpty).toList();
     }
 
     void insertAtCursor(String symbol) {
@@ -2193,7 +2475,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       int currentPos = 0;
 
       for (var span in workingSpans) {
-        final String spanText = span.text.toString();
+        final String spanText = span.text;
         final int spanLen = spanText.length;
         final int spanStart = currentPos;
         final int spanEnd = (currentPos + spanLen).toInt();
@@ -2238,7 +2520,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         currentPos = spanEnd.toInt();
       }
 
-      workingSpans = newSpans.where((s) => s.text.toString().isNotEmpty).toList();
+      workingSpans = newSpans.where((s) => s.text.isNotEmpty).toList();
     }
 
     void showAdvancedEquationDialog(void Function(void Function()) setParentState) {
@@ -3620,6 +3902,34 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
                       Row(
                         children: [
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.bookmark_add, color: Color(0xFF1E3A8A)),
+                            label: const Text('حفظ لبنك الأسئلة'),
+                            onPressed: () async {
+                              final qToSave = QuestionModel(
+                                id: const Uuid().v4(),
+                                title: titleCtrl.text.trim(),
+                                mark: double.tryParse(markCtrl.text) ?? 5.0,
+                                spans: [TextSpanModel(text: textCtrl.text)],
+                                elements: currentElements,
+                                answerKey: answerCtrl.text.trim(),
+                              );
+                              await QuestionBankService.saveQuestion(
+                                question: qToSave,
+                                subject: _exam.header.subject,
+                                grade: _exam.header.grade,
+                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('تم حفظ السؤال بنجاح في بنك الأسئلة الشخصي.'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                          const SizedBox(width: 8),
                           if (isEdit) ...[
                             OutlinedButton.icon(
                               style: OutlinedButton.styleFrom(
@@ -3628,7 +3938,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               ),
                               icon: const Icon(Icons.delete_outline, size: 20),
-                              label: const Text('حذف السؤال'),
+                              label: const Text('حذف'),
                               onPressed: () {
                                 showDialog(
                                   context: context,
@@ -3673,7 +3983,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               ),
                               onPressed: () {
                                 final spansToSave = workingSpans.isNotEmpty &&
-                                        workingSpans.map((s) => s.text.toString()).join('') == textCtrl.text
+                                        workingSpans.map((s) => s.text).join('') == textCtrl.text
                                     ? workingSpans
                                     : [
                                         TextSpanModel(
@@ -3707,7 +4017,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 Navigator.pop(ctx);
                               },
                               child: const Text(
-                                'تأكيد السؤال وحفظ التنسيق',
+                                'تأكيد وحفظ السؤال',
                                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                               ),
                             ),
@@ -3871,7 +4181,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           _exam.header.topMargin1cm = true;
           _exam.header.studentDataMode = choice;
           _exam.header.excelFilePath = path;
-          _exam.header.subjectCode = excelRes.subjectCode;
+          _exam.header.subjectCode = int.tryParse(excelRes.subjectCode) ?? 1;
         });
 
         if (mounted) {
