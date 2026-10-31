@@ -14,7 +14,7 @@ import '../services/omr_sheet_service.dart';
 import '../widgets/exam_custom_keyboard.dart';
 
 // قائمة الخطوط الـ 30 الرسمية المعتمدة والمطابقة تماماً لملف pubspec.yaml
-const List> appFontsList = [
+const List appFontsList = [
   {'id': 'Amiri', 'name': 'خط الأميري (الافتراضي)'},
   {'id': 'Hafs', 'name': 'مصحف حفص (عثماني)'},
   {'id': 'Thuluth', 'name': 'خط الثلث'},
