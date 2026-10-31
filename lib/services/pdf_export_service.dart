@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:permission_handler/permission_handler.dart';
 import '../models/exam_models.dart';
 import 'student_excel_service.dart';
 
@@ -194,7 +193,6 @@ class PdfExportService {
       );
     }
 
-    // تحديد المجلد الآمن المتاح للكتابة
     Directory dir;
     final pdfBytes = await pdf.save();
     final safeName = exam.fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
@@ -203,7 +201,6 @@ class PdfExportService {
       bool canWriteToPublicDownload = false;
       final publicDownload = Directory('/storage/emulated/0/Download');
 
-      // تجربة الكتابة في مجلد التنزيلات العام أولاً
       try {
         if (!publicDownload.existsSync()) {
           publicDownload.createSync(recursive: true);
@@ -219,7 +216,6 @@ class PdfExportService {
       if (canWriteToPublicDownload) {
         dir = publicDownload;
       } else {
-        // إذا كان النظام يحظر الوصول للمسار المباشر، نستخدم مسار التنزيلات الرسمي للتطبيق
         final extDir = await getExternalStorageDirectory();
         dir = extDir ?? await getApplicationDocumentsDirectory();
       }
@@ -947,11 +943,11 @@ class PdfExportService {
                 padding: const pw.EdgeInsets.symmetric(horizontal: 2.0),
                 child: pw.Row(
                   mainAxisSize: pw.MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Column(
                       mainAxisSize: pw.MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
                       children: [
                         pw.Text(
                           'نهـا',
@@ -965,7 +961,7 @@ class PdfExportService {
                         pw.SizedBox(height: 1),
                         pw.Row(
                           mainAxisSize: pw.MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.center,
+                          crossAxisAlignment: pw.CrossAxisAlignment.center,
                           children: [
                             pw.Text(
                               v,
@@ -1160,7 +1156,7 @@ class PdfExportService {
                   textDirection: pw.TextDirection.rtl,
                   child: pw.Column(
                     mainAxisSize: pw.MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
                       ...numbers.asMap().entries.map((entry) {
                         final idx = entry.key;
@@ -1224,7 +1220,7 @@ class PdfExportService {
                   textDirection: isRtl ? pw.TextDirection.rtl : pw.TextDirection.ltr,
                   child: pw.Column(
                     mainAxisSize: pw.MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
                       if (quotient.isNotEmpty)
                         pw.Padding(
@@ -1244,7 +1240,7 @@ class PdfExportService {
                         ),
                       pw.Row(
                         mainAxisSize: pw.MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                        crossAxisAlignment: pw.CrossAxisAlignment.center,
                         children: [
                           pw.Text(
                             divisor,
@@ -1362,7 +1358,7 @@ class PdfExportService {
                 margin: const pw.EdgeInsets.symmetric(vertical: 4),
                 padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 child: pw.Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
                     ...rows.asMap().entries.map((entry) {
                       final idx = entry.key;
