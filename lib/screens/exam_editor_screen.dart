@@ -2876,8 +2876,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showSymbolsModal(void Function(void Function()) setParentState) {
-      final Map<String, List<String>> categories = {
-        'زخارف وفواصل': [
+      final categories = <String, Iterable<String>>{
+        'زخارف وفواصل': const [
           '﴾   ﴿',
           '«   »',
           '۞',
@@ -2893,14 +2893,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           '● ○ ●',
           '※ ※ ※',
         ],
-        'رياضيات عربية RTL': ['[جذر:س]', '[جذر:٢٥]', '[جذر:٣:٢٧]', 'نهـا', 'مجـ', 'تـ', 'ط', 'هـ', '∆', 'س', 'ص', 'ع', 'د', 'ل', 'ك', 'ن', 'ق'],
-        'إحصاء وفيزياء': ['س̄', 'ع', 'ر', 'ف', 'كجم', 'نيوتن', 'جول', 'م/ث', 'أوم', 'فولت', 'أمبير', 'سم³', 'م²'],
-        'تقييم وأقواس': ['✔', '✘', '✓', '✗', '(   )', '[   ]', '○', '●', '□', '■', '« »'],
-        'أسس علوية (س²)': ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹', '⁺', '⁻', 'ⁿ', 'ˣ', 'ʸ'],
-        'صيغ كيميائية (H₂O)': ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉', '₊', '₋', 'ₐ', 'ₑ', 'ₒ', 'ₓ'],
-        'عمليات ومقارنات': ['×', '÷', '+', '-', '=', '≠', '≈', '<', '>', '≤', '≥', '±'],
-        'دوال وجذور': ['[sqrt:x]', '[sqrt:25]', '[sqrt:3:27]', 'π', '∞', '%', '°', '½', '¼', '¾', '∑', '∫'],
-        'أسهم وتوجيه': ['←', '→', '↑', '↓', '↔', '⇐', '⇒', '⇔'],
+        'رياضيات عربية RTL': const ['[جذر:س]', '[جذر:٢٥]', '[جذر:٣:٢٧]', 'نهـا', 'مجـ', 'تـ', 'ط', 'هـ', '∆', 'س', 'ص', 'ع', 'د', 'ل', 'ك', 'ن', 'ق'],
+        'إحصاء وفيزياء': const ['س̄', 'ع', 'ر', 'ف', 'كجم', 'نيوتن', 'جول', 'م/ث', 'أوم', 'فولت', 'أمبير', 'سم³', 'م²'],
+        'تقييم وأقواس': const ['✔', '✘', '✓', '✗', '(   )', '[   ]', '○', '●', '□', '■', '« »'],
+        'أسس علوية (س²)': const ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹', '⁺', '⁻', 'ⁿ', 'ˣ', 'ʸ'],
+        'صيغ كيميائية (H₂O)': const ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉', '₊', '₋', 'ₐ', 'ₑ', 'ₒ', 'ₓ'],
+        'عمليات ومقارنات': const ['×', '÷', '+', '-', '=', '≠', '≈', '<', '>', '≤', '≥', '±'],
+        'دوال وجذور': const ['[sqrt:x]', '[sqrt:25]', '[sqrt:3:27]', 'π', '∞', '%', '°', '½', '¼', '¾', '∑', '∫'],
+        'أسهم وتوجيه': const ['←', '→', '↑', '↓', '↔', '⇐', '⇒', '⇔'],
       };
 
       showModalBottomSheet(
@@ -2916,43 +2916,46 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   isScrollable: true,
                   labelColor: const Color(0xFF1E3A8A),
                   indicatorColor: const Color(0xFF1E3A8A),
-                  tabs: categories.keys.map((c) => Tab(text: c)).toList(),
+                  tabs: [
+                    for (final name in categories.keys) Tab(text: name),
+                  ],
                 ),
                 Expanded(
                   child: TabBarView(
-                    children: categories.values.map<Widget>((symbols) {
-                      final List<String> symbolsList = (symbols as List).cast<String>();
-                      return GridView.builder(
-                        padding: const EdgeInsets.all(12),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    children: [
+                      for (final symbolsGroup in categories.values)
+                        GridView.count(
+                          padding: const EdgeInsets.all(12),
                           crossAxisCount: 6,
                           mainAxisSpacing: 8,
                           crossAxisSpacing: 8,
+                          children: [
+                            for (final sym in symbolsGroup)
+                              InkWell(
+                                onTap: () {
+                                  setParentState(() => insertAtCursor(sym));
+                                  Navigator.pop(bCtx);
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.grey.shade300),
+                                    borderRadius: BorderRadius.circular(6),
+                                    color: Colors.grey.shade50,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      sym,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                        itemCount: symbolsList.length,
-                        itemBuilder: (context, i) {
-                          final sym = symbolsList[i];
-                          return InkWell(
-                            onTap: () {
-                              setParentState(() => insertAtCursor(sym));
-                              Navigator.pop(bCtx);
-                            },
-                            child: Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.shade300),
-                                borderRadius: BorderRadius.circular(6),
-                                color: Colors.grey.shade50,
-                              ),
-                              child: Center(
-                                child: Text(sym,
-                                    style: const TextStyle(
-                                        fontSize: 16, fontWeight: FontWeight.bold)),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    }).toList(),
+                    ],
                   ),
                 ),
               ],
