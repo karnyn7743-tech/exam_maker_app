@@ -78,7 +78,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
   final ImagePicker _picker = ImagePicker();
 
-  // حافظة العناصر لنسخ ولصق الجداول والأشكال والصور عبر الأسئلة
   InsertableElement? _copiedElement;
 
   @override
@@ -1192,8 +1191,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                 ),
               ),
-            );
-          } else if (type == 'قسمة' || type == 'div') {
+            ),
+          );
+        } else if (type == 'قسمة' || type == 'div') {
           final bool isRtl = type == 'قسمة';
           final String dividend = parts.isNotEmpty ? parts[0] : '';
           final String divisor = parts.length > 1 ? parts[1] : '';
