@@ -17,7 +17,8 @@ dependencies:
   device_info_plus: ^10.1.0
   shared_preferences: ^2.2.3
   permission_handler: ^11.3.1
-
+  better_download_saver: ^0.0.1
+  
   # حزم معالجة الوثائق والملفات والطباعة المباشرة
   pdf: ^3.12.0
   printing: ^5.13.0
