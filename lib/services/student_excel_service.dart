@@ -10,7 +10,7 @@ class StudentData {
   StudentData({
     required this.seatNo,
     required this.name,
-    required this.grade,
+    this.grade = '',
     required this.secretCode,
   });
 }
@@ -32,7 +32,7 @@ class StudentExcelService {
   static Future<StudentExcelResult> parseExcelFile(
     String filePath, {
     String? expectedSubject,
-    String? targetGrade, // الصف الدراسي المطلوب استيراده حصراً
+    String? targetGrade,
   }) async {
     final bytes = await File(filePath).readAsBytes();
     final excel = Excel.decodeBytes(bytes);
@@ -68,10 +68,7 @@ class StudentExcelService {
       }
     }
 
-    // تنظيف نص الصف الدراسي المطلوب للفلترة
     final cleanTargetGrade = targetGrade?.trim().toLowerCase() ?? '';
-
-    // 2. قراءة صفوف الطلاب (تخطي الصف الأول)
     final List<StudentData> students = [];
 
     for (int r = 1; r < rows.length; r++) {
@@ -88,11 +85,10 @@ class StudentExcelService {
       final rawSecret = row.length > 3 ? (row[3]?.value?.toString().trim() ?? '') : '';
 
       if (rawSeat.isNotEmpty && rawName.isNotEmpty) {
-        // إذا تم تحديد صف دراسي، نقوم بالتحقق وتجاوز بقية الصفوف
         if (cleanTargetGrade.isNotEmpty && rawGrade.isNotEmpty) {
           final cleanStudentGrade = rawGrade.toLowerCase();
           if (!cleanStudentGrade.contains(cleanTargetGrade) && !cleanTargetGrade.contains(cleanStudentGrade)) {
-            continue; // تجاوز الطالب إذا لم يتطابق مع الصف المختار
+            continue;
           }
         }
 
@@ -100,7 +96,6 @@ class StudentExcelService {
           seatNo: rawSeat,
           name: rawName,
           grade: rawGrade,
-          // إذا كان العمود D فارغاً، نضع رقم الجلوس كبديل آمن لمحتوى الـ QR
           secretCode: rawSecret.isNotEmpty ? rawSecret : rawSeat,
         ));
       }
@@ -116,7 +111,7 @@ class StudentExcelService {
   /// رصد وتحديث درجة الطالب مباشرة في عمود المادة المطابق داخل ملف الإكسيل
   static Future<bool> updateStudentMarkInExcel({
     required String filePath,
-    required String studentIdentifier, // رقم الجلوس أو الرقم السري المقروء من الباركود
+    required String studentIdentifier,
     required String subjectName,
     required double mark,
     int? subjectCode,
@@ -135,7 +130,6 @@ class StudentExcelService {
 
       if (rows.isEmpty) return false;
 
-      // 1. تحديد رقم عمود المادة (من العمود E أي الفهرس 4 وما بعده)
       int targetColIndex = -1;
       final headerRow = rows.first;
       final cleanSubject = subjectName.trim().toLowerCase();
@@ -154,14 +148,12 @@ class StudentExcelService {
         }
       }
 
-      // إذا لم يتم العثور على اسم المادة، نعتمد على كود المادة الافتراضي
       if (targetColIndex == -1 && subjectCode != null) {
-        targetColIndex = 3 + subjectCode; // العمود E هو كود 1 (فهرس 4)
+        targetColIndex = 3 + subjectCode;
       }
 
       if (targetColIndex == -1) return false;
 
-      // 2. البحث عن صف الطالب ومطابقته بواسطة رقم الجلوس (العمود A) أو الرقم السري (العمود D)
       int targetRowIndex = -1;
       final cleanId = studentIdentifier.trim();
 
@@ -180,12 +172,10 @@ class StudentExcelService {
 
       if (targetRowIndex == -1) return false;
 
-      // 3. كتابة الدرجة في تقاطع صف الطالب مع عمود المادة
       sheet
           .cell(CellIndex.indexByColumnRow(columnIndex: targetColIndex, rowIndex: targetRowIndex))
           .value = DoubleCellValue(mark);
 
-      // 4. حفظ ملف الإكسيل بالبيانات الجديدة
       final updatedBytes = excel.save();
       if (updatedBytes != null) {
         await file.writeAsBytes(updatedBytes, flush: true);
