@@ -12,6 +12,8 @@ import '../services/exam_share_service.dart';
 import '../services/student_excel_service.dart';
 import '../services/omr_sheet_service.dart';
 import '../services/question_bank_service.dart';
+import '../services/direct_print_service.dart';
+import 'omr_scanner_screen.dart';
 import '../widgets/exam_custom_keyboard.dart';
 
 typedef FontItem = Map<String, String>;
@@ -218,7 +220,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        content: const Text('يرجى تحديد نوع الوثيقة المراد تصديرها:'),
+        content: const Text('يرجى تحديد نوع الوثيقة:'),
         actions: [
           OutlinedButton.icon(
             icon: const Icon(Icons.school_outlined),
@@ -512,6 +514,33 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         backgroundColor: _showAnswerKeyMode ? const Color(0xFF0F766E) : const Color(0xFF1E3A8A),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          // زر الطباعة المباشرة عبر الشبكة المحلية أو Wi-Fi
+          IconButton(
+            icon: const Icon(Icons.print_outlined, color: Colors.white),
+            tooltip: 'طباعة مباشرة عبر الشبكة (Wi-Fi)',
+            onPressed: () async {
+              final isAnswerKey = await _showExportChoiceDialog('طباعة مباشرة للطابعة');
+              if (isAnswerKey != null && mounted) {
+                await DirectPrintService.printExamDocument(
+                  context: context,
+                  exam: isAnswerKey ? _buildAnswerKeyExam() : _exam,
+                  isAnswerKey: isAnswerKey,
+                );
+              }
+            },
+          ),
+          // زر المصحح الآلي لأوراق التظليل بالكاميرا في حال كان الاختبار مؤتمتاً
+          if (_exam.examType == ExamType.automated)
+            IconButton(
+              icon: const Icon(Icons.qr_code_scanner, color: Colors.tealAccent),
+              tooltip: 'المصحح الآلي بالكاميرا (OMR Scanner)',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => OmrScannerScreen(exam: _exam)),
+                );
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.alt_route, color: Colors.white),
             tooltip: 'توليد نموذج بديل (أ / ب / جـ)',
@@ -1473,9 +1502,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                 ),
               ),
-            ),
-          );
-        } else if (type == 'قسمة' || type == 'div') {
+            );
+          } else if (type == 'قسمة' || type == 'div') {
           final bool isRtl = type == 'قسمة';
           final String dividend = parts.isNotEmpty ? parts[0] : '';
           final String divisor = parts.length > 1 ? parts[1] : '';
