@@ -1098,14 +1098,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 decoration: BoxDecoration(
                   border: isMatrix
-                      ? Border(
-                          left: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
-                          right: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
-                        )
-                      : Border(
-                          left: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.2),
-                          right: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.2),
-                        ),
+                    ? Border(
+                        left: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
+                        right: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
+                      )
+                    : Border(
+                        left: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.2),
+                        right: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.2),
+                      ),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1120,12 +1120,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         } else if (type == 'عمودي') {
           final op = parts.isNotEmpty ? parts[0] : '+';
           final numbers = parts.length > 1 ? parts.sublist(1) : <String>[];
-
-          int maxDigits = 0;
-          for (final num in numbers) {
-            if (num.length > maxDigits) maxDigits = num.length;
-          }
-          final double lineWidth = (maxDigits * 8.0) + 20.0;
 
           children.add(
             WidgetSpan(
@@ -1179,7 +1173,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       }),
                       Container(
                         margin: const EdgeInsets.only(top: 3.0, bottom: 6.0),
-                        width: lineWidth,
                         height: 1.5,
                         color: baseStyle.color ?? Colors.black87,
                       ),
