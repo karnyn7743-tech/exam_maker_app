@@ -530,7 +530,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               ),
               Expanded(
                 child: Column(
-                  mainAxisAlignment:指示Center,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     InkWell(
                       onTap: _editBasmalaDialog,
