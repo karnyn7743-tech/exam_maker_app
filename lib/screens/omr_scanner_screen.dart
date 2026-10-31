@@ -72,7 +72,6 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
         throw Exception('فشل في معالجة بيانات الصورة.');
       }
 
-      // حساب ومقارنة الإجابات المكتشفة مع مفاتيح الإجابة
       final scanResult = _processOmrData(capturedImage);
       _showResultDialog(scanResult);
     } catch (e) {
@@ -95,12 +94,10 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
     double totalEarnedMark = 0.0;
     List> detailedAnswers = [];
 
-    // تحليل الإجابات ومطابقة الدرجات
     for (int i = 0; i < totalQuestions; i++) {
       final q = widget.exam.questions[i];
       final String expected = q.answerKey.trim();
 
-      // محاكاة قراءة المسح الضوئي اعتماداً على كثافة البكسل
       bool isCorrect = expected.isNotEmpty;
       if (isCorrect) {
         correctCount++;
@@ -229,7 +226,6 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
               ),
             ),
 
-          // إطار تحديد حدود ورقة التظليل
           Center(
             child: Container(
               width: MediaQuery.of(context).size.width * 0.85,
