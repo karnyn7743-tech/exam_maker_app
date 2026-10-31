@@ -1162,36 +1162,36 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                         ),
                                       )
                                     : null,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                val,
-                                textAlign: TextAlign.right,
-                                style: baseStyle.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: (baseStyle.fontSize ?? 14) * 1.1,
-                                  letterSpacing: 2.0,
-                                  fontFamily: 'Amiri',
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  val,
+                                  textAlign: TextAlign.right,
+                                  style: baseStyle.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: (baseStyle.fontSize ?? 14) * 1.1,
+                                    letterSpacing: 2.0,
+                                    fontFamily: 'Amiri',
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        );
-                      }),
-                      Container(
-                        margin: const EdgeInsets.only(top: 3.0, bottom: 6.0),
-                        width: lineWidth,
-                        height: 1.5,
-                        color: baseStyle.color ?? Colors.black87,
-                      ),
-                    ],
+                            ],
+                          );
+                        }),
+                        Container(
+                          margin: const EdgeInsets.only(top: 3.0, bottom: 6.0),
+                          width: lineWidth,
+                          height: 1.5,
+                          color: baseStyle.color ?? Colors.black87,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          );
-        } else if (type == 'قسمة' || type == 'div') {
+            );
+          } else if (type == 'قسمة' || type == 'div') {
           final bool isRtl = type == 'قسمة';
           final String dividend = parts.isNotEmpty ? parts[0] : '';
           final String divisor = parts.length > 1 ? parts[1] : '';
@@ -3807,7 +3807,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   const SizedBox(height: 4),
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF1E3A8A)),
+                      foregroundColor: const Color(0xFF1E3A8A),
                       side: const BorderSide(color: Color(0xFF1E3A8A)),
                     ),
                     icon: const Icon(Icons.table_chart_outlined, size: 18),
