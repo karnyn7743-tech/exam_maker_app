@@ -78,6 +78,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
   final ImagePicker _picker = ImagePicker();
 
+  // حافظة العناصر لنسخ ولصق الجداول والأشكال والصور عبر الأسئلة
+  InsertableElement? _copiedElement;
+
   @override
   void initState() {
     super.initState();
@@ -1189,9 +1192,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                 ),
               ),
-            ),
-          );
-        } else if (type == 'قسمة' || type == 'div') {
+            );
+          } else if (type == 'قسمة' || type == 'div') {
           final bool isRtl = type == 'قسمة';
           final String dividend = parts.isNotEmpty ? parts[0] : '';
           final String divisor = parts.length > 1 ? parts[1] : '';
@@ -2549,7 +2551,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               children: const [
                 Icon(Icons.table_chart, color: Color(0xFF1E3A8A)),
                 SizedBox(width: 8),
-                Text('تصميم وإدراج جدول مخصص', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text('تصميم وإعداد أبعاد الجدول', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ],
             ),
             content: SizedBox(
@@ -2590,38 +2592,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ],
                     ),
                     const Divider(),
-                    const Text('محتويات خلايا الجدول (انقر للكتابة والتعديل):',
-                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-                    const SizedBox(height: 8),
-                    Table(
-                      border: TableBorder.all(color: Colors.grey.shade400),
-                      children: List.generate(rowCount, (r) {
-                        final isHeader = (r == 0 && hasHeader);
-                        return TableRow(
-                          decoration: BoxDecoration(color: isHeader ? Colors.blue.shade50 : Colors.white),
-                          children: List.generate(colCount, (c) {
-                            return Padding(
-                              padding: const EdgeInsets.all(4.0),
-                              child: TextField(
-                                controller: controllers[r][c],
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
-                                  fontSize: 12,
-                                  fontFamily: 'Amiri',
-                                ),
-                                decoration: InputDecoration(
-                                  isDense: true,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                                  border: const OutlineInputBorder(),
-                                  hintText: isHeader ? 'عمود ${c + 1}' : '...',
-                                ),
-                              ),
-                            );
-                          }),
-                        );
-                      }),
-                    ),
+                    const Text('ملاحظة: يمكنك إدخال وتعديل نصوص الجدول مباشرة من شاشة تحرير السؤال دون الحاجة لفتح هذا الحوار.',
+                        style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
                   ],
                 ),
               ),
@@ -2966,6 +2938,231 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       );
     }
 
+    Widget buildInteractiveEditorElement(InsertableElement el, int elementIndex, StateSetter setModalState) {
+      void moveElementUp() {
+        if (elementIndex > 0) {
+          setModalState(() {
+            final item = currentElements.removeAt(elementIndex);
+            currentElements.insert(elementIndex - 1, item);
+          });
+        }
+      }
+
+      void moveElementDown() {
+        if (elementIndex < currentElements.length - 1) {
+          setModalState(() {
+            final item = currentElements.removeAt(elementIndex);
+            currentElements.insert(elementIndex + 1, item);
+          });
+        }
+      }
+
+      void copyElementToClipboard() {
+        setState(() {
+          _copiedElement = InsertableElement(
+            id: const Uuid().v4(),
+            type: el.type,
+            content: el.content,
+            width: el.width,
+            height: el.height,
+          );
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم نسخ العنصر إلى الحافظة. يمكنك لصقه في هذا السؤال أو أي سؤال آخر.'),
+            duration: Duration(seconds: 2),
+            backgroundColor: Color(0xFF1E3A8A),
+          ),
+        );
+      }
+
+      void duplicateElementDirectly() {
+        setModalState(() {
+          currentElements.insert(
+            elementIndex + 1,
+            InsertableElement(
+              id: const Uuid().v4(),
+              type: el.type,
+              content: el.content,
+              width: el.width,
+              height: el.height,
+            ),
+          );
+        });
+      }
+
+      Widget buildElementActionToolbar({required String title, required IconData icon, required Color color, VoidCallback? onEdit}) {
+        return Row(
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: color)),
+            const Spacer(),
+            IconButton(
+              icon: const Icon(Icons.arrow_upward, size: 18, color: Colors.blueGrey),
+              tooltip: 'تحريك لأعلى',
+              onPressed: elementIndex > 0 ? moveElementUp : null,
+            ),
+            IconButton(
+              icon: const Icon(Icons.arrow_downward, size: 18, color: Colors.blueGrey),
+              tooltip: 'تحريك لأسفل',
+              onPressed: elementIndex < currentElements.length - 1 ? moveElementDown : null,
+            ),
+            IconButton(
+              icon: const Icon(Icons.copy_outlined, size: 17, color: Color(0xFF1E3A8A)),
+              tooltip: 'نسخ للحافظة (للصق في سؤال آخر أو ورقة أخرى)',
+              onPressed: copyElementToClipboard,
+            ),
+            IconButton(
+              icon: const Icon(Icons.control_point_duplicate, size: 18, color: Color(0xFF0F766E)),
+              tooltip: 'تكرار فوري في نفس السؤال',
+              onPressed: duplicateElementDirectly,
+            ),
+            if (onEdit != null)
+              IconButton(
+                icon: const Icon(Icons.tune, size: 18, color: Colors.indigo),
+                tooltip: 'تعديل الأبعاد والإعدادات',
+                onPressed: onEdit,
+              ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+              tooltip: 'حذف العنصر',
+              onPressed: () => setModalState(() => currentElements.removeAt(elementIndex)),
+            ),
+          ],
+        );
+      }
+
+      if (el.type == ElementType.table) {
+        try {
+          final Map<String, dynamic> data = jsonDecode(el.content);
+          final int rows = (data['rows'] as num?)?.toInt() ?? 2;
+          final int cols = (data['cols'] as num?)?.toInt() ?? 2;
+          final bool hasHeader = data['hasHeader'] ?? true;
+          final List<dynamic> rawGrid = data['data'] ?? [];
+
+          return Container(
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.indigo.shade50.withOpacity(0.4),
+              border: Border.all(color: Colors.indigo.shade200),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                buildElementActionToolbar(
+                  title: 'جدول مدرج (اكتب مباشرة داخل الخلايا):',
+                  icon: Icons.table_chart,
+                  color: const Color(0xFF1E3A8A),
+                  onEdit: () => showTableDesignerDialog(setModalState, existingElement: el),
+                ),
+                const SizedBox(height: 4),
+                Table(
+                  border: TableBorder.all(color: Colors.black87, width: 1.0),
+                  children: List.generate(rows, (r) {
+                    final isHeader = (r == 0 && hasHeader);
+                    return TableRow(
+                      decoration: BoxDecoration(color: isHeader ? Colors.grey.shade200 : Colors.white),
+                      children: List.generate(cols, (c) {
+                        String cellVal = '';
+                        if (r < rawGrid.length && c < (rawGrid[r] as List).length) {
+                          cellVal = rawGrid[r][c]?.toString() ?? '';
+                        }
+                        return TableCell(
+                          verticalAlignment: TableCellVerticalAlignment.middle,
+                          child: Padding(
+                            padding: const EdgeInsets.all(2.0),
+                            child: TextFormField(
+                              initialValue: cellVal,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontFamily: 'Amiri',
+                                fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
+                                fontSize: isHeader ? 12.5 : 11.5,
+                              ),
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                              ),
+                              onChanged: (newText) {
+                                while (rawGrid.length <= r) {
+                                  rawGrid.add(List.generate(cols, (_) => ''));
+                                }
+                                while ((rawGrid[r] as List).length <= c) {
+                                  (rawGrid[r] as List).add('');
+                                }
+                                rawGrid[r][c] = newText;
+                                el.content = jsonEncode({
+                                  'rows': rows,
+                                  'cols': cols,
+                                  'hasHeader': hasHeader,
+                                  'data': rawGrid,
+                                });
+                              },
+                            ),
+                          ),
+                        );
+                      }),
+                    );
+                  }),
+                ),
+              ],
+            ),
+          );
+        } catch (_) {
+          return const SizedBox.shrink();
+        }
+      }
+
+      if (el.type == ElementType.shape) {
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.amber.shade50.withOpacity(0.4),
+            border: Border.all(color: Colors.amber.shade300),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              buildElementActionToolbar(
+                title: 'شكل هندسي مدرج:',
+                icon: Icons.category,
+                color: const Color(0xFFD97706),
+                onEdit: () => showShapeDesignerDialog(setModalState, existingElement: el),
+              ),
+              _renderCustomShape(el.content),
+            ],
+          ),
+        );
+      }
+
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            buildElementActionToolbar(
+              title: 'عنصر مدرج:',
+              icon: Icons.widgets_outlined,
+              color: Colors.blueGrey.shade800,
+            ),
+            _buildRenderedElement(el),
+          ],
+        ),
+      );
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -3053,6 +3250,30 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Row(
                             children: [
+                              if (_copiedElement != null)
+                                _buildBarBtn(
+                                  icon: Icons.paste,
+                                  text: 'لصق عنصر',
+                                  color: const Color(0xFF10B981),
+                                  tooltip: 'لصق العنصر المنسوخ من الحافظة في هذا السؤال',
+                                  onTap: () {
+                                    setModalState(() {
+                                      currentElements.add(InsertableElement(
+                                        id: const Uuid().v4(),
+                                        type: _copiedElement!.type,
+                                        content: _copiedElement!.content,
+                                        width: _copiedElement!.width,
+                                        height: _copiedElement!.height,
+                                      ));
+                                    });
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('تم لصق العنصر بنجاح في هذا السؤال.'),
+                                        duration: Duration(seconds: 1),
+                                      ),
+                                    );
+                                  },
+                                ),
                               _buildBarBtn(
                                 text: 'صفحة ⤶',
                                 color: const Color(0xFF475569),
@@ -3354,6 +3575,18 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ),
                       const SizedBox(height: 8),
 
+                      if (currentElements.isNotEmpty) ...[
+                        const Text(
+                          'العناصر والجداول المدرجة في هذا السؤال (معاينة وتحرير وتحريك ونسخ):',
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
+                        ),
+                        const SizedBox(height: 4),
+                        ...currentElements.asMap().entries.map((entry) {
+                          return buildInteractiveEditorElement(entry.value, entry.key, setModalState);
+                        }),
+                        const SizedBox(height: 8),
+                      ],
+
                       TextField(
                         controller: answerCtrl,
                         readOnly: false,
@@ -3383,102 +3616,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         ),
                       ),
 
-                      if (currentElements.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        const Text(
-                          'العناصر المدرجة في السؤال (انقر للتعديل أو اضغط ✕ للحذف):',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey),
-                        ),
-                        const SizedBox(height: 4),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 4,
-                          children: currentElements.asMap().entries.map((entry) {
-                            final i = entry.key;
-                            final el = entry.value;
-                            String lbl = 'عنصر';
-                            IconData? icon;
-                            if (el.type == ElementType.image) {
-                              lbl = 'صورة مدرجة';
-                              icon = Icons.image_outlined;
-                            }
-                            if (el.type == ElementType.textBox) {
-                              lbl = 'مربع إرشاد';
-                              icon = Icons.edit_note;
-                            }
-                            if (el.type == ElementType.dottedLine) {
-                              lbl = 'سطر إجابة';
-                              icon = Icons.border_horizontal;
-                            }
-                            if (el.type == ElementType.mathOperation) {
-                              lbl = 'عملية رياضية / كسر';
-                              icon = Icons.calculate_outlined;
-                            }
-                            if (el.type == ElementType.table) {
-                              lbl = 'جدول مخصص';
-                              icon = Icons.table_chart;
-                            }
-                            if (el.type == ElementType.shape) {
-                              lbl = 'شكل هندسي';
-                              icon = Icons.category;
-                            }
-
-                            return Chip(
-                              avatar: icon != null ? Icon(icon, size: 15, color: const Color(0xFF1E3A8A)) : null,
-                              label: InkWell(
-                                onTap: () {
-                                  if (el.type == ElementType.table) {
-                                    showTableDesignerDialog(setModalState, existingElement: el);
-                                  } else if (el.type == ElementType.shape) {
-                                    showShapeDesignerDialog(setModalState, existingElement: el);
-                                  }
-                                },
-                                child: Text(
-                                  lbl,
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              deleteIcon: const Icon(Icons.cancel, size: 18, color: Colors.red),
-                              onDeleted: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (delCtx) => AlertDialog(
-                                    title: const Text('تأكيد حذف العنصر'),
-                                    content: Text('هل أنت متأكد من حذف ($lbl) من هذا السؤال؟'),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(delCtx),
-                                        child: const Text('إلغاء'),
-                                      ),
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade800),
-                                        onPressed: () {
-                                          setModalState(() {
-                                            currentElements.removeAt(i);
-                                          });
-                                          Navigator.pop(delCtx);
-                                        },
-                                        child: const Text('نعم، احذف', style: TextStyle(color: Colors.white)),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                              backgroundColor: (el.type == ElementType.table || el.type == ElementType.shape)
-                                  ? Colors.indigo.shade50
-                                  : Colors.grey.shade100,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                side: BorderSide(
-                                  color: (el.type == ElementType.table || el.type == ElementType.shape)
-                                      ? Colors.indigo.shade200
-                                      : Colors.grey.shade300,
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
                       const SizedBox(height: 10),
 
                       Row(
@@ -3617,16 +3754,22 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             borderRadius: BorderRadius.circular(4),
           ),
           child: Center(
-            child: icon != null
-                ? Icon(icon, color: Colors.white, size: 18)
-                : Text(
-                    text ?? '',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) Icon(icon, color: Colors.white, size: 18),
+                if (icon != null && text != null) const SizedBox(width: 4),
+                if (text != null)
+                  Text(
+                    text,
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
                   ),
+              ],
+            ),
           ),
         ),
       ),
