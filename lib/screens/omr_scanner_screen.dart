@@ -92,7 +92,7 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
     final int totalQuestions = widget.exam.questions.length;
     int correctCount = 0;
     double totalEarnedMark = 0.0;
-    final detailedAnswers = >[];
+    final detailedAnswers = List<dynamic>.empty(growable: true);
 
     for (int i = 0; i < totalQuestions; i++) {
       final q = widget.exam.questions[i];
