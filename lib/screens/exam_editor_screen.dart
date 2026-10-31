@@ -13,8 +13,10 @@ import '../services/student_excel_service.dart';
 import '../services/omr_sheet_service.dart';
 import '../widgets/exam_custom_keyboard.dart';
 
+typedef FontItem = Map<String, String>;
+
 // قائمة الخطوط الـ 30 الرسمية المعتمدة والمطابقة تماماً لملف pubspec.yaml
-const List appFontsList = [
+const List<FontItem> appFontsList = [
   {'id': 'Amiri', 'name': 'خط الأميري (الافتراضي)'},
   {'id': 'Hafs', 'name': 'مصحف حفص (عثماني)'},
   {'id': 'Thuluth', 'name': 'خط الثلث'},
@@ -528,7 +530,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               ),
               Expanded(
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisAlignment:指示Center,
                   children: [
                     InkWell(
                       onTap: _editBasmalaDialog,
@@ -3843,7 +3845,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   children: [
                     DropdownButton<String>(
                       value: appFontsList.any((e) => e['id'] == font) ? font : 'Amiri',
-                      items: appFontsList.map((f) => DropdownMenuItem(
+                      items: appFontsList.map((f) => DropdownMenuItem<String>(
                         value: f['id']!,
                         child: Text(f['name']!, style: TextStyle(fontFamily: f['id']!, fontSize: 13)),
                       )).toList(),
@@ -3923,7 +3925,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   children: [
                     DropdownButton<String>(
                       value: appFontsList.any((e) => e['id'] == font) ? font : 'Amiri',
-                      items: appFontsList.map((f) => DropdownMenuItem(
+                      items: appFontsList.map((f) => DropdownMenuItem<String>(
                         value: f['id']!,
                         child: Text(f['name']!, style: TextStyle(fontFamily: f['id']!, fontSize: 13)),
                       )).toList(),
@@ -4003,7 +4005,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 children: [
                   DropdownButton<String>(
                     value: appFontsList.any((e) => e['id'] == font) ? font : 'Amiri',
-                    items: appFontsList.map((f) => DropdownMenuItem(
+                    items: appFontsList.map((f) => DropdownMenuItem<String>(
                       value: f['id']!,
                       child: Text(f['name']!, style: TextStyle(fontFamily: f['id']!, fontSize: 13)),
                     )).toList(),
@@ -4080,7 +4082,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 children: [
                   DropdownButton<String>(
                     value: appFontsList.any((e) => e['id'] == font) ? font : 'Amiri',
-                    items: appFontsList.map((f) => DropdownMenuItem(
+                    items: appFontsList.map((f) => DropdownMenuItem<String>(
                       value: f['id']!,
                       child: Text(f['name']!, style: TextStyle(fontFamily: f['id']!, fontSize: 13)),
                     )).toList(),
