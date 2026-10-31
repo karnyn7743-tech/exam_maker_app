@@ -846,8 +846,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
         if (type == 'كسر') {
           final p = rawContent.split('/');
-          final num = p.isNotEmpty ? p[0] : '';
-          final den = p.length > 1 ? p[1] : '';
+          final numVal = p.isNotEmpty ? p[0] : '';
+          final denVal = p.length > 1 ? p[1] : '';
 
           children.add(
             WidgetSpan(
@@ -860,7 +860,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        num,
+                        numVal,
                         textAlign: TextAlign.center,
                         style: baseStyle.copyWith(
                           fontSize: (baseStyle.fontSize ?? 14) * 0.85,
@@ -873,7 +873,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         margin: const EdgeInsets.symmetric(vertical: 1.0),
                       ),
                       Text(
-                        den,
+                        denVal,
                         textAlign: TextAlign.center,
                         style: baseStyle.copyWith(
                           fontSize: (baseStyle.fontSize ?? 14) * 0.85,
@@ -1122,6 +1122,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           final op = parts.isNotEmpty ? parts[0] : '+';
           final numbers = parts.length > 1 ? parts.sublist(1) : <String>[];
 
+          int maxDigits = 0;
+          for (final num in numbers) {
+            if (num.length > maxDigits) maxDigits = num.length;
+          }
+          final double lineWidth = (maxDigits * 8.0) + 20.0;
+
           children.add(
             WidgetSpan(
               alignment: PlaceholderAlignment.middle,
@@ -1155,30 +1161,29 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                         ),
                                       )
                                     : null,
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  val,
-                                  textAlign: TextAlign.right,
-                                  style: baseStyle.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: (baseStyle.fontSize ?? 14) * 1.1,
-                                    letterSpacing: 2.0,
-                                    fontFamily: 'Amiri',
-                                  ),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                val,
+                                textAlign: TextAlign.right,
+                                style: baseStyle.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: (baseStyle.fontSize ?? 14) * 1.1,
+                                  letterSpacing: 2.0,
+                                  fontFamily: 'Amiri',
                                 ),
                               ),
-                            ],
-                          );
-                        }),
-                        Container(
-                          margin: const EdgeInsets.only(top: 3.0, bottom: 6.0),
-                          height: 1.5,
-                          color: baseStyle.color ?? Colors.black87,
-                        ),
-                      ],
-                    ),
+                            ),
+                          ],
+                        );
+                      }),
+                      Container(
+                        margin: const EdgeInsets.only(top: 3.0, bottom: 6.0),
+                        height: 1.5,
+                        color: baseStyle.color ?? Colors.black87,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1585,8 +1590,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   Widget _renderCustomTable(String jsonStr) {
     try {
       final Map<String, dynamic> data = jsonDecode(jsonStr);
-      final int rows = data['rows'] ?? 2;
-      final int cols = data['cols'] ?? 2;
+      final int rows = (data['rows'] as num?)?.toInt() ?? 2;
+      final int cols = (data['cols'] as num?)?.toInt() ?? 2;
       final bool hasHeader = data['hasHeader'] ?? true;
       final List<dynamic> rawGrid = data['data'] ?? [];
 
@@ -1743,8 +1748,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
         );
       } else if (kind == 'fraction') {
-        final num = data['num'] ?? '';
-        final den = data['den'] ?? '';
+        final numVal = data['num'] ?? '';
+        final denVal = data['den'] ?? '';
         return Center(
           child: IntrinsicWidth(
             child: Column(
@@ -1754,7 +1759,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: Text(
-                    num,
+                    numVal,
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                   ),
@@ -1767,7 +1772,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: Text(
-                    den,
+                    denVal,
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                   ),
@@ -2012,7 +2017,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     final titleCtrl = TextEditingController(text: q.title);
     final textCtrl =
-        TextEditingController(text: q.spans.map((e) => e.text).join(''));
+        TextEditingController(text: q.spans.map((e) => e.text.toString()).join(''));
     final markCtrl =
         TextEditingController(text: q.mark > 0 ? q.mark.toString() : '5');
     final answerCtrl = TextEditingController(text: q.answerKey);
@@ -2025,7 +2030,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     List<TextSpanModel> workingSpans = q.spans.isNotEmpty
         ? q.spans.map((s) => TextSpanModel(
-              text: s.text,
+              text: s.text.toString(),
               isBold: s.isBold,
               isUnderline: s.isUnderline,
               fontSize: s.fontSize,
@@ -2066,11 +2071,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       bool handled = false;
 
       for (final span in workingSpans) {
-        final spanEnd = currentOffset + span.text.length;
+        final String spanText = span.text.toString();
+        final int spanLen = spanText.length;
+        final int spanEnd = currentOffset + spanLen;
+
         if (!handled && offset >= currentOffset && offset <= spanEnd) {
-          final rel = offset - currentOffset;
-          final before = span.text.substring(0, rel);
-          final after = span.text.substring(rel);
+          final int rel = offset - currentOffset;
+          final String before = spanText.substring(0, rel);
+          final String after = spanText.substring(rel);
 
           if (before.isNotEmpty) {
             nextSpans.add(TextSpanModel(
@@ -2117,7 +2125,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           isUnderline: template.isUnderline,
         ));
       }
-      workingSpans = nextSpans.where((s) => s.text.isNotEmpty).toList();
+      workingSpans = nextSpans.where((s) => s.text.toString().isNotEmpty).toList();
     }
 
     void insertAtCursor(String symbol) {
@@ -2174,15 +2182,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       }
 
       final fullText = textCtrl.text;
-      final selStart = sel.start < sel.end ? sel.start : sel.end;
-      final selEnd = sel.start < sel.end ? sel.end : sel.start;
+      final int selStart = sel.start < sel.end ? sel.start : sel.end;
+      final int selEnd = sel.start < sel.end ? sel.end : sel.start;
 
       List<TextSpanModel> newSpans = [];
       int currentPos = 0;
 
       for (var span in workingSpans) {
-        int spanStart = currentPos;
-        int spanEnd = currentPos + span.text.length;
+        final String spanText = span.text.toString();
+        final int spanLen = spanText.length;
+        final int spanStart = currentPos;
+        final int spanEnd = currentPos + spanLen;
 
         if (spanEnd <= selStart || spanStart >= selEnd) {
           newSpans.add(span);
@@ -2198,8 +2208,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ));
           }
 
-          int overlapStart = spanStart > selStart ? spanStart : selStart;
-          int overlapEnd = spanEnd < selEnd ? spanEnd : selEnd;
+          final int overlapStart = spanStart > selStart ? spanStart : selStart;
+          final int overlapEnd = spanEnd < selEnd ? spanEnd : selEnd;
 
           newSpans.add(TextSpanModel(
             text: fullText.substring(overlapStart, overlapEnd),
@@ -2224,7 +2234,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         currentPos = spanEnd;
       }
 
-      workingSpans = newSpans.where((s) => s.text.isNotEmpty).toList();
+      workingSpans = newSpans.where((s) => s.text.toString().isNotEmpty).toList();
     }
 
     void showAdvancedEquationDialog(void Function(void Function()) setParentState) {
@@ -2490,8 +2500,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       if (existingElement != null && existingElement.type == ElementType.table) {
         try {
           final Map<String, dynamic> data = jsonDecode(existingElement.content);
-          rowCount = data['rows'] ?? 3;
-          colCount = data['cols'] ?? 3;
+          rowCount = (data['rows'] as num?)?.toInt() ?? 3;
+          colCount = (data['cols'] as num?)?.toInt() ?? 3;
           hasHeader = data['hasHeader'] ?? true;
           final List<dynamic> gridData = data['data'] ?? [];
 
@@ -3464,7 +3474,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               ),
                               onPressed: () {
                                 final spansToSave = workingSpans.isNotEmpty &&
-                                        workingSpans.map((s) => s.text).join('') == textCtrl.text
+                                        workingSpans.map((s) => s.text.toString()).join('') == textCtrl.text
                                     ? workingSpans
                                     : [
                                         TextSpanModel(
