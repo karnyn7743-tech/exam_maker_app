@@ -1010,7 +1010,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 3.0),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
@@ -1163,30 +1162,30 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                         ),
                                       )
                                     : null,
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  val,
-                                  textAlign: TextAlign.right,
-                                  style: baseStyle.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: (baseStyle.fontSize ?? 14) * 1.1,
-                                    letterSpacing: 2.0,
-                                    fontFamily: 'Amiri',
-                                  ),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                val,
+                                textAlign: TextAlign.right,
+                                style: baseStyle.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: (baseStyle.fontSize ?? 14) * 1.1,
+                                  letterSpacing: 2.0,
+                                  fontFamily: 'Amiri',
                                 ),
                               ),
-                            ],
-                          );
-                        }),
-                        Container(
-                          margin: const EdgeInsets.only(top: 3.0, bottom: 6.0),
-                          height: 1.5,
-                          color: baseStyle.color ?? Colors.black87,
-                        ),
-                      ],
-                    ),
+                            ),
+                          ],
+                        );
+                      }),
+                      Container(
+                        margin: const EdgeInsets.only(top: 3.0, bottom: 6.0),
+                        width: lineWidth,
+                        height: 1.5,
+                        color: baseStyle.color ?? Colors.black87,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -3386,39 +3385,96 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
                       if (currentElements.isNotEmpty) ...[
                         const SizedBox(height: 8),
+                        const Text(
+                          'العناصر المدرجة في السؤال (انقر للتعديل أو اضغط ✕ للحذف):',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+                        ),
+                        const SizedBox(height: 4),
                         Wrap(
                           spacing: 8,
+                          runSpacing: 4,
                           children: currentElements.asMap().entries.map((entry) {
                             final i = entry.key;
                             final el = entry.value;
                             String lbl = 'عنصر';
                             IconData? icon;
-                            if (el.type == ElementType.image) lbl = 'صورة مدرجة';
-                            if (el.type == ElementType.textBox) lbl = 'مربع إرشاد';
-                            if (el.type == ElementType.dottedLine) lbl = 'سطر إجابة';
-                            if (el.type == ElementType.mathOperation) lbl = 'عملية رياضية / كسر';
+                            if (el.type == ElementType.image) {
+                              lbl = 'صورة مدرجة';
+                              icon = Icons.image_outlined;
+                            }
+                            if (el.type == ElementType.textBox) {
+                              lbl = 'مربع إرشاد';
+                              icon = Icons.edit_note;
+                            }
+                            if (el.type == ElementType.dottedLine) {
+                              lbl = 'سطر إجابة';
+                              icon = Icons.border_horizontal;
+                            }
+                            if (el.type == ElementType.mathOperation) {
+                              lbl = 'عملية رياضية / كسر';
+                              icon = Icons.calculate_outlined;
+                            }
                             if (el.type == ElementType.table) {
                               lbl = 'جدول مخصص';
-                              icon = Icons.edit_calendar;
+                              icon = Icons.table_chart;
                             }
                             if (el.type == ElementType.shape) {
-                              lbl = 'شكل تلقائي';
+                              lbl = 'شكل هندسي';
                               icon = Icons.category;
                             }
 
-                            return ActionChip(
-                              label: Text(lbl),
-                              avatar: icon != null ? Icon(icon, size: 14) : null,
-                              onPressed: () {
-                                if (el.type == ElementType.table) {
-                                  showTableDesignerDialog(setModalState, existingElement: el);
-                                } else if (el.type == ElementType.shape) {
-                                  showShapeDesignerDialog(setModalState, existingElement: el);
-                                }
+                            return Chip(
+                              avatar: icon != null ? Icon(icon, size: 15, color: const Color(0xFF1E3A8A)) : null,
+                              label: InkWell(
+                                onTap: () {
+                                  if (el.type == ElementType.table) {
+                                    showTableDesignerDialog(setModalState, existingElement: el);
+                                  } else if (el.type == ElementType.shape) {
+                                    showShapeDesignerDialog(setModalState, existingElement: el);
+                                  }
+                                },
+                                child: Text(
+                                  lbl,
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              deleteIcon: const Icon(Icons.cancel, size: 18, color: Colors.red),
+                              onDeleted: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (delCtx) => AlertDialog(
+                                    title: const Text('تأكيد حذف العنصر'),
+                                    content: Text('هل أنت متأكد من حذف ($lbl) من هذا السؤال؟'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(delCtx),
+                                        child: const Text('إلغاء'),
+                                      ),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade800),
+                                        onPressed: () {
+                                          setModalState(() {
+                                            currentElements.removeAt(i);
+                                          });
+                                          Navigator.pop(delCtx);
+                                        },
+                                        child: const Text('نعم، احذف', style: TextStyle(color: Colors.white)),
+                                      ),
+                                    ],
+                                  ),
+                                );
                               },
                               backgroundColor: (el.type == ElementType.table || el.type == ElementType.shape)
                                   ? Colors.indigo.shade50
-                                  : null,
+                                  : Colors.grey.shade100,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                side: BorderSide(
+                                  color: (el.type == ElementType.table || el.type == ElementType.shape)
+                                      ? Colors.indigo.shade200
+                                      : Colors.grey.shade300,
+                                ),
+                              ),
                             );
                           }).toList(),
                         ),
@@ -3751,7 +3807,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   const SizedBox(height: 4),
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF1E3A8A),
+                      foregroundColor: const Color(0xFF1E3A8A)),
                       side: const BorderSide(color: Color(0xFF1E3A8A)),
                     ),
                     icon: const Icon(Icons.table_chart_outlined, size: 18),
