@@ -1008,7 +1008,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 3.0),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
@@ -1180,6 +1179,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       }),
                       Container(
                         margin: const EdgeInsets.only(top: 3.0, bottom: 6.0),
+                        width: lineWidth,
                         height: 1.5,
                         color: baseStyle.color ?? Colors.black87,
                       ),
@@ -1275,7 +1275,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _buildQuestionContent(QuestionModel q) {
-    final fullText = q.spans.map((s) => s.text).join('');
+    final fullText = q.spans.map((s) => s.text.toString()).join('');
     final bool isAutomatedMcq = _exam.examType == ExamType.automated &&
         (fullText.contains('[') && (fullText.contains('أ-') || fullText.contains('١-') || fullText.contains('1-')));
 
@@ -1300,7 +1300,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               color: spanColor,
               height: 1.5,
             );
-            return _buildInlineSpanWithFractions(s.text, style);
+            return _buildInlineSpanWithFractions(s.text.toString(), style);
           }).toList(),
         ),
         textAlign: TextAlign.right,
@@ -1326,7 +1326,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               color: spanColor,
               height: 1.5,
             );
-            return _buildInlineSpanWithFractions(s.text, style);
+            return _buildInlineSpanWithFractions(s.text.toString(), style);
           }).toList(),
         ),
         textAlign: TextAlign.right,
@@ -1395,7 +1395,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _buildAutomatedEditorMcqGrid(QuestionModel q) {
-    final fullText = q.spans.map((s) => s.text).join('');
+    final fullText = q.spans.map((s) => s.text.toString()).join('');
     final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
 
     final String intro = lines.isNotEmpty ? lines.first : '';
@@ -2073,10 +2073,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       for (final span in workingSpans) {
         final String spanText = span.text.toString();
         final int spanLen = spanText.length;
-        final int spanEnd = currentOffset + spanLen;
+        final int spanEnd = (currentOffset + spanLen).toInt();
 
         if (!handled && offset >= currentOffset && offset <= spanEnd) {
-          final int rel = offset - currentOffset;
+          final int rel = (offset - currentOffset).toInt();
           final String before = spanText.substring(0, rel);
           final String after = spanText.substring(rel);
 
@@ -2112,7 +2112,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         } else {
           nextSpans.add(span);
         }
-        currentOffset = spanEnd;
+        currentOffset = spanEnd.toInt();
       }
 
       if (!handled) {
@@ -2192,7 +2192,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         final String spanText = span.text.toString();
         final int spanLen = spanText.length;
         final int spanStart = currentPos;
-        final int spanEnd = currentPos + spanLen;
+        final int spanEnd = (currentPos + spanLen).toInt();
 
         if (spanEnd <= selStart || spanStart >= selEnd) {
           newSpans.add(span);
@@ -2231,7 +2231,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ));
           }
         }
-        currentPos = spanEnd;
+        currentPos = spanEnd.toInt();
       }
 
       workingSpans = newSpans.where((s) => s.text.toString().isNotEmpty).toList();
@@ -2875,7 +2875,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showSymbolsModal(void Function(void Function()) setParentState) {
-      final Map<String, List<String>> categories = {
+      final Map<String, dynamic> categories = {
         'زخارف وفواصل': [
           '﴾   ﴿',
           '«   »',
@@ -2919,39 +2919,48 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 Expanded(
                   child: TabBarView(
-                    children: categories.values.map<Widget>((List<String> symbols) {
-                      final List<String> symbolsList = symbols;
-                      return GridView.builder(
-                        padding: const EdgeInsets.all(12),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 6,
-                          mainAxisSpacing: 8,
-                          crossAxisSpacing: 8,
+                    children: [
+                      for (final entry in categories.values)
+                        Builder(
+                          builder: (context) {
+                            final items = (entry as Iterable).map((e) => e.toString()).toList();
+                            return GridView.builder(
+                              padding: const EdgeInsets.all(12),
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 6,
+                                mainAxisSpacing: 8,
+                                crossAxisSpacing: 8,
+                              ),
+                              itemCount: items.length,
+                              itemBuilder: (context, i) {
+                                final sym = items[i];
+                                return InkWell(
+                                  onTap: () {
+                                    setParentState(() => insertAtCursor(sym));
+                                    Navigator.pop(bCtx);
+                                  },
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey.shade300),
+                                      borderRadius: BorderRadius.circular(6),
+                                      color: Colors.grey.shade50,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        sym,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
                         ),
-                        itemCount: symbolsList.length,
-                        itemBuilder: (context, i) {
-                          final String sym = symbolsList[i];
-                          return InkWell(
-                            onTap: () {
-                              setParentState(() => insertAtCursor(sym));
-                              Navigator.pop(bCtx);
-                            },
-                            child: Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.shade300),
-                                borderRadius: BorderRadius.circular(6),
-                                color: Colors.grey.shade50,
-                              ),
-                              child: Center(
-                                child: Text(sym,
-                                    style: const TextStyle(
-                                        fontSize: 16, fontWeight: FontWeight.bold)),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    }).toList(),
+                    ],
                   ),
                 ),
               ],
