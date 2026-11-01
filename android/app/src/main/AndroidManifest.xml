@@ -4,7 +4,7 @@
     <!-- أذونات التخزين والوصول للمجلدات العامة لجميع إصدارات أندرويد -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
     <!-- إذن قراءة الصور للشعار على أندرويد 13 فما فوق -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
@@ -29,6 +29,11 @@
         android:requestLegacyExternalStorage="true"
         tools:replace="android:label">
 
+        <!-- تحميل نماذج ML Kit لقراءة النصوص والدرجات تلقائياً بدون اتصال إنترنت لاحقاً -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="ocr" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -48,7 +53,7 @@
             android:value="2" />
     </application>
 
-    <!-- استعلام لتمكين فتح ملفات DOCX و PDF عبر التطبيقات الخارجية المثبتة على الهاتف -->
+    <!-- استعلام لتمكين فتح ملفات DOCX و PDF والإكسيل عبر التطبيقات الخارجية المثبتة على الهاتف -->
     <queries>
         <!-- تطبيقات قراءة وتحرير مستندات Word -->
         <intent>
@@ -64,6 +69,16 @@
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="application/pdf" />
+        </intent>
+
+        <!-- تطبيقات قراءة جداول بيانات Excel -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/vnd.ms-excel" />
         </intent>
     </queries>
 </manifest>
