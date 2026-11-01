@@ -19,8 +19,14 @@ android {
         applicationId = "com.fawaz.exam_maker_app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        
+        // ضبط الحد الأدنى إلى 21 لدعم ML Kit و Mobile Scanner
+        minSdk = 21
         targetSdk = flutter.targetSdkVersion
+        
+        // تفعيل MultiDex لاستيعاب مكتبات معالجة الصور والذكاء الاصطناعي والإكسيل
+        multiDexEnabled = true
+
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
         // You can force using the value of versionCode by specifying the `-P force-version-code-ignoring-abi=true`
