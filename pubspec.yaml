@@ -30,9 +30,11 @@ dependencies:
   barcode: ^2.2.8
   uuid: ^4.4.0
 
-  # حزم الكاميرا ومعالجة الصور لمصحح ورقة التظليل OMR
+  # حزم الكاميرا ومعالجة الصور وقراءة الباركود و OCR
   camera: ^0.11.0+1
   image: ^4.2.0
+  mobile_scanner: ^5.2.3
+  google_mlkit_text_recognition: ^0.13.0
 
 dev_dependencies:
   flutter_test:
