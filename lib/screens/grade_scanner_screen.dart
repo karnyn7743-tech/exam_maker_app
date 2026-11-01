@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:excel/excel.dart';
+import 'package:excel/excel.dart' hide Border;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -122,7 +122,6 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
 
   // 2. حساب العمود المستهدف للتحريري
   int _calculateTargetColumnIndex(int monthIndex) {
-    // شهر 1 -> عمود H (index = 7)
     final int monthsInTerm1 = (_totalYearMonths == 6) ? 3 : 4;
     final int monthNumber = monthIndex + 1;
 
@@ -185,20 +184,17 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
         return;
       }
 
-      // تحديد فهرس الشهر المختار
       int selectedMonthIdx = _monthsList.indexOf(_selectedMonthOrSubject ?? '');
       if (selectedMonthIdx == -1) selectedMonthIdx = 0;
 
       final targetCol = _calculateTargetColumnIndex(selectedMonthIdx);
 
-      // كتابة الدرجة
       final cellTarget = sheet.cell(CellIndex.indexByColumnRow(
         columnIndex: targetCol,
         rowIndex: targetRow,
       ));
       cellTarget.value = DoubleCellValue(gradeVal);
 
-      // حفظ مباشر فوق الملف الأصلي
       final encodedData = excel.encode();
       if (encodedData != null) {
         await file.writeAsBytes(encodedData, mode: FileMode.write, flush: true);
