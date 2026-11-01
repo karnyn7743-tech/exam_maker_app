@@ -40,6 +40,10 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+
+            // تعطيل R8 نهائياً لتفادي أخطاء Missing classes الخاصة بـ ML Kit
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
