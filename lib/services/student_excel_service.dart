@@ -28,7 +28,8 @@ class StudentExcelResult {
 }
 
 class StudentExcelService {
-  /// قراءة ملف الإكسيل واستخراج بيانات الطلاب وكود المادة مع إمكانية التصفية بحسب الصف الدراسي
+  /// قراءة ملف الإكسيل واستخراج بيانات الطلاب بدءاً من الصف الرابع (فهرس 3)
+  /// مع تنشيط ورقة المادة المطابقة تلقائياً إن وجدت
   static Future<StudentExcelResult> parseExcelFile(
     String filePath, {
     String? expectedSubject,
@@ -41,37 +42,34 @@ class StudentExcelService {
       throw Exception('ملف الإكسيل فارغ ولا يحتوي على جداول بيانات.');
     }
 
-    final sheet = excel.tables.values.first;
-    final rows = sheet.rows;
-
-    if (rows.isEmpty) {
-      throw Exception('ورقة العمل لا تحتوي على صفوف.');
-    }
-
-    // 1. تحديد كود المادة من الصف الأول (العناوين) من العمود E (فهرس 4) إلى العمود S (فهرس 18)
-    int subjectCode = 1;
-    String matchedSubjectName = '';
-
-    final headerRow = rows.first;
+    // 1. التنشيط الذكي لورقة العمل (Sheet) المطابقة لاسم المادة
+    String targetSheetName = excel.tables.keys.first;
     final cleanExpected = expectedSubject?.trim().toLowerCase() ?? '';
 
-    for (int colIndex = 4; colIndex <= 18 && colIndex < headerRow.length; colIndex++) {
-      final cellValue = headerRow[colIndex]?.value?.toString().trim() ?? '';
-      final currentSubjectNum = (colIndex - 4) + 1;
-
-      if (cleanExpected.isNotEmpty &&
-          cellValue.isNotEmpty &&
-          (cellValue.toLowerCase().contains(cleanExpected) || cleanExpected.contains(cellValue.toLowerCase()))) {
-        subjectCode = currentSubjectNum;
-        matchedSubjectName = cellValue;
-        break;
+    if (cleanExpected.isNotEmpty) {
+      for (final sheetName in excel.tables.keys) {
+        final cleanSheet = sheetName.trim().toLowerCase();
+        if (cleanSheet == cleanExpected || cleanSheet.contains(cleanExpected) || cleanExpected.contains(cleanSheet)) {
+          targetSheetName = sheetName;
+          break;
+        }
       }
+    }
+
+    final sheet = excel.tables[targetSheetName]!;
+    final rows = sheet.rows;
+
+    if (rows.length < 4) {
+      throw Exception('ورقة العمل لا تحتوي على بيانات طلاب كافية (البيانات تبدأ من الصف الرابع).');
     }
 
     final cleanTargetGrade = targetGrade?.trim().toLowerCase() ?? '';
     final List<StudentData> students = [];
 
-    for (int r = 1; r < rows.length; r++) {
+    // 2. البدء الصارم من الصف الرابع الفعلي (فهرس 3)
+    const int startRowIndex = 3;
+
+    for (int r = startRowIndex; r < rows.length; r++) {
       final row = rows[r];
       if (row.isEmpty) continue;
 
@@ -81,10 +79,11 @@ class StudentExcelService {
       final rawName = row.length > 1 ? (row[1]?.value?.toString().trim() ?? '') : '';
       // عمود C (الصف الدراسي - فهرس 2)
       final rawGrade = row.length > 2 ? (row[2]?.value?.toString().trim() ?? '') : '';
-      // عمود D (الرقم السري المشفر لتوليد الـ QR - فهرس 3)
+      // عمود D (الرقم السري - فهرس 3) وهو محتوى الـ QR الحصري
       final rawSecret = row.length > 3 ? (row[3]?.value?.toString().trim() ?? '') : '';
 
-      if (rawSeat.isNotEmpty && rawName.isNotEmpty) {
+      // شرط وجود الطالب: وجود الرقم السري أو الاسم
+      if (rawSecret.isNotEmpty || rawName.isNotEmpty) {
         if (cleanTargetGrade.isNotEmpty && rawGrade.isNotEmpty) {
           final cleanStudentGrade = rawGrade.toLowerCase();
           if (!cleanStudentGrade.contains(cleanTargetGrade) && !cleanTargetGrade.contains(cleanStudentGrade)) {
@@ -103,18 +102,33 @@ class StudentExcelService {
 
     return StudentExcelResult(
       students: students,
-      subjectCode: subjectCode,
-      matchedSubjectName: matchedSubjectName,
+      subjectCode: 1,
+      matchedSubjectName: targetSheetName,
     );
   }
 
-  /// رصد وتحديث درجة الطالب مباشرة في عمود المادة المطابق داخل ملف الإكسيل
+  /// حساب عمود التحريري في الإكسيل بناءً على رقم الشهر ونظام السنة (6 أو 8 أشهر)
+  static int calculateWrittenExamColumn({
+    required int monthNumber, // 1..8
+    required int totalMonths, // 6 أو 8
+  }) {
+    final int term1Months = (totalMonths == 6) ? 3 : 4;
+    // أول شهر تحريري هو H (فهرس 7 بنظام 0-based)
+    if (monthNumber <= term1Months) {
+      return 2 + (monthNumber * 5); // شهر 1: 2+5 = 7 (العمود H)
+    } else {
+      // قفز عمودين إضافيين لتخطي عمودي محصلة ف1 واختبار ف1 [م1 ، ف1]
+      return 2 + (monthNumber * 5) + 2;
+    }
+  }
+
+  /// رصد وتحديث درجة الطالب مباشرة في نفس مسار الملف ونفس الخلية
   static Future<bool> updateStudentMarkInExcel({
     required String filePath,
-    required String studentIdentifier,
-    required String subjectName,
+    required String secretCode,
+    required String sheetName,
     required double mark,
-    int? subjectCode,
+    required int targetColumnIndex,
   }) async {
     try {
       final file = File(filePath);
@@ -123,48 +137,16 @@ class StudentExcelService {
       final bytes = await file.readAsBytes();
       final excel = Excel.decodeBytes(bytes);
 
-      if (excel.tables.isEmpty) return false;
-      final sheetName = excel.tables.keys.first;
+      if (!excel.tables.containsKey(sheetName)) return false;
       final sheet = excel.tables[sheetName]!;
-      final rows = sheet.rows;
 
-      if (rows.isEmpty) return false;
-
-      int targetColIndex = -1;
-      final headerRow = rows.first;
-      final cleanSubject = subjectName.trim().toLowerCase();
-
-      for (int col = 4; col <= 18 && col < headerRow.length; col++) {
-        final cellText = headerRow[col]?.value?.toString().trim().toLowerCase() ?? '';
-        final currentCode = (col - 4) + 1;
-
-        if (subjectCode != null && subjectCode == currentCode) {
-          targetColIndex = col;
-          break;
-        } else if (cleanSubject.isNotEmpty && cellText.isNotEmpty &&
-            (cellText.contains(cleanSubject) || cleanSubject.contains(cellText))) {
-          targetColIndex = col;
-          break;
-        }
-      }
-
-      if (targetColIndex == -1 && subjectCode != null) {
-        targetColIndex = 3 + subjectCode;
-      }
-
-      if (targetColIndex == -1) return false;
-
+      // البحث عن صف الطالب بالرقم السري في العمود D (فهرس 3) بدءاً من الصف الرابع
       int targetRowIndex = -1;
-      final cleanId = studentIdentifier.trim();
+      final cleanSecret = secretCode.trim();
 
-      for (int r = 1; r < rows.length; r++) {
-        final row = rows[r];
-        if (row.isEmpty) continue;
-
-        final seat = row.isNotEmpty ? (row[0]?.value?.toString().trim() ?? '') : '';
-        final secret = row.length > 3 ? (row[3]?.value?.toString().trim() ?? '') : '';
-
-        if (seat == cleanId || secret == cleanId) {
+      for (int r = 3; r < sheet.maxRows; r++) {
+        final cellVal = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: r)).value;
+        if (cellVal != null && cellVal.toString().trim() == cleanSecret) {
           targetRowIndex = r;
           break;
         }
@@ -172,10 +154,12 @@ class StudentExcelService {
 
       if (targetRowIndex == -1) return false;
 
+      // كتابة الدرجة في خلية التقاطع المحددة
       sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: targetColIndex, rowIndex: targetRowIndex))
+          .cell(CellIndex.indexByColumnRow(columnIndex: targetColumnIndex, rowIndex: targetRowIndex))
           .value = DoubleCellValue(mark);
 
+      // حفظ مباشر في نفس الملف المختار
       final updatedBytes = excel.save();
       if (updatedBytes != null) {
         await file.writeAsBytes(updatedBytes, flush: true);
