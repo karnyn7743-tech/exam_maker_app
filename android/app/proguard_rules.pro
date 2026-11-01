@@ -10,3 +10,10 @@
 
 # تجاهل تحذيرات R8
 -dontwarn com.google.mlkit.vision.text.TextRecognizer
+# تجاهل كلاسات اللغات غير المستخدمة في ML Kit
+-dontwarn com.google.mlkit.vision.text.**
+-keep class com.google.mlkit.vision.text.** { *; }
+
+# الحفاظ على كلاسات Mobile Scanner و ML Kit
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
