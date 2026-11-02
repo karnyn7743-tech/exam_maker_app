@@ -512,72 +512,189 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
+  // نافذة إدخال مفتاح الإجابة السريع والشامل للاختبارات المؤتمتة
   void _openAutomatedAnswerKeyDialog() {
+    final int tfCount = _exam.automatedConfig.trueFalseCount;
+    final int mcqCount = _exam.automatedConfig.mcqCount;
+    final int totalItems = tfCount + mcqCount;
+
+    if (totalItems <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى تحديد عدد فقرات الاختبار المؤتمت أولاً.')),
+      );
+      return;
+    }
+
+    // مطابقة خيارات الرموز (أ، ب، جـ، د) أو (١، ٢، ٣، ٤) وفق إعدادات الاختبار
+    final bool isLetters = _exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.arabicLetters;
+    final List<String> mcqOptions = isLetters ? ['أ', 'ب', 'جـ', 'د'] : ['١', '٢', '٣', '٤'];
+
+    // مزامنة عدد الأسئلة ليغطي جميع الفقرات المرقمة إن لم تكن مكتملة
+    while (_exam.questions.length < totalItems) {
+      final int idx = _exam.questions.length + 1;
+      final bool isTf = idx <= tfCount;
+      _exam.questions.add(QuestionModel(
+        id: const Uuid().v4(),
+        title: isTf ? 'صح/خطأ $idx' : 'اختيار $idx',
+        mark: 1.0,
+        spans: [TextSpanModel(text: '')],
+        answerKey: '',
+      ));
+    }
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(
-          children: const [
-            Icon(Icons.key, color: Color(0xFF1B5E20)),
-            SizedBox(width: 8),
-            Text('مفتاح الإجابة للاختبار المؤتمت', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          ],
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: _exam.questions.isEmpty
-              ? const Text('لا توجد فقرات مضافة بعد لتحديد إجاباتها.', textAlign: TextAlign.center)
-              : ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _exam.questions.length,
-                  itemBuilder: (context, i) {
-                    final q = _exam.questions[i];
-                    final isTf = q.spans.map((s) => s.text).join('').contains('صح') || q.title.contains('س ١');
-                    final options = isTf ? ['ص', 'خ'] : ['أ', 'ب', 'جـ', 'د'];
-
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          title: Row(
+            children: const [
+              Icon(Icons.key, color: Color(0xFF1B5E20)),
+              SizedBox(width: 8),
+              Text('مفتاح إجابة الاختبار المؤتمت', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: MediaQuery.of(context).size.height * 0.70,
+            child: ListView(
+              children: [
+                // 1. قسم فقرات الصح والخطأ
+                if (tfCount > 0) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'أولاً: فقرات الصح والخطأ (إجمالي $tfCount فقرة)',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Colors.black87),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  for (int i = 0; i < tfCount; i++) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
                       child: Row(
                         children: [
                           SizedBox(
-                            width: 50,
+                            width: 60,
                             child: Text(
                               'فقرة ${i + 1}:',
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                             ),
                           ),
-                          Expanded(
-                            child: Wrap(
-                              spacing: 6,
-                              children: options.map((opt) {
-                                final isSelected = q.answerKey.trim() == opt;
-                                return ChoiceChip(
-                                  label: Text(opt, style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
-                                  selected: isSelected,
-                                  selectedColor: const Color(0xFF1B5E20),
-                                  onSelected: (val) {
-                                    setState(() {
-                                      q.answerKey = val ? opt : '';
-                                    });
-                                    (ctx as Element).markNeedsBuild();
-                                  },
-                                );
-                              }).toList(),
-                            ),
+                          Wrap(
+                            spacing: 8,
+                            children: ['ص', 'خ'].map((opt) {
+                              final isSelected = _exam.questions[i].answerKey.trim() == opt;
+                              return ChoiceChip(
+                                label: Text(
+                                  opt,
+                                  style: TextStyle(
+                                    color: isSelected ? Colors.white : Colors.black87,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                selected: isSelected,
+                                selectedColor: const Color(0xFF1B5E20),
+                                onSelected: (val) {
+                                  setDlgState(() {
+                                    _exam.questions[i].answerKey = val ? opt : '';
+                                  });
+                                  setState(() {});
+                                },
+                              );
+                            }).toList(),
                           ),
                         ],
                       ),
-                    );
-                  },
-                ),
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1B5E20)),
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('تم الحفظ', style: TextStyle(color: Colors.white)),
+                    ),
+                    const Divider(height: 6),
+                  ],
+                  const SizedBox(height: 12),
+                ],
+
+                // 2. قسم فقرات الاختيار من متعدد
+                if (mcqCount > 0) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'ثانياً: فقرات الاختيار من متعدد (إجمالي $mcqCount فقرة)',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Colors.black87),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  for (int j = 0; j < mcqCount; j++) ...[
+                    Builder(
+                      builder: (context) {
+                        final int itemIndex = tfCount + j;
+                        final qItem = _exam.questions[itemIndex];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 60,
+                                child: Text(
+                                  'فقرة ${itemIndex + 1}:',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                ),
+                              ),
+                              Wrap(
+                                spacing: 6,
+                                children: mcqOptions.map((opt) {
+                                  final isSelected = qItem.answerKey.trim() == opt;
+                                  return ChoiceChip(
+                                    label: Text(
+                                      opt,
+                                      style: TextStyle(
+                                        color: isSelected ? Colors.white : Colors.black87,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    selected: isSelected,
+                                    selectedColor: const Color(0xFF1B5E20),
+                                    onSelected: (val) {
+                                      setDlgState(() {
+                                        qItem.answerKey = val ? opt : '';
+                                      });
+                                      setState(() {});
+                                    },
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    const Divider(height: 6),
+                  ],
+                ],
+              ],
+            ),
           ),
-        ],
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1B5E20)),
+              onPressed: () {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('تم حفظ مفاتيح إجابات الاختبار المؤتمت بنجاح.'),
+                    backgroundColor: Color(0xFF1B5E20),
+                  ),
+                );
+              },
+              child: const Text('تم الحفظ', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3039,6 +3156,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             title: const Text('إدراج كرسي قسمة مطولة عند المؤشر'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
