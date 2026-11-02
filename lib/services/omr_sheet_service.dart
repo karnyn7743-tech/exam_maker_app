@@ -25,9 +25,9 @@ class OmrSheetService {
     }
     final ttf = pw.Font.ttf(fontData);
 
-    // 1. استخراج بيانات الطلاب مع التصفية الحصرية بحسب الصف المحدد في الامتحان
+    // 1. استخراج بيانات الطلاب وتحديد الرقم الذكي المطبوع يمين الـ QR ديناميكياً
     List<StudentData> studentList = [];
-    int currentSubjectCode = exam.header.subjectCode;
+    int currentSubjectCode = 1;
 
     if (exam.header.topMargin1cm &&
         exam.header.studentDataMode != 'none' &&
@@ -38,6 +38,7 @@ class OmrSheetService {
           exam.header.excelFilePath!,
           expectedSubject: exam.header.subject,
           targetGrade: exam.header.grade, // تصفية حصرية حسب صف الاختبار
+          examTitle: exam.header.examTitle, // تمرير العنوان لاحتساب رقم الشهر أو ورقة المادة ديناميكياً
         );
         studentList = excelRes.students;
         currentSubjectCode = excelRes.subjectCode;
@@ -498,7 +499,7 @@ class OmrSheetService {
                 '$subjectCode',
                 style: pw.TextStyle(
                   font: ttf,
-                  fontSize: 20,
+                  fontSize: 22,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
