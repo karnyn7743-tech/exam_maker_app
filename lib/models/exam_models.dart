@@ -18,6 +18,13 @@ enum QuestionTitleOrientation {
   verticalTopToBottom,
 }
 
+/// اتجاه كتابة النص في عمود الدرجة
+enum GradeTextOrientation {
+  horizontal,          // أفقي عادي
+  verticalBottomToTop, // عمودي مائل للأعلى
+  verticalTopToBottom, // عمودي مائل للأسفل
+}
+
 /// أنواع العناصر القابلة للإدراج داخل الأسئلة
 enum ElementType {
   image,
@@ -35,6 +42,9 @@ class InsertableElement {
   double width;
   double height;
   String alignment;
+  double dx;          // الإزاحة الأفقية للتحريك الحر
+  double dy;          // الإزاحة الرأسية للتحريك الحر
+  bool isFloating;    // هل العنصر عائم بحرية كبرنامج Word
 
   InsertableElement({
     required this.id,
@@ -43,6 +53,9 @@ class InsertableElement {
     this.width = 100,
     this.height = 100,
     this.alignment = 'center',
+    this.dx = 0.0,
+    this.dy = 0.0,
+    this.isFloating = false,
   });
 
   Map<String, dynamic> toMap() => {
@@ -52,6 +65,9 @@ class InsertableElement {
         'width': width,
         'height': height,
         'alignment': alignment,
+        'dx': dx,
+        'dy': dy,
+        'isFloating': isFloating,
       };
 
   factory InsertableElement.fromMap(Map<String, dynamic> map) {
@@ -68,6 +84,9 @@ class InsertableElement {
       width: (map['width'] as num?)?.toDouble() ?? 100.0,
       height: (map['height'] as num?)?.toDouble() ?? 100.0,
       alignment: map['alignment'] ?? 'center',
+      dx: (map['dx'] as num?)?.toDouble() ?? 0.0,
+      dy: (map['dy'] as num?)?.toDouble() ?? 0.0,
+      isFloating: map['isFloating'] ?? false,
     );
   }
 }
@@ -113,6 +132,7 @@ class QuestionModel {
   String title;
   QuestionTitleOrientation titleOrientation;
   double mark;
+  GradeTextOrientation gradeOrientation; // اتجاه كتابة الدرجة في عمود الدرجة
   List<TextSpanModel> spans;
   List<InsertableElement> elements;
   String answerKey;
@@ -123,6 +143,7 @@ class QuestionModel {
     required this.title,
     this.titleOrientation = QuestionTitleOrientation.horizontal,
     this.mark = 0.0,
+    this.gradeOrientation = GradeTextOrientation.horizontal,
     required this.spans,
     List<InsertableElement>? elements,
     this.answerKey = '',
@@ -134,6 +155,7 @@ class QuestionModel {
         'title': title,
         'titleOrientation': titleOrientation.name,
         'mark': mark,
+        'gradeOrientation': gradeOrientation.name,
         'spans': spans.map((s) => s.toMap()).toList(),
         'elements': elements.map((e) => e.toMap()).toList(),
         'answerKey': answerKey,
@@ -147,11 +169,18 @@ class QuestionModel {
       orElse: () => QuestionTitleOrientation.horizontal,
     );
 
+    final rawGradeOrient = map['gradeOrientation']?.toString() ?? 'horizontal';
+    final parsedGradeOrient = GradeTextOrientation.values.firstWhere(
+      (e) => e.name == rawGradeOrient,
+      orElse: () => GradeTextOrientation.horizontal,
+    );
+
     return QuestionModel(
       id: map['id'] ?? '',
       title: map['title'] ?? '',
       titleOrientation: parsedOrientation,
       mark: (map['mark'] as num?)?.toDouble() ?? 0.0,
+      gradeOrientation: parsedGradeOrient,
       spans: (map['spans'] as List<dynamic>?)
               ?.map((item) => TextSpanModel.fromMap(item))
               .toList() ??
