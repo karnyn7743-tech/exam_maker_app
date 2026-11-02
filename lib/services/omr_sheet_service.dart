@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:barcode/barcode.dart';
-import 'package:better_download_saver/better_download_saver.dart'; // ← جديد
+import 'package:better_download_saver/better_download_saver.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
@@ -25,7 +25,7 @@ class OmrSheetService {
     }
     final ttf = pw.Font.ttf(fontData);
 
-    // 1. استخراج بيانات الطلاب إن وجدت من ملف الإكسيل
+    // 1. استخراج بيانات الطلاب مع التصفية الحصرية بحسب الصف المحدد في الامتحان
     List<StudentData> studentList = [];
     int currentSubjectCode = exam.header.subjectCode;
 
@@ -37,6 +37,7 @@ class OmrSheetService {
         final excelRes = await StudentExcelService.parseExcelFile(
           exam.header.excelFilePath!,
           expectedSubject: exam.header.subject,
+          targetGrade: exam.header.grade, // تصفية حصرية حسب صف الاختبار
         );
         studentList = excelRes.students;
         currentSubjectCode = excelRes.subjectCode;
@@ -126,10 +127,15 @@ class OmrSheetService {
       );
     }
 
-    // ============ الجزء المعدل: الحفظ باستخدام BetterDownloadSaver ============
+    // ============ صياغة التسمية الجديدة التلقائية لورقة التظليل ============
     final pdfBytes = await pdf.save();
-    final safeName = '${exam.fileName}_ورقة_تظليل_OMR'
-        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+
+    final gradeName = exam.header.grade.trim().isNotEmpty ? exam.header.grade.trim() : 'عام';
+    final subjectName = exam.header.subject.trim().isNotEmpty ? exam.header.subject.trim() : 'مادة';
+
+    // التسمية الرسمية: [الصف _ المادة _ ورقة_تظليل]
+    final omrBaseName = '$gradeName _ $subjectName _ ورقة_تظليل';
+    final safeName = omrBaseName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final fileName = '$safeName.pdf';
 
     // المحاولة الأولى: الحفظ في مجلد التنزيلات العام (Downloads)
@@ -146,7 +152,7 @@ class OmrSheetService {
       // نمر إلى الخطة البديلة
     }
 
-    // الخطة البديلة: الحفظ في مجلد التطبيق الخاص حتى لا يضيع الملف
+    // الخطة البديلة: الحفظ في مجلد التطبيق المخصص لضمان عدم ضياع الملف
     try {
       Directory fallbackDir;
       if (Platform.isAndroid) {
@@ -162,10 +168,9 @@ class OmrSheetService {
       await File(fallbackPath).writeAsBytes(pdfBytes, flush: true);
       return fallbackPath;
     } catch (e) {
-      throw Exception('تعذر حفظ ملف OMR: $e');
+      throw Exception('تعذر حفظ ملف ورقة التظليل: $e');
     }
   }
-  // ============ نهاية الجزء المعدل ============
 
   // ترويسة ورقة التظليل
   static pw.Widget _buildOmrHeader(
