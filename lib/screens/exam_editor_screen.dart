@@ -83,7 +83,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   final ImagePicker _picker = ImagePicker();
 
   InsertableElement? _copiedElement;
-  String? _selectedElementId; // معرف العنصر المحدد حالياً للتحريك والتكبير كـ Word
+  String? _selectedElementId;
 
   @override
   void initState() {
@@ -870,8 +870,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                         fontWeight: FontWeight.bold,
                                         fontSize: 11,
                                         color: _exam.header.studentDataMode != 'none'
-                                            ? Colors.green.shade900
-                                            : Colors.black87,
+                                          ? Colors.green.shade900
+                                          : Colors.black87,
                                       ),
                                     ),
                                   ],
@@ -887,34 +887,34 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                         fontWeight: FontWeight.bold,
                                         fontSize: 11,
                                         color: _exam.header.studentDataMode != 'none'
-                                            ? Colors.green.shade900
-                                            : Colors.black87,
+                                          ? Colors.green.shade900
+                                          : Colors.black87,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  const Icon(Icons.settings, size: 13, color: Colors.grey),
-                                ],
-                              ),
-                            ],
+                                    const SizedBox(width: 6),
+                                    const Icon(Icons.settings, size: 13, color: Colors.grey),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
+                      ],
+                      _buildExamHeader(),
+                      const SizedBox(height: 8),
+                      _buildQuestionsTable(),
+                      const SizedBox(height: 10),
+                      _buildFooterPreview(),
                     ],
-                    _buildExamHeader(),
-                    const SizedBox(height: 8),
-                    _buildQuestionsTable(),
-                    const SizedBox(height: 10),
-                    _buildFooterPreview(),
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 40),
-            ],
+                const SizedBox(height: 40),
+              ],
+            ),
           ),
         ),
+        bottomNavigationBar: _buildUnifiedBottomBar(),
       ),
-      bottomNavigationBar: _buildUnifiedBottomBar(),
-    ),
     );
   }
 
@@ -1172,7 +1172,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             titleWidget = RotatedBox(quarterTurns: 1, child: titleWidget);
           }
 
-          // معالجة عرض الدرجة بدون أصفار زائدة واتجاه النص
           final markText = q.mark > 0
               ? (q.mark % 1 == 0 ? '${q.mark.toInt()} د' : '${q.mark} د')
               : '-';
@@ -1373,7 +1372,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 textDirection: TextDirection.rtl,
                 child: IntrinsicWidth(
                   child: Row(
-                    mainAxisSize: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (degree.isNotEmpty)
                         Padding(
@@ -2064,7 +2064,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         break;
     }
 
-    // تمكين خصائص Word للجدول والأشكال الهندسية
     if (el.type == ElementType.shape || el.type == ElementType.table) {
       return Transform.translate(
         offset: Offset(el.dx, el.dy),
@@ -2089,9 +2088,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 child: coreWidget,
               ),
 
-              // أدوات تحكم مايكروسوفت وورد
               if (isSelected) ...[
-                // زر الأسهم المتصالبة للتحريك الحر في كل الاتجاهات
                 Positioned(
                   top: -34,
                   child: GestureDetector(
@@ -2116,7 +2113,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                 ),
 
-                // مقابض التكبير والتصغير (المربعات)
                 _buildWordResizeHandle(
                   top: -6,
                   left: -6,
@@ -3914,7 +3910,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                     );
                                   },
                                 ),
-                              // زر إضافة صفحة جديدة المباشر والواضح
                               _buildBarBtn(
                                 icon: Icons.note_add_outlined,
                                 text: 'صفحة جديدة ⤶',
