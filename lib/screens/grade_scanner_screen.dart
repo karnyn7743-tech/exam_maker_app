@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import '../services/student_excel_service.dart';
 
 class GradeScannerScreen extends StatefulWidget {
   final bool isOmrMode;
@@ -17,11 +18,13 @@ class GradeScannerScreen extends StatefulWidget {
 class _GradeScannerScreenState extends State<GradeScannerScreen> {
   String? _excelFilePath;
   String? _excelFileName;
+  bool _excelLoaded = false;
+
   List<String> _sheetNames = [];
   String? _selectedSheet;
 
   bool _isTerm2 = false; // الفصل الأول أم الثاني
-  int _totalYearMonths = 8; // 6 أو 8 أشهر
+  int _totalYearMonths = 8; // 6 أو 8 أشهر يتم اكتشافها أو تعيينها
 
   List<String> _monthsList = [];
   String? _selectedMonthOrSubject;
@@ -44,7 +47,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
     super.dispose();
   }
 
-  // 1. اختيار ملف الإكسيل وقراءة بياناته
+  // 1. اختيار ملف الإكسيل وقراءة بياناته مع التحقق الصارم من التنسيق
   Future<void> _pickExcelFile() async {
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -54,6 +57,50 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
 
       if (result != null && result.files.single.path != null) {
         final path = result.files.single.path!;
+
+        // التحقق من بنية وتنسيق الملف
+        final bool isValid = await StudentExcelService.validateExcelStructure(path);
+        if (!isValid) {
+          setState(() {
+            _excelLoaded = false;
+            _excelFilePath = null;
+            _excelFileName = null;
+            _sheetNames = [];
+            _selectedSheet = null;
+            _monthsList = [];
+            _selectedMonthOrSubject = null;
+            _totalStudentsCount = 0;
+            _isScanningActive = false;
+          });
+
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: Row(
+                  children: const [
+                    Icon(Icons.warning_amber_rounded, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('تنبيه التنسيق', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ],
+                ),
+                content: const Text(
+                  'ملف الأكسيل المختار لا يتطابق مع تنسيقات الملف المطلوب ، يرجى التأكد من الإختيار مرة أخرى',
+                  style: TextStyle(fontSize: 13, height: 1.5),
+                ),
+                actions: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade800),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('حسناً', style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            );
+          }
+          return;
+        }
+
         final file = File(path);
         final bytes = await file.readAsBytes();
         final excel = Excel.decodeBytes(bytes);
@@ -61,14 +108,22 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
         final sheets = excel.tables.keys.toList();
         final initialSheet = sheets.isNotEmpty ? sheets.first : null;
 
+        // الاكتشاف التلقائي لعدد أشهر السنة (8 أم 6 أشهر) من خلايا الصف الثاني
+        int detectedMonths = 8;
+        if (sheets.isNotEmpty) {
+          detectedMonths = StudentExcelService.detectTotalMonths(excel.tables[sheets.first]!);
+        }
+
         setState(() {
+          _excelLoaded = true;
           _excelFilePath = path;
           _excelFileName = result.files.single.name;
           _sheetNames = sheets;
           _selectedSheet = initialSheet;
+          _totalYearMonths = detectedMonths;
         });
 
-        _loadMonthsAndStudents();
+        await _loadMonthsAndStudents();
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -77,7 +132,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
     }
   }
 
-  // قراءة الشهور والطلاب من الملف المختار
+  // قراءة الطلاب والشهور مع إضافة ف١ وف٢
   Future<void> _loadMonthsAndStudents() async {
     if (_excelFilePath == null || _selectedSheet == null) return;
 
@@ -87,7 +142,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       final sheet = excel.tables[_selectedSheet!];
       if (sheet == null) return;
 
-      // حساب عدد الطلاب الفعلي في العمود D بدءاً من الصف الرابع (index = 3)
+      // 1. حساب عدد الطلاب الفعلي في العمود D بدءاً من الصف الرابع (index = 3)
       int students = 0;
       for (int r = 3; r < sheet.maxRows; r++) {
         final val = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: r)).value;
@@ -96,47 +151,43 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
         }
       }
 
-      // جلب أسماء الشهور من الصف الثاني (index = 1) بدءاً من العمود E (index = 4)
-      List<String> months = [];
-      int currentCol = 4;
-      final int monthsInTerm1 = (_totalYearMonths == 6) ? 3 : 4;
+      // 2. جلب أسماء الشهور المخصصة لهذا الفصل الدراسي
+      final int term1Months = (_totalYearMonths == 6) ? 3 : 4;
+      final allMonths = StudentExcelService.extractMonthsFromSheet(sheet, totalMonths: _totalYearMonths);
 
-      for (int m = 1; m <= _totalYearMonths; m++) {
-        final val = sheet.cell(CellIndex.indexByColumnRow(columnIndex: currentCol, rowIndex: 1)).value;
-        final name = val != null ? val.toString().trim() : 'شهر $m';
-        months.add(name);
-
-        currentCol += 5;
-        if (m == monthsInTerm1) {
-          currentCol += 2; // تخطي عمودي م1 وف1
-        }
+      List<String> termMonths = [];
+      if (!_isTerm2) {
+        // الفصل الأول: أشهر الفصل الأول + ف١
+        termMonths.addAll(allMonths.take(term1Months));
+        termMonths.add('ف١');
+      } else {
+        // الفصل الثاني: أشهر الفصل الثاني + ف٢
+        termMonths.addAll(allMonths.skip(term1Months));
+        termMonths.add('ف٢');
       }
 
       setState(() {
         _totalStudentsCount = students;
-        _monthsList = months;
-        _selectedMonthOrSubject = months.isNotEmpty ? months.first : null;
+        _monthsList = termMonths;
+        _selectedMonthOrSubject = termMonths.isNotEmpty ? termMonths.first : null;
       });
     } catch (_) {}
   }
 
-  // 2. حساب العمود المستهدف للتحريري
-  int _calculateTargetColumnIndex(int monthIndex) {
-    final int monthsInTerm1 = (_totalYearMonths == 6) ? 3 : 4;
-    final int monthNumber = monthIndex + 1;
-
-    if (monthNumber <= monthsInTerm1) {
-      return 2 + (monthNumber * 5); // شهر 1: 2+5 = 7 (العمود H)
-    } else {
-      return 2 + (monthNumber * 5) + 2; // إضافة الإزاحة لفاصل الفصلين
-    }
+  // تبديل الفصل وإعادة ترتيب فترات الرصد المناسبة
+  void _switchTerm(bool isSecondTerm) {
+    if (!_excelLoaded) return;
+    setState(() {
+      _isTerm2 = isSecondTerm;
+    });
+    _loadMonthsAndStudents();
   }
 
-  // 3. تأكيد وحفظ الدرجة في نفس الملف المختار دون تكرار
+  // 2. تأكيد وحفظ الدرجة في نفس الملف المختار مع حساب موقع العمود بدقة
   Future<void> _saveGradeDirectly() async {
-    if (_excelFilePath == null || _selectedSheet == null) {
+    if (!_excelLoaded || _excelFilePath == null || _selectedSheet == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يرجى اختيار ملف الإكسيل أولاً')),
+        const SnackBar(content: Text('يرجى اختيار ملف الإكسيل أولاً لتفعيل الحفظ')),
       );
       return;
     }
@@ -166,9 +217,11 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
 
       // البحث عن الرقم السري في العمود D (index = 3)
       int targetRow = -1;
+      final cleanSecret = _secretCode.trim();
+
       for (int r = 3; r < sheet.maxRows; r++) {
-        final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: r));
-        if (cell.value != null && cell.value.toString().trim() == _secretCode.trim()) {
+        final cellVal = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: r)).value;
+        if (cellVal != null && cellVal.toString().trim() == cleanSecret) {
           targetRow = r;
           break;
         }
@@ -184,10 +237,11 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
         return;
       }
 
-      int selectedMonthIdx = _monthsList.indexOf(_selectedMonthOrSubject ?? '');
-      if (selectedMonthIdx == -1) selectedMonthIdx = 0;
-
-      final targetCol = _calculateTargetColumnIndex(selectedMonthIdx);
+      // حساب العمود المستهدف مع مراعاة إزاحة الأعمدة لنظام 8 أو 6 أشهر
+      final int targetCol = StudentExcelService.resolveTargetExamColumnIndex(
+        selectedPeriod: _selectedMonthOrSubject ?? 'شهر 1',
+        totalMonths: _totalYearMonths,
+      );
 
       final cellTarget = sheet.cell(CellIndex.indexByColumnRow(
         columnIndex: targetCol,
@@ -206,10 +260,10 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تم حفظ الدرجة في ملف الإكسيل بنجاح'),
-            backgroundColor: Color(0xFF1B5E20),
-            duration: Duration(seconds: 1),
+          SnackBar(
+            content: Text('تم رصد الدرجة في عمود ($_selectedMonthOrSubject) للمادة [$_selectedSheet] بنجاح'),
+            backgroundColor: const Color(0xFF1B5E20),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -250,17 +304,17 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                         onChanged: (v) {
                           setState(() => _totalYearMonths = v!);
                           Navigator.pop(ctx);
-                          _loadMonthsAndStudents();
+                          if (_excelLoaded) _loadMonthsAndStudents();
                         },
                       ),
                       RadioListTile<int>(
-                        title: const Text('6 أشهر (3 أشهر لكل فصل)'),
+                        title: const Text('6 أشهر (3 أشهر لكل فصل - تراجع 5 و 10 أعمدة)'),
                         value: 6,
                         groupValue: _totalYearMonths,
                         onChanged: (v) {
                           setState(() => _totalYearMonths = v!);
                           Navigator.pop(ctx);
-                          _loadMonthsAndStudents();
+                          if (_excelLoaded) _loadMonthsAndStudents();
                         },
                       ),
                     ],
@@ -277,35 +331,90 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // زر اختيار ملف الإكسيل
-            ElevatedButton(
+            ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4CAF50),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
               ),
+              icon: const Icon(Icons.folder_open, color: Colors.white),
               onPressed: _pickExcelFile,
-              child: const Text(
-                'اختر ملف الأكسيل (الكشوفات)',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+              label: Text(
+                _excelLoaded ? 'تغيير ملف الأكسيل' : 'اختر ملف الأكسيل (الكشوفات)',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
               ),
             ),
             const SizedBox(height: 8),
 
-            // اسم الملف المختار
+            // اسم الملف المختار وحالة التطابق
             Container(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: _excelLoaded ? Colors.green.shade400 : Colors.grey.shade300,
+                  width: _excelLoaded ? 1.5 : 1.0,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    _excelLoaded ? Icons.check_circle : Icons.info_outline,
+                    color: _excelLoaded ? Colors.green : Colors.grey,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      _excelFileName ?? 'لم يتم تحديد ملف إكسيل بعد (الحقول معطلة)',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: _excelLoaded ? Colors.black87 : Colors.red.shade700,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // قائمة اختيار المادة (أسماء أوراق العمل)
+            const Text('المادة المستهدفة (ورقة العمل):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: _excelLoaded ? Colors.white : Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.grey.shade300),
               ),
-              child: Text(
-                _excelFileName ?? 'لم يتم تحديد ملف إكسيل بعد',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                  color: _excelFileName != null ? Colors.black87 : Colors.grey,
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedSheet,
+                  isExpanded: true,
+                  hint: Text(
+                    _excelLoaded ? 'اختر المادة' : 'يرجى اختيار ملف الإكسيل أولاً',
+                    style: TextStyle(color: _excelLoaded ? Colors.black54 : Colors.grey),
+                  ),
+                  items: _excelLoaded
+                      ? _sheetNames
+                          .map((s) => DropdownMenuItem(
+                                value: s,
+                                child: Text(s, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              ))
+                          .toList()
+                      : null,
+                  onChanged: _excelLoaded
+                      ? (v) {
+                          setState(() => _selectedSheet = v);
+                          _loadMonthsAndStudents();
+                        }
+                      : null,
                 ),
               ),
             ),
@@ -317,17 +426,19 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                 Expanded(
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
-                      backgroundColor: !_isTerm2 ? const Color(0xFF1976D2) : Colors.white,
-                      foregroundColor: !_isTerm2 ? Colors.white : Colors.black87,
-                      side: const BorderSide(color: Color(0xFF1976D2)),
+                      backgroundColor: (!_isTerm2 && _excelLoaded)
+                          ? const Color(0xFF1976D2)
+                          : (_excelLoaded ? Colors.white : Colors.grey.shade200),
+                      foregroundColor: (!_isTerm2 && _excelLoaded) ? Colors.white : Colors.black87,
+                      side: BorderSide(color: _excelLoaded ? const Color(0xFF1976D2) : Colors.grey),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
-                    onPressed: () => setState(() => _isTerm2 = false),
+                    onPressed: _excelLoaded ? () => _switchTerm(false) : null,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        if (!_isTerm2) const Icon(Icons.check, size: 16),
+                        if (!_isTerm2 && _excelLoaded) const Icon(Icons.check, size: 16),
                         const SizedBox(width: 4),
                         const Text('اختبار الفصل الأول', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                       ],
@@ -338,17 +449,19 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                 Expanded(
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
-                      backgroundColor: _isTerm2 ? const Color(0xFF1976D2) : Colors.white,
-                      foregroundColor: _isTerm2 ? Colors.white : Colors.black87,
-                      side: const BorderSide(color: Color(0xFF1976D2)),
+                      backgroundColor: (_isTerm2 && _excelLoaded)
+                          ? const Color(0xFF1976D2)
+                          : (_excelLoaded ? Colors.white : Colors.grey.shade200),
+                      foregroundColor: (_isTerm2 && _excelLoaded) ? Colors.white : Colors.black87,
+                      side: BorderSide(color: _excelLoaded ? const Color(0xFF1976D2) : Colors.grey),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
-                    onPressed: () => setState(() => _isTerm2 = true),
+                    onPressed: _excelLoaded ? () => _switchTerm(true) : null,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        if (_isTerm2) const Icon(Icons.check, size: 16),
+                        if (_isTerm2 && _excelLoaded) const Icon(Icons.check, size: 16),
                         const SizedBox(width: 4),
                         const Text('اختبار الفصل الثاني', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                       ],
@@ -359,13 +472,13 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
             ),
             const SizedBox(height: 10),
 
-            // قائمة اختيار المادة / الشهر
-            const Text('اختر الشهر / المادة المستهدفة:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            // قائمة اختيار الشهر / نهاية الفصل (ف١ وف٢)
+            const Text('فترة الرصد (الشهر / نهاية الفصل):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
             const SizedBox(height: 4),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: _excelLoaded ? Colors.white : Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.grey.shade300),
               ),
@@ -373,9 +486,23 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                 child: DropdownButton<String>(
                   value: _selectedMonthOrSubject,
                   isExpanded: true,
-                  hint: const Text('حدد الشهر لإدخال درجات التحريري فيه'),
-                  items: _monthsList.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
-                  onChanged: (v) => setState(() => _selectedMonthOrSubject = v),
+                  hint: const Text('حدد الفترة لإدخال درجات التحريري فيها'),
+                  items: _excelLoaded
+                      ? _monthsList.map((m) {
+                          final isTerm = m == 'ف١' || m == 'ف٢';
+                          return DropdownMenuItem(
+                            value: m,
+                            child: Text(
+                              isTerm ? '$m (اختبار نهاية الفصل)' : m,
+                              style: TextStyle(
+                                fontWeight: isTerm ? FontWeight.bold : FontWeight.normal,
+                                color: isTerm ? const Color(0xFF0F766E) : Colors.black87,
+                              ),
+                            ),
+                          );
+                        }).toList()
+                      : null,
+                  onChanged: _excelLoaded ? (v) => setState(() => _selectedMonthOrSubject = v) : null,
                 ),
               ),
             ),
@@ -387,7 +514,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
             Container(
               height: 48,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: _excelLoaded ? Colors.white : Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.grey.shade300),
               ),
@@ -415,13 +542,14 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                       const SizedBox(height: 4),
                       TextField(
                         controller: _gradeController,
+                        enabled: _excelLoaded,
                         textAlign: TextAlign.center,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                         decoration: InputDecoration(
                           hintText: '0.0',
                           filled: true,
-                          fillColor: Colors.white,
+                          fillColor: _excelLoaded ? Colors.white : Colors.grey.shade200,
                           contentPadding: const EdgeInsets.symmetric(vertical: 10),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                         ),
@@ -439,15 +567,15 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                       Container(
                         height: 48,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: _excelLoaded ? Colors.white : Colors.grey.shade200,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: Colors.grey.shade300),
                         ),
                         child: Center(
                           child: Text(
                             '$_totalStudentsCount / $_scannedStudentsCount',
-                            style: const TextStyle(
-                              color: Color(0xFF2E7D32),
+                            style: TextStyle(
+                              color: _excelLoaded ? const Color(0xFF2E7D32) : Colors.grey,
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                             ),
@@ -461,10 +589,12 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
             ),
             const SizedBox(height: 12),
 
-            // زر بدء وإيقاف المسح بالكاميرا
+            // زر بدء وإيقاف المسح بالكاميرا (معطل إن لم يتم تحميل الملف)
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: _isScanningActive ? Colors.red.shade700 : const Color(0xFF4CAF50),
+                backgroundColor: !_excelLoaded
+                    ? Colors.grey
+                    : (_isScanningActive ? Colors.red.shade700 : const Color(0xFF4CAF50)),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
               ),
@@ -473,20 +603,22 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                 _isScanningActive ? 'إيقاف الكاميرا' : 'ابدأ المسح',
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
               ),
-              onPressed: () {
-                setState(() => _isScanningActive = !_isScanningActive);
-              },
+              onPressed: _excelLoaded
+                  ? () {
+                      setState(() => _isScanningActive = !_isScanningActive);
+                    }
+                  : null,
             ),
             const SizedBox(height: 8),
 
-            // زر تأكيد وحفظ الدرجة
+            // زر تأكيد وحفظ الدرجة (معطل إن لم يتم تحميل الملف)
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFB0BEC5),
+                backgroundColor: _excelLoaded ? const Color(0xFF0288D1) : const Color(0xFFB0BEC5),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
               ),
-              onPressed: _saveGradeDirectly,
+              onPressed: _excelLoaded ? _saveGradeDirectly : null,
               child: const Text(
                 'تأكيد وحفظ الدرجة',
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
@@ -495,7 +627,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
             const SizedBox(height: 12),
 
             // نافذة الكاميرا لمسح الـ QR والدرجة
-            if (_isScanningActive)
+            if (_isScanningActive && _excelLoaded)
               Container(
                 height: 220,
                 decoration: BoxDecoration(
