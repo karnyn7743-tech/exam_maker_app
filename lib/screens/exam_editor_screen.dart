@@ -83,6 +83,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   final ImagePicker _picker = ImagePicker();
 
   InsertableElement? _copiedElement;
+  String? _selectedElementId; // معرف العنصر المحدد حالياً للتحريك والتكبير كـ Word
 
   @override
   void initState() {
@@ -113,13 +114,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Future<void> _triggerSave() async {
-    // توليد التسمية التلقائية الجديدة: [الصف _ المادة _ شامل / مؤتمت]
     final gradeName = _exam.header.grade.trim().isNotEmpty ? _exam.header.grade.trim() : 'عام';
     final subjectName = _exam.header.subject.trim().isNotEmpty ? _exam.header.subject.trim() : 'مادة';
     final typeName = _exam.examType == ExamType.automated ? 'مؤتمت' : 'شامل';
     final generatedName = '$gradeName _ $subjectName _ $typeName';
 
-    // اعتماد التسمية الآلية إن كان الاختبار جديداً أو يحمل اسماً افتراضياً قديماً
     if (_isNew || _exam.fileName.isEmpty || _exam.fileName.startsWith('اختبار_') || _exam.fileName == 'اختبار جديد') {
       _exam.fileName = generatedName;
     }
@@ -513,7 +512,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // نافذة إدخال مفتاح الإجابة السريع للاختبارات المؤتمتة
   void _openAutomatedAnswerKeyDialog() {
     showDialog(
       context: context,
@@ -584,7 +582,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // الشريط السفلي المنظم في صفين (2x2) لكلا النمطين
   Widget _buildUnifiedBottomBar() {
     final bool isAutomated = _exam.examType == ExamType.automated;
     final double diff = _exam.totalMarks - _exam.targetTotalMarks;
@@ -605,7 +602,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // الصف الأول: إضافة سؤال/فقرة + بنك الأسئلة/مفتاح الحل
           Row(
             children: [
               Expanded(
@@ -645,8 +641,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ],
           ),
           const SizedBox(height: 8),
-
-          // الصف الثاني: قوالب جاهزة/ورقة التظليل + بطاقة رصد الدرجات والفقرات
           Row(
             children: [
               Expanded(
@@ -666,7 +660,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              // بطاقة الميزان والدرجات
               InkWell(
                 onTap: _showMarkBalancingDialog,
                 borderRadius: BorderRadius.circular(10),
@@ -714,182 +707,188 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFD6D9E0),
-      appBar: AppBar(
-        title: Text(
-          _showAnswerKeyMode
-              ? 'نموذج الإجابة: ${_exam.fileName}'
-              : (_isNew ? 'اختبار جديد' : _exam.fileName),
-          style: const TextStyle(color: Colors.white, fontSize: 15),
-        ),
-        backgroundColor: _showAnswerKeyMode ? const Color(0xFF0F766E) : const Color(0xFF1E3A8A),
-        iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.print_outlined, color: Colors.white),
-            tooltip: 'طباعة مباشرة عبر الشبكة (Wi-Fi)',
-            onPressed: () async {
-              final isAnswerKey = await _showExportChoiceDialog('طباعة مباشرة للطابعة');
-              if (isAnswerKey != null && mounted) {
-                await DirectPrintService.printExamDocument(
-                  context: context,
-                  exam: isAnswerKey ? _buildAnswerKeyExam() : _exam,
-                  isAnswerKey: isAnswerKey,
-                );
-              }
-            },
+    return GestureDetector(
+      onTap: () {
+        if (_selectedElementId != null) {
+          setState(() => _selectedElementId = null);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFD6D9E0),
+        appBar: AppBar(
+          title: Text(
+            _showAnswerKeyMode
+                ? 'نموذج الإجابة: ${_exam.fileName}'
+                : (_isNew ? 'اختبار جديد' : _exam.fileName),
+            style: const TextStyle(color: Colors.white, fontSize: 15),
           ),
-          if (_exam.examType == ExamType.automated)
+          backgroundColor: _showAnswerKeyMode ? const Color(0xFF0F766E) : const Color(0xFF1E3A8A),
+          iconTheme: const IconThemeData(color: Colors.white),
+          actions: [
             IconButton(
-              icon: const Icon(Icons.qr_code_scanner, color: Colors.tealAccent),
-              tooltip: 'المصحح الآلي بالكاميرا (OMR Scanner)',
+              icon: const Icon(Icons.print_outlined, color: Colors.white),
+              tooltip: 'طباعة مباشرة عبر الشبكة (Wi-Fi)',
+              onPressed: () async {
+                final isAnswerKey = await _showExportChoiceDialog('طباعة مباشرة للطابعة');
+                if (isAnswerKey != null && mounted) {
+                  await DirectPrintService.printExamDocument(
+                    context: context,
+                    exam: isAnswerKey ? _buildAnswerKeyExam() : _exam,
+                    isAnswerKey: isAnswerKey,
+                  );
+                }
+              },
+            ),
+            if (_exam.examType == ExamType.automated)
+              IconButton(
+                icon: const Icon(Icons.qr_code_scanner, color: Colors.tealAccent),
+                tooltip: 'المصحح الآلي بالكاميرا (OMR Scanner)',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => OmrScannerScreen(exam: _exam)),
+                  );
+                },
+              ),
+            IconButton(
+              icon: const Icon(Icons.alt_route, color: Colors.white),
+              tooltip: 'توليد نموذج بديل (أ / ب / جـ)',
+              onPressed: _generateAlternativeExamModel,
+            ),
+            IconButton(
+              icon: Icon(
+                _showAnswerKeyMode ? Icons.visibility : Icons.visibility_off,
+                color: Colors.white,
+              ),
+              tooltip: _showAnswerKeyMode ? 'العودة لورقة الأسئلة' : 'معاينة نموذج الإجابة',
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => OmrScannerScreen(exam: _exam)),
+                setState(() {
+                  _showAnswerKeyMode = !_showAnswerKeyMode;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(_showAnswerKeyMode
+                        ? 'تم تفعيل وضع معاينة نموذج الإجابة'
+                        : 'تم تفعيل وضع معاينة ورقة الطالب'),
+                    duration: const Duration(seconds: 1),
+                  ),
                 );
               },
             ),
-          IconButton(
-            icon: const Icon(Icons.alt_route, color: Colors.white),
-            tooltip: 'توليد نموذج بديل (أ / ب / جـ)',
-            onPressed: _generateAlternativeExamModel,
-          ),
-          IconButton(
-            icon: Icon(
-              _showAnswerKeyMode ? Icons.visibility : Icons.visibility_off,
-              color: Colors.white,
-            ),
-            tooltip: _showAnswerKeyMode ? 'العودة لورقة الأسئلة' : 'معاينة نموذج الإجابة',
-            onPressed: () {
-              setState(() {
-                _showAnswerKeyMode = !_showAnswerKeyMode;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(_showAnswerKeyMode
-                      ? 'تم تفعيل وضع معاينة نموذج الإجابة'
-                      : 'تم تفعيل وضع معاينة ورقة الطالب'),
-                  duration: const Duration(seconds: 1),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.share_outlined, color: Colors.white),
-            tooltip: 'مشاركة ملف المشروع (.exam)',
-            onPressed: _exportExamProjectFile,
-          ),
-          if (_exam.examType == ExamType.automated)
             IconButton(
-              icon: const Icon(Icons.fact_check_outlined, color: Colors.white),
-              tooltip: 'تصدير ورقة التظليل (OMR Sheet)',
-              onPressed: _exportOmrSheetToDownloads,
+              icon: const Icon(Icons.share_outlined, color: Colors.white),
+              tooltip: 'مشاركة ملف المشروع (.exam)',
+              onPressed: _exportExamProjectFile,
             ),
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
-            tooltip: 'تصدير PDF',
-            onPressed: _exportPdfToDownloads,
-          ),
-          IconButton(
-            icon: const Icon(Icons.view_column, color: Colors.white),
-            tooltip: 'أبعاد الترويسة والأعمدة',
-            onPressed: _openHeaderFlexSettingsDialog,
-          ),
-          IconButton(
-            icon: const Icon(Icons.tune, color: Colors.white),
-            tooltip: 'خيارات التذييل والهوامش وكشف الطلاب',
-            onPressed: _openFooterSettingsDialog,
-          ),
-          IconButton(
-            icon: const Icon(Icons.save, color: Colors.white, size: 26),
-            tooltip: 'حفظ',
-            onPressed: _triggerSave,
-          ),
-        ],
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                constraints: const BoxConstraints(maxWidth: 820),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(2),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 8,
-                      offset: Offset(0, 3),
-                    ),
-                  ],
-                ),
-                padding: EdgeInsets.only(
-                  top: _exam.header.topMargin1cm ? 8.5 : 12.0,
-                  left: 12.0,
-                  right: 12.0,
-                  bottom: 12.0,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (_exam.header.topMargin1cm) ...[
-                      InkWell(
-                        onTap: _openFooterSettingsDialog,
-                        borderRadius: BorderRadius.circular(4),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
-                          margin: const EdgeInsets.only(bottom: 6.0),
-                          decoration: BoxDecoration(
-                            color: _exam.header.studentDataMode != 'none'
-                                ? Colors.green.shade50
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(4),
-                            border: _exam.header.studentDataMode != 'none'
-                                ? Border.all(color: Colors.green.shade200, width: 0.8)
-                                : null,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  if (_exam.header.studentDataMode != 'none')
-                                    const Icon(Icons.how_to_reg, size: 14, color: Colors.green),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    _exam.header.studentDataMode != 'none'
-                                        ? 'اسم الطالب: [ كشف إكسيل مفعّل ]'
-                                        : 'اسم الطالب: .................................................',
-                                    style: TextStyle(
-                                      fontFamily: _exam.header.adminFont,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 11,
-                                      color: _exam.header.studentDataMode != 'none'
-                                          ? Colors.green.shade900
-                                          : Colors.black87,
+            if (_exam.examType == ExamType.automated)
+              IconButton(
+                icon: const Icon(Icons.fact_check_outlined, color: Colors.white),
+                tooltip: 'تصدير ورقة التظليل (OMR Sheet)',
+                onPressed: _exportOmrSheetToDownloads,
+              ),
+            IconButton(
+              icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
+              tooltip: 'تصدير PDF',
+              onPressed: _exportPdfToDownloads,
+            ),
+            IconButton(
+              icon: const Icon(Icons.view_column, color: Colors.white),
+              tooltip: 'أبعاد الترويسة والأعمدة',
+              onPressed: _openHeaderFlexSettingsDialog,
+            ),
+            IconButton(
+              icon: const Icon(Icons.tune, color: Colors.white),
+              tooltip: 'خيارات التذييل والهوامش وكشف الطلاب',
+              onPressed: _openFooterSettingsDialog,
+            ),
+            IconButton(
+              icon: const Icon(Icons.save, color: Colors.white, size: 26),
+              tooltip: 'حفظ',
+              onPressed: _triggerSave,
+            ),
+          ],
+        ),
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  constraints: const BoxConstraints(maxWidth: 820),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(2),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 8,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  padding: EdgeInsets.only(
+                    top: _exam.header.topMargin1cm ? 8.5 : 12.0,
+                    left: 12.0,
+                    right: 12.0,
+                    bottom: 12.0,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_exam.header.topMargin1cm) ...[
+                        InkWell(
+                          onTap: _openFooterSettingsDialog,
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
+                            margin: const EdgeInsets.only(bottom: 6.0),
+                            decoration: BoxDecoration(
+                              color: _exam.header.studentDataMode != 'none'
+                                  ? Colors.green.shade50
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(4),
+                              border: _exam.header.studentDataMode != 'none'
+                                  ? Border.all(color: Colors.green.shade200, width: 0.8)
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    if (_exam.header.studentDataMode != 'none')
+                                      const Icon(Icons.how_to_reg, size: 14, color: Colors.green),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _exam.header.studentDataMode != 'none'
+                                          ? 'اسم الطالب: [ كشف إكسيل مفعّل ]'
+                                          : 'اسم الطالب: .................................................',
+                                      style: TextStyle(
+                                        fontFamily: _exam.header.adminFont,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11,
+                                        color: _exam.header.studentDataMode != 'none'
+                                            ? Colors.green.shade900
+                                            : Colors.black87,
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              Row(
-                                children: [
-                                  Text(
-                                    _exam.header.studentDataMode != 'none'
-                                        ? 'رقم الجلوس: [ آلي ]'
-                                        : 'رقم الجلوس: [ ........... ]',
-                                    style: TextStyle(
-                                      fontFamily: _exam.header.detailsFont,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 11,
-                                      color: _exam.header.studentDataMode != 'none'
-                                          ? Colors.green.shade900
-                                          : Colors.black87,
+                                  ],
+                                ),
+                                Row(
+                                  children: [
+                                    Text(
+                                      _exam.header.studentDataMode != 'none'
+                                          ? 'رقم الجلوس: [ آلي ]'
+                                          : 'رقم الجلوس: [ ........... ]',
+                                      style: TextStyle(
+                                        fontFamily: _exam.header.detailsFont,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11,
+                                        color: _exam.header.studentDataMode != 'none'
+                                            ? Colors.green.shade900
+                                            : Colors.black87,
                                     ),
                                   ),
                                   const SizedBox(width: 6),
@@ -915,6 +914,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         ),
       ),
       bottomNavigationBar: _buildUnifiedBottomBar(),
+    ),
     );
   }
 
@@ -1172,6 +1172,23 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             titleWidget = RotatedBox(quarterTurns: 1, child: titleWidget);
           }
 
+          // معالجة عرض الدرجة بدون أصفار زائدة واتجاه النص
+          final markText = q.mark > 0
+              ? (q.mark % 1 == 0 ? '${q.mark.toInt()} د' : '${q.mark} د')
+              : '-';
+
+          Widget markWidget = Text(
+            markText,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+          );
+
+          if (q.gradeOrientation == GradeTextOrientation.verticalBottomToTop) {
+            markWidget = RotatedBox(quarterTurns: 3, child: markWidget);
+          } else if (q.gradeOrientation == GradeTextOrientation.verticalTopToBottom) {
+            markWidget = RotatedBox(quarterTurns: 1, child: markWidget);
+          }
+
           return TableRow(
             children: [
               TableCell(
@@ -1236,12 +1253,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   onTap: () => _openQuestionDialog(questionIndex: index),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Center(
-                      child: Text(
-                        q.mark > 0 ? '${q.mark} د' : '-',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
-                      ),
-                    ),
+                    child: Center(child: markWidget),
                   ),
                 ),
               ),
@@ -1361,8 +1373,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 textDirection: TextDirection.rtl,
                 child: IntrinsicWidth(
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: CrossAxisAlignment.start,
                     children: [
                       if (degree.isNotEmpty)
                         Padding(
@@ -2006,22 +2017,22 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _buildRenderedElement(InsertableElement el) {
+    final bool isSelected = _selectedElementId == el.id;
+
+    Widget coreWidget;
     switch (el.type) {
       case ElementType.image:
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Center(
-            child: Image.file(
-              File(el.content),
-              height: el.height,
-              width: el.width,
-              fit: BoxFit.contain,
-            ),
+        coreWidget = Center(
+          child: Image.file(
+            File(el.content),
+            height: el.height,
+            width: el.width,
+            fit: BoxFit.contain,
           ),
         );
+        break;
       case ElementType.textBox:
-        return Container(
-          margin: const EdgeInsets.symmetric(vertical: 4),
+        coreWidget = Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: Colors.grey.shade100,
@@ -2034,22 +2045,160 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
           ),
         );
+        break;
       case ElementType.dottedLine:
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 3),
-          child: Text(
-            el.content,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, letterSpacing: 1.5),
-          ),
+        coreWidget = Text(
+          el.content,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 13, letterSpacing: 1.5),
         );
+        break;
       case ElementType.mathOperation:
-        return _renderMathOperation(el.content);
+        coreWidget = _renderMathOperation(el.content);
+        break;
       case ElementType.table:
-        return _renderCustomTable(el.content);
+        coreWidget = _renderCustomTable(el.content);
+        break;
       case ElementType.shape:
-        return _renderCustomShape(el.content);
+        coreWidget = _renderCustomShape(el.content, el.width, el.height);
+        break;
     }
+
+    // تمكين خصائص Word للجدول والأشكال الهندسية
+    if (el.type == ElementType.shape || el.type == ElementType.table) {
+      return Transform.translate(
+        offset: Offset(el.dx, el.dy),
+        child: GestureDetector(
+          onTap: () {
+            setState(() {
+              _selectedElementId = isSelected ? null : el.id;
+            });
+          },
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: el.width,
+                height: el.type == ElementType.shape ? el.height : null,
+                decoration: BoxDecoration(
+                  border: isSelected
+                      ? Border.all(color: const Color(0xFF1976D2), width: 1.5)
+                      : null,
+                ),
+                child: coreWidget,
+              ),
+
+              // أدوات تحكم مايكروسوفت وورد
+              if (isSelected) ...[
+                // زر الأسهم المتصالبة للتحريك الحر في كل الاتجاهات
+                Positioned(
+                  top: -34,
+                  child: GestureDetector(
+                    onPanUpdate: (details) {
+                      setState(() {
+                        el.dx += details.delta.dx;
+                        el.dy += details.delta.dy;
+                      });
+                    },
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF1976D2),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))
+                        ],
+                      ),
+                      child: const Icon(Icons.open_with, color: Colors.white, size: 18),
+                    ),
+                  ),
+                ),
+
+                // مقابض التكبير والتصغير (المربعات)
+                _buildWordResizeHandle(
+                  top: -6,
+                  left: -6,
+                  onPan: (delta) {
+                    setState(() {
+                      el.width = (el.width - delta.dx).clamp(50.0, 500.0);
+                      el.height = (el.height - delta.dy).clamp(30.0, 400.0);
+                      el.dx += delta.dx;
+                      el.dy += delta.dy;
+                    });
+                  },
+                ),
+                _buildWordResizeHandle(
+                  top: -6,
+                  right: -6,
+                  onPan: (delta) {
+                    setState(() {
+                      el.width = (el.width + delta.dx).clamp(50.0, 500.0);
+                      el.height = (el.height - delta.dy).clamp(30.0, 400.0);
+                      el.dy += delta.dy;
+                    });
+                  },
+                ),
+                _buildWordResizeHandle(
+                  bottom: -6,
+                  left: -6,
+                  onPan: (delta) {
+                    setState(() {
+                      el.width = (el.width - delta.dx).clamp(50.0, 500.0);
+                      el.height = (el.height + delta.dy).clamp(30.0, 400.0);
+                      el.dx += delta.dx;
+                    });
+                  },
+                ),
+                _buildWordResizeHandle(
+                  bottom: -6,
+                  right: -6,
+                  onPan: (delta) {
+                    setState(() {
+                      el.width = (el.width + delta.dx).clamp(50.0, 500.0);
+                      el.height = (el.height + delta.dy).clamp(30.0, 400.0);
+                    });
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: coreWidget,
+    );
+  }
+
+  Widget _buildWordResizeHandle({
+    double? top,
+    double? bottom,
+    double? left,
+    double? right,
+    required Function(Offset delta) onPan,
+  }) {
+    return Positioned(
+      top: top,
+      bottom: bottom,
+      left: left,
+      right: right,
+      child: GestureDetector(
+        onPanUpdate: (details) => onPan(details.delta),
+        child: Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: const Color(0xFF1976D2), width: 1.8),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _renderCustomTable(String jsonStr) {
@@ -2061,7 +2210,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       final List<dynamic> rawGrid = data['data'] ?? [];
 
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(vertical: 4),
         child: Table(
           border: TableBorder.all(color: Colors.black87, width: 1.0),
           children: List.generate(rows, (r) {
@@ -2100,46 +2249,41 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
   }
 
-  Widget _renderCustomShape(String jsonStr) {
+  Widget _renderCustomShape(String jsonStr, [double? customWidth, double? customHeight]) {
     try {
       final Map<String, dynamic> data = jsonDecode(jsonStr);
       final String kind = data['kind'] ?? 'rectangle';
-      final double w = (data['width'] as num?)?.toDouble() ?? 120.0;
-      final double h = (data['height'] as num?)?.toDouble() ?? 70.0;
+      final double w = customWidth ?? ((data['width'] as num?)?.toDouble() ?? 120.0);
+      final double h = customHeight ?? ((data['height'] as num?)?.toDouble() ?? 70.0);
       final String label = data['label'] ?? '';
       final Color strokeColor = Color(int.parse((data['strokeColor'] ?? '#000000').replaceFirst('#', '0xFF')));
       final Color fillColor = (data['fillColor'] == null || data['fillColor'] == 'transparent')
           ? Colors.transparent
           : Color(int.parse((data['fillColor'] as String).replaceFirst('#', '0xFF')));
 
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: CustomPaint(
-            size: Size(w, h),
-            painter: _ExamShapePainter(
-              kind: kind,
-              strokeColor: strokeColor,
-              fillColor: fillColor,
-            ),
-            child: SizedBox(
-              width: w,
-              height: h,
-              child: Center(
-                child: label.isNotEmpty
-                    ? Text(
-                        label,
-                        style: TextStyle(
-                          fontFamily: 'Amiri',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: strokeColor,
-                        ),
-                        textAlign: TextAlign.center,
-                      )
-                    : null,
-              ),
-            ),
+      return CustomPaint(
+        size: Size(w, h),
+        painter: _ExamShapePainter(
+          kind: kind,
+          strokeColor: strokeColor,
+          fillColor: fillColor,
+        ),
+        child: SizedBox(
+          width: w,
+          height: h,
+          child: Center(
+            child: label.isNotEmpty
+                ? Text(
+                    label,
+                    style: TextStyle(
+                      fontFamily: 'Amiri',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: strokeColor,
+                    ),
+                    textAlign: TextAlign.center,
+                  )
+                : null,
           ),
         ),
       );
@@ -2218,7 +2362,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         return Center(
           child: IntrinsicWidth(
             child: Column(
-              
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -2435,6 +2578,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         id: const Uuid().v4(),
                         title: t['qTitle'] as String,
                         titleOrientation: QuestionTitleOrientation.horizontal,
+                        gradeOrientation: GradeTextOrientation.horizontal,
                         mark: (t['mark'] as num).toDouble(),
                         spans: [
                           TextSpanModel(
@@ -2485,9 +2629,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     final textCtrl =
         TextEditingController(text: q.spans.map((e) => e.text).join(''));
     final markCtrl =
-        TextEditingController(text: q.mark > 0 ? q.mark.toString() : '5');
+        TextEditingController(text: q.mark > 0 ? (q.mark % 1 == 0 ? q.mark.toInt().toString() : q.mark.toString()) : '5');
     final answerCtrl = TextEditingController(text: q.answerKey);
     QuestionTitleOrientation orientation = q.titleOrientation;
+    GradeTextOrientation gradeOrient = q.gradeOrientation;
     bool isTwoCols = q.isTwoColumns;
     List<InsertableElement> currentElements = List.from(q.elements);
 
@@ -3086,6 +3231,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         id: const Uuid().v4(),
                         type: ElementType.table,
                         content: jsonPayload,
+                        width: 320,
+                        height: 120,
                       ));
                     }
                   });
@@ -3260,11 +3407,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   setParentState(() {
                     if (existingElement != null) {
                       existingElement.content = jsonPayload;
+                      existingElement.width = width;
+                      existingElement.height = height;
                     } else {
                       currentElements.add(InsertableElement(
                         id: const Uuid().v4(),
                         type: ElementType.shape,
                         content: jsonPayload,
+                        width: width,
+                        height: height,
                       ));
                     }
                   });
@@ -3427,6 +3578,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             content: el.content,
             width: el.width,
             height: el.height,
+            dx: el.dx,
+            dy: el.dy,
           );
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3448,6 +3601,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               content: el.content,
               width: el.width,
               height: el.height,
+              dx: el.dx + 10,
+              dy: el.dy + 10,
             ),
           );
         });
@@ -3597,7 +3752,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 color: const Color(0xFFD97706),
                 onEdit: () => showShapeDesignerDialog(setModalState, existingElement: el),
               ),
-              _renderCustomShape(el.content),
+              _renderCustomShape(el.content, el.width, el.height),
             ],
           ),
         );
@@ -3657,7 +3812,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             flex: 1,
                             child: TextField(
                               controller: markCtrl,
-                              keyboardType: TextInputType.number,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               decoration: const InputDecoration(labelText: 'الدرجة'),
                             ),
                           ),
@@ -3669,7 +3824,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         crossAxisAlignment: WrapCrossAlignment.center,
                         spacing: 4,
                         children: [
-                          const Text('الاتجاه: ',
+                          const Text('عنوان السؤال: ',
                               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                           ChoiceChip(
                             label: const Text('أفقي', style: TextStyle(fontSize: 11)),
@@ -3688,6 +3843,27 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             selected: orientation == QuestionTitleOrientation.verticalTopToBottom,
                             onSelected: (val) => setModalState(() =>
                                 orientation = QuestionTitleOrientation.verticalTopToBottom),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('عمود الدرجة: ',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          ChoiceChip(
+                            label: const Text('أفقي', style: TextStyle(fontSize: 11)),
+                            selected: gradeOrient == GradeTextOrientation.horizontal,
+                            onSelected: (val) => setModalState(
+                                () => gradeOrient = GradeTextOrientation.horizontal),
+                          ),
+                          ChoiceChip(
+                            label: const Text('رأسي ◄', style: TextStyle(fontSize: 11)),
+                            selected: gradeOrient == GradeTextOrientation.verticalBottomToTop,
+                            onSelected: (val) => setModalState(() =>
+                                gradeOrient = GradeTextOrientation.verticalBottomToTop),
+                          ),
+                          ChoiceChip(
+                            label: const Text('رأسي ►', style: TextStyle(fontSize: 11)),
+                            selected: gradeOrient == GradeTextOrientation.verticalTopToBottom,
+                            onSelected: (val) => setModalState(() =>
+                                gradeOrient = GradeTextOrientation.verticalTopToBottom),
                           ),
                           const SizedBox(width: 6),
                           FilterChip(
@@ -3726,6 +3902,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                         content: _copiedElement!.content,
                                         width: _copiedElement!.width,
                                         height: _copiedElement!.height,
+                                        dx: _copiedElement!.dx + 10,
+                                        dy: _copiedElement!.dy + 10,
                                       ));
                                     });
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -3736,10 +3914,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                     );
                                   },
                                 ),
+                              // زر إضافة صفحة جديدة المباشر والواضح
                               _buildBarBtn(
-                                text: 'صفحة ⤶',
-                                color: const Color(0xFF475569),
-                                tooltip: 'إدراج فاصل صفحة جديدة إجبارياً',
+                                icon: Icons.note_add_outlined,
+                                text: 'صفحة جديدة ⤶',
+                                color: const Color(0xFF2563EB),
+                                tooltip: 'إدراج فاصل صفحة جديدة إجبارياً في مكان المؤشر',
                                 onTap: () => setModalState(() => insertAtCursor(' [فاصل_صفحة] ')),
                               ),
                               _buildBarBtn(
@@ -3763,13 +3943,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               _buildBarBtn(
                                 text: 'جدول ⊞',
                                 color: const Color(0xFF4338CA),
-                                tooltip: 'تصميم وإدراج جدول مخصص',
+                                tooltip: 'تصميم وإدراج جدول مخصص (يدعم التحريك الحر كـ Word)',
                                 onTap: () => showTableDesignerDialog(setModalState),
                               ),
                               _buildBarBtn(
                                 text: 'شكل ▱',
                                 color: const Color(0xFFD97706),
-                                tooltip: 'إدراج أشكال تلقائية وهندسية (Word Shapes)',
+                                tooltip: 'إدراج أشكال تلقائية وهندسية (تدعم التحريك الحر كـ Word)',
                                 onTap: () => showShapeDesignerDialog(setModalState),
                               ),
                               _buildBarBtn(
@@ -4039,7 +4219,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
                       if (currentElements.isNotEmpty) ...[
                         const Text(
-                          'العناصر والجداول المدرجة في هذا السؤال (معاينة وتحرير وتحريك ونسخ):',
+                          'العناصر والجداول المدرجة في هذا السؤال (انقر على العنصر لتحديده وتحريكه كـ Word):',
                           style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
                         ),
                         const SizedBox(height: 4),
@@ -4089,6 +4269,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               final qToSave = QuestionModel(
                                 id: const Uuid().v4(),
                                 title: titleCtrl.text.trim(),
+                                titleOrientation: orientation,
+                                gradeOrientation: gradeOrient,
                                 mark: double.tryParse(markCtrl.text) ?? 5.0,
                                 spans: [TextSpanModel(text: textCtrl.text)],
                                 elements: currentElements,
@@ -4180,6 +4362,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                   id: q.id,
                                   title: titleCtrl.text,
                                   titleOrientation: orientation,
+                                  gradeOrientation: gradeOrient,
                                   mark: double.tryParse(markCtrl.text) ?? 0.0,
                                   spans: spansToSave,
                                   elements: currentElements,
