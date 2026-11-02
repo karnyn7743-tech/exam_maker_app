@@ -113,6 +113,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Future<void> _triggerSave() async {
+    // توليد التسمية التلقائية الجديدة: [الصف _ المادة _ شامل / مؤتمت]
+    final gradeName = _exam.header.grade.trim().isNotEmpty ? _exam.header.grade.trim() : 'عام';
+    final subjectName = _exam.header.subject.trim().isNotEmpty ? _exam.header.subject.trim() : 'مادة';
+    final typeName = _exam.examType == ExamType.automated ? 'مؤتمت' : 'شامل';
+    final generatedName = '$gradeName _ $subjectName _ $typeName';
+
+    // اعتماد التسمية الآلية إن كان الاختبار جديداً أو يحمل اسماً افتراضياً قديماً
+    if (_isNew || _exam.fileName.isEmpty || _exam.fileName.startsWith('اختبار_') || _exam.fileName == 'اختبار جديد') {
+      _exam.fileName = generatedName;
+    }
+
     final saved = await showSaveChoiceDialog(
       context: context,
       currentExam: _exam,
@@ -261,7 +272,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   void _generateAlternativeExamModel() {
-    final ctrl = TextEditingController(text: 'نموذج (ب)');
+    final gradeName = _exam.header.grade.trim().isNotEmpty ? _exam.header.grade.trim() : 'عام';
+    final subjectName = _exam.header.subject.trim().isNotEmpty ? _exam.header.subject.trim() : 'مادة';
+    final typeName = _exam.examType == ExamType.automated ? 'مؤتمت' : 'شامل';
+    final defaultAltName = '$gradeName _ $subjectName _ $typeName (نموذج ب)';
+
+    final ctrl = TextEditingController(text: defaultAltName);
     showDialog(
       context: context,
       builder: (dCtx) => AlertDialog(
@@ -284,7 +300,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             TextField(
               controller: ctrl,
               decoration: const InputDecoration(
-                labelText: 'تمييز النموذج الجديد',
+                labelText: 'اسم ملف النموذج الجديد',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -297,9 +313,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             onPressed: () {
               final newExam = _exam.copyWith(
                 newId: const Uuid().v4(),
-                newFileName: '${_exam.fileName} - ${ctrl.text.trim()}',
+                newFileName: ctrl.text.trim(),
               );
-              newExam.header.examTitle = '${_exam.header.examTitle} - ${ctrl.text.trim()}';
+              newExam.header.examTitle = '${_exam.header.examTitle} - (ب)';
 
               newExam.questions = _exam.questions.map((q) {
                 final copiedQ = QuestionModel.fromMap(q.toMap());
@@ -326,7 +342,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               Navigator.pop(dCtx);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('تم توليد ${ctrl.text.trim()} بنجاح مع خلط الفقرات!'),
+                  content: Text('تم توليد (${ctrl.text.trim()}) بنجاح مع خلط الفقرات!'),
                   backgroundColor: Colors.green.shade800,
                 ),
               );
@@ -2202,7 +2218,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         return Center(
           child: IntrinsicWidth(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: min(0, 0) == 0 ? MainAxisSize.min : MainAxisSize.max,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
