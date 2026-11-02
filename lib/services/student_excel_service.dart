@@ -36,8 +36,8 @@ class StudentExcelService {
 
     String text;
     if (val is TextCellValue) {
-      // حزمة excel ترجع TextSpan داخل val.value فنستخرج text مباشرة
-      text = val.value.text;
+      // حزمة excel ترجع TextSpan داخل val.value فنستخرج text مع معالجة null
+      text = val.value.text ?? '';
     } else if (val is IntCellValue) {
       text = val.value.toString();
     } else if (val is DoubleCellValue) {
@@ -215,7 +215,7 @@ class StudentExcelService {
       final file = File(filePath);
       if (!await file.exists()) return false;
 
-      final bytes = await file.readAsBytes();
+      final bytes = await File(filePath).readAsBytes();
       final excel = Excel.decodeBytes(bytes);
 
       if (!excel.tables.containsKey(sheetName)) return false;
