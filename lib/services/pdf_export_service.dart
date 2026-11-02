@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:barcode/barcode.dart';
-import 'package:better_download_saver/better_download_saver.dart'; // ← جديد
+import 'package:better_download_saver/better_download_saver.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
@@ -42,6 +42,7 @@ class PdfExportService {
     List<StudentData> studentList = [];
     int currentSubjectCode = exam.header.subjectCode;
 
+    // قراءة كشف الطلاب مع التصفية الحصرية بحسب الصف المحدد
     if (exam.header.topMargin1cm &&
         exam.header.studentDataMode != 'none' &&
         exam.header.excelFilePath != null &&
@@ -50,6 +51,7 @@ class PdfExportService {
         final excelRes = await StudentExcelService.parseExcelFile(
           exam.header.excelFilePath!,
           expectedSubject: exam.header.subject,
+          targetGrade: exam.header.grade, // تصفية حصرية حسب الصف المكتوب بالامتحان
         );
         studentList = excelRes.students;
         currentSubjectCode = excelRes.subjectCode;
@@ -194,9 +196,20 @@ class PdfExportService {
       );
     }
 
-    // ============ الجزء المعدل: الحفظ باستخدام BetterDownloadSaver ============
+    // ============ صياغة التسمية الجديدة عند الحفظ والتصدير ============
     final pdfBytes = await pdf.save();
-    final safeName = exam.fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+
+    final gradeName = exam.header.grade.trim().isNotEmpty ? exam.header.grade.trim() : 'عام';
+    final subjectName = exam.header.subject.trim().isNotEmpty ? exam.header.subject.trim() : 'مادة';
+    final typeName = isAutomated ? 'مؤتمت' : 'شامل';
+
+    // [الصف _ المادة _ شامل / مؤتمت]
+    final defaultGeneratedName = '$gradeName _ $subjectName _ $typeName';
+    final nameToUse = exam.fileName.trim().isNotEmpty && !exam.fileName.startsWith('اختبار_')
+        ? exam.fileName.trim()
+        : defaultGeneratedName;
+
+    final safeName = nameToUse.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final fileName = '$safeName.pdf';
 
     // المحاولة الأولى: الحفظ في مجلد التنزيلات العام (Downloads)
@@ -213,7 +226,7 @@ class PdfExportService {
       // نمر إلى الخطة البديلة
     }
 
-    // الخطة البديلة: الحفظ في مجلد التطبيق الخاص حتى لا يضيع الملف
+    // الخطة البديلة: الحفظ في مجلد التطبيق المخصص لضمان حفظ الملف
     try {
       Directory fallbackDir;
       if (Platform.isAndroid) {
@@ -232,7 +245,6 @@ class PdfExportService {
       throw Exception('تعذر حفظ ملف PDF: $e');
     }
   }
-  // ============ نهاية الجزء المعدل ============
 
   static pw.Widget _buildExamHeaderBox(ExamModel exam, pw.Font ttf, pw.MemoryImage? logoImage) {
     return pw.Container(
