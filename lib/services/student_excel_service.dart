@@ -114,7 +114,8 @@ class StudentExcelService {
     // في نظام 8 أشهر: الشهر الرابع يقع في العمود 19 (E=4, J=9, O=14, T=19)
     // في نظام 6 أشهر: العمود 19 يكون مخصصاً لـ [م١]
     final cellFourthMonth = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 19, rowIndex: 1));
-    final text = _normalizeArabic(cellFourthMonth);
+    final rawText = _extractCleanText(cellFourthMonth);
+    final text = _normalizeArabic(rawText);
 
     if (text.isEmpty || text == 'م1' || text == 'م١' || text.contains('محصله') || text.contains('فصل1')) {
       return 6;
@@ -135,9 +136,12 @@ class StudentExcelService {
       final sheet = excel.tables.values.first;
       if (sheet.maxRows < 4) return false;
 
-      // فحص عناوين رأس الأعمدة في الصف الثالث (index = 2)
-      final seatHeader = _normalizeArabic(sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 2)));
-      final nameHeader = _normalizeArabic(sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 2)));
+      // فحص عناوين رأس الأعمدة في الصف الثالث (index = 2) مع استخراج النص النقي أولاً
+      final seatCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 2));
+      final nameCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 2));
+
+      final seatHeader = _normalizeArabic(_extractCleanText(seatCell));
+      final nameHeader = _normalizeArabic(_extractCleanText(nameCell));
 
       bool hasExpectedHeaders = (seatHeader.contains('جلوس') || seatHeader.contains('رقم')) ||
           (nameHeader.contains('اسم') || nameHeader.contains('طالب'));
