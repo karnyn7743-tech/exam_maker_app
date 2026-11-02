@@ -28,25 +28,47 @@ class StudentExcelResult {
 }
 
 class StudentExcelService {
-  /// دالة ذكية لتطبيع ومطابقة أسماء الصفوف الدراسية في اليمن
+  /// استخراج النص النقي الخام من خلية الإكسيل متجاوزاً تغليف الكائنات ومحارف التنسيق المخفية
+  static String _extractCleanText(dynamic cell) {
+    if (cell == null) return '';
+    final val = (cell is Data) ? cell.value : cell;
+    if (val == null) return '';
+
+    String text;
+    if (val is TextCellValue) {
+      text = val.value;
+    } else if (val is IntCellValue) {
+      text = val.value.toString();
+    } else if (val is DoubleCellValue) {
+      text = val.value.toInt().toString();
+    } else {
+      text = val.toString();
+    }
+
+    // إزالة غلاف الكائن إن وجد مثل TextCellValue(...)
+    if (text.startsWith('TextCellValue(') && text.endsWith(')')) {
+      text = text.substring(14, text.length - 1);
+    }
+
+    // إزالة المحارف المخفية (Zero-width spaces) والمسافات غير المرئية
+    return text.replaceAll(RegExp(r'[\u200B-\u200D\uFEFF\u00A0]'), '').trim();
+  }
+
+  /// تطبيع موحد للحروف والكلمات العربية
   static String _normalizeArabic(String text) {
-    var s = text.trim().toLowerCase();
-    // توحيد الهمزات والألفات
+    var s = _extractCleanText(text).toLowerCase();
+    // توحيد الألف والهمزات
     s = s.replaceAll(RegExp(r'[أإآ]'), 'ا');
     // توحيد التاء المربوطة والهاء
     s = s.replaceAll('ة', 'ه');
     // توحيد الياء والألف المقصورة
     s = s.replaceAll('ى', 'ي');
-    // إزالة علامات التشكيل والفراغات الزائدة
+    // إزالة الحركات وعلامات التشكيل
     s = s.replaceAll(RegExp(r'[\u064B-\u0652]'), '');
-    s = s.replaceAll(RegExp(r'\s+'), ' ');
-    // حذف كلمة "الصف" إن وجدت للمقارنة النظيفة
+    // إزالة كلمة "الصف" إن وجدت
     s = s.replaceAll('الصف', '').trim();
-
-    // ربط مسميات صفوف المرحلة الأساسية المتبادلة
-    if (s == 'تاسع' || s == 'التاسع' || s == '9' || s == '٩' || s == 'ثالث اعدادي' || s == 'ثالث') {
-      // تنبيه: في بعض المدارس يسمون الصف التاسع "ثالث" (أي ثالث متوسط/إعدادي)
-    }
+    // إزالة جميع المسافات لإجراء مقارنة مجردة تماماً
+    s = s.replaceAll(RegExp(r'\s+'), '');
     return s;
   }
 
@@ -55,27 +77,27 @@ class StudentExcelService {
     final normCell = _normalizeArabic(studentGradeCell);
     final normTarget = _normalizeArabic(targetGrade);
 
-    if (normTarget.isEmpty) return true; // إذا لم يحدد صفاً يستورد الجميع
-    if (normCell.isEmpty) return false; // إذا كان هناك صف مستهدف وخلية الطالب فارغة يُرفض
+    if (normTarget.isEmpty) return true; // إذا لم يُحدد صف يتم استيراد الجميع
+    if (normCell.isEmpty) return false;  // إذا طُلب صف محدد وخانة الطالب فارغة يُستبعد
 
-    // تطابق مباشر
+    // التطابق المباشر التام أو الجزئي بعد التجريد
     if (normCell == normTarget || normCell.contains(normTarget) || normTarget.contains(normCell)) {
       return true;
     }
 
-    // توافق خاص بالصف التاسع / الثالث إعدادي
+    // توافق مسميات الصف التاسع (تاسع / ثالث إعدادي / 9 / ٩)
     final isTargetGrade9 = normTarget.contains('تاسع') || normTarget == '9' || normTarget == '٩';
     if (isTargetGrade9 && (normCell.contains('تاسع') || normCell.contains('ثالث') || normCell == '9' || normCell == '٩')) {
       return true;
     }
 
-    // توافق خاص بالصف الثامن / الثاني إعدادي
+    // توافق مسميات الصف الثامن (ثامن / ثاني إعدادي / 8 / ٨)
     final isTargetGrade8 = normTarget.contains('ثامن') || normTarget == '8' || normTarget == '٨';
     if (isTargetGrade8 && (normCell.contains('ثامن') || normCell.contains('ثاني') || normCell == '8' || normCell == '٨')) {
       return true;
     }
 
-    // توافق خاص بالصف السابع / الأول إعدادي
+    // توافق مسميات الصف السابع (سابع / أول إعدادي / 7 / ٧)
     final isTargetGrade7 = normTarget.contains('سابع') || normTarget == '7' || normTarget == '٧';
     if (isTargetGrade7 && (normCell.contains('سابع') || normCell.contains('اول') || normCell == '7' || normCell == '٧')) {
       return true;
@@ -129,24 +151,24 @@ class StudentExcelService {
       if (row.isEmpty) continue;
 
       // عمود A (رقم الجلوس - index 0)
-      final rawSeat = row.isNotEmpty ? (row[0]?.value?.toString().trim() ?? '') : '';
+      final rawSeat = row.isNotEmpty ? _extractCleanText(row[0]) : '';
       // عمود B (اسم الطالب - index 1)
-      final rawName = row.length > 1 ? (row[1]?.value?.toString().trim() ?? '') : '';
+      final rawName = row.length > 1 ? _extractCleanText(row[1]) : '';
       // عمود C (الصف الدراسي - index 2)
-      final rawGrade = row.length > 2 ? (row[2]?.value?.toString().trim() ?? '') : '';
+      final rawGrade = row.length > 2 ? _extractCleanText(row[2]) : '';
       // عمود D (الرقم السري - index 3)
-      final rawSecret = row.length > 3 ? (row[3]?.value?.toString().trim() ?? '') : '';
+      final rawSecret = row.length > 3 ? _extractCleanText(row[3]) : '';
 
       // تجاهل الأسطر الفارغة تماماً
       if (rawSeat.isEmpty && rawName.isEmpty && rawSecret.isEmpty) {
         continue;
       }
 
-      // 3. فلترة الصف الدراسي الصارمة
+      // 3. فلترة الصف الدراسي الصارمة بحسب العمود C
       if (requiredGrade.isNotEmpty) {
         final matches = _isGradeMatch(rawGrade, requiredGrade);
         if (!matches) {
-          // إذا لم يطابق الصف المطلوب يتم استبعاده فوراً
+          // استبعاد الطالب فوراً إذا لم يتطابق الصف
           continue;
         }
       }
@@ -199,11 +221,12 @@ class StudentExcelService {
       final sheet = excel.tables[sheetName]!;
 
       int targetRowIndex = -1;
-      final cleanSecret = secretCode.trim();
+      final cleanSecret = _extractCleanText(secretCode);
 
       for (int r = 3; r < sheet.maxRows; r++) {
-        final cellVal = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: r)).value;
-        if (cellVal != null && cellVal.toString().trim() == cleanSecret) {
+        final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: r));
+        final val = _extractCleanText(cell);
+        if (val == cleanSecret) {
           targetRowIndex = r;
           break;
         }
