@@ -40,9 +40,9 @@ class PdfExportService {
     }
 
     List<StudentData> studentList = [];
-    int currentSubjectCode = exam.header.subjectCode;
+    int currentSubjectCode = 1;
 
-    // قراءة كشف الطلاب مع التصفية الحصرية بحسب الصف المحدد
+    // قراءة كشف الطلاب مع التصفية الحصرية وحساب الرقم الذكي ديناميكياً من الإكسيل
     if (exam.header.topMargin1cm &&
         exam.header.studentDataMode != 'none' &&
         exam.header.excelFilePath != null &&
@@ -52,6 +52,7 @@ class PdfExportService {
           exam.header.excelFilePath!,
           expectedSubject: exam.header.subject,
           targetGrade: exam.header.grade, // تصفية حصرية حسب الصف المكتوب بالامتحان
+          examTitle: exam.header.examTitle, // احتساب رقم الشهر من الصف 2 أو ترتيب ورقة المادة ديناميكياً
         );
         studentList = excelRes.students;
         currentSubjectCode = excelRes.subjectCode;
@@ -147,7 +148,7 @@ class PdfExportService {
                               '$currentSubjectCode',
                               style: pw.TextStyle(
                                 font: ttf,
-                                fontSize: 20,
+                                fontSize: 22,
                                 fontWeight: pw.FontWeight.bold,
                               ),
                             ),
@@ -196,14 +197,14 @@ class PdfExportService {
       );
     }
 
-    // ============ صياغة التسمية الجديدة عند الحفظ والتصدير ============
+    // ============ صياغة التسمية الجديدة التلقائية ============
     final pdfBytes = await pdf.save();
 
     final gradeName = exam.header.grade.trim().isNotEmpty ? exam.header.grade.trim() : 'عام';
     final subjectName = exam.header.subject.trim().isNotEmpty ? exam.header.subject.trim() : 'مادة';
     final typeName = isAutomated ? 'مؤتمت' : 'شامل';
 
-    // [الصف _ المادة _ شامل / مؤتمت]
+    // التسمية الرسمية: [الصف _ المادة _ شامل / مؤتمت]
     final defaultGeneratedName = '$gradeName _ $subjectName _ $typeName';
     final nameToUse = exam.fileName.trim().isNotEmpty && !exam.fileName.startsWith('اختبار_')
         ? exam.fileName.trim()
