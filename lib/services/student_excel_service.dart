@@ -19,11 +19,13 @@ class StudentExcelResult {
   final List<StudentData> students;
   final int subjectCode;
   final String matchedSubjectName;
+  final int totalMonths;
 
   StudentExcelResult({
     required this.students,
     required this.subjectCode,
     required this.matchedSubjectName,
+    this.totalMonths = 8,
   });
 }
 
@@ -107,13 +109,58 @@ class StudentExcelService {
     return false;
   }
 
+  /// فحص ما إذا كان ملف الإكسيل يعتمد نظام 8 أشهر أم 6 أشهر تلقائياً من خلايا الصف الثاني
+  static int detectTotalMonths(Sheet sheet) {
+    // في نظام 8 أشهر: الشهر الرابع يقع في العمود 19 (E=4, J=9, O=14, T=19)
+    // في نظام 6 أشهر: العمود 19 يكون مخصصاً لـ [م١]
+    final cellFourthMonth = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 19, rowIndex: 1));
+    final text = _normalizeArabic(cellFourthMonth);
+
+    if (text.isEmpty || text == 'م1' || text == 'م١' || text.contains('محصله') || text.contains('فصل1')) {
+      return 6;
+    }
+    return 8;
+  }
+
+  /// التحقق الصارم من بنية ملف الإكسيل ومطابقته للتنسيق المعتمد
+  static Future<bool> validateExcelStructure(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) return false;
+
+      final bytes = await file.readAsBytes();
+      final excel = Excel.decodeBytes(bytes);
+      if (excel.tables.isEmpty) return false;
+
+      final sheet = excel.tables.values.first;
+      if (sheet.maxRows < 4) return false;
+
+      // فحص عناوين رأس الأعمدة في الصف الثالث (index = 2)
+      final seatHeader = _normalizeArabic(sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 2)));
+      final nameHeader = _normalizeArabic(sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 2)));
+
+      bool hasExpectedHeaders = (seatHeader.contains('جلوس') || seatHeader.contains('رقم')) ||
+          (nameHeader.contains('اسم') || nameHeader.contains('طالب'));
+
+      // فحص وجود سجلات طلاب فعلية في الصف الرابع (index = 3)
+      final testSeat = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 3)));
+      final testName = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 3)));
+      bool hasStudentRow = testSeat.isNotEmpty || testName.isNotEmpty;
+
+      return hasExpectedHeaders || hasStudentRow;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// استخراج أسماء الشهور ديناميكياً من الصف الثاني (rowIndex = 1) بدءاً من العمود E (columnIndex = 4)
-  static List<String> extractMonthsFromSheet(Sheet sheet, {int totalMonths = 8}) {
+  static List<String> extractMonthsFromSheet(Sheet sheet, {int? totalMonths}) {
+    final int resolvedTotal = totalMonths ?? detectTotalMonths(sheet);
     List<String> months = [];
     int currentCol = 4; // عمود E
-    final int monthsInTerm1 = (totalMonths == 6) ? 3 : 4;
+    final int monthsInTerm1 = (resolvedTotal == 6) ? 3 : 4;
 
-    for (int m = 1; m <= totalMonths; m++) {
+    for (int m = 1; m <= resolvedTotal; m++) {
       final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: currentCol, rowIndex: 1));
       final monthName = _extractCleanText(cell);
       if (monthName.isNotEmpty) {
@@ -135,14 +182,15 @@ class StudentExcelService {
     required String examTitle,
     required String subjectName,
     required Excel excel,
-    int totalMonths = 8,
+    int? totalMonths,
   }) {
     final title = _normalizeArabic(examTitle);
+    final sheet = excel.tables.values.first;
+    final int resolvedTotal = totalMonths ?? detectTotalMonths(sheet);
 
     // 1. اختبارات نهاية الشهور: البحث عن اسم الشهر المطابق في الصف الثاني
     if (title.contains('شهر')) {
-      final sheet = excel.tables.values.first;
-      final dynamicMonths = extractMonthsFromSheet(sheet, totalMonths: totalMonths);
+      final dynamicMonths = extractMonthsFromSheet(sheet, totalMonths: resolvedTotal);
 
       for (int i = 0; i < dynamicMonths.length; i++) {
         final cleanMonthName = _normalizeArabic(dynamicMonths[i]);
@@ -175,7 +223,57 @@ class StudentExcelService {
     return 1;
   }
 
-  /// قراءة ملف الإكسيل واستخراج بيانات طلاب الصف المحدد فقط مع احتساب الكود الذكي
+  /// حساب فهرس عمود التحريري لاختبارات الشهور العادية
+  static int calculateWrittenExamColumn({
+    required int monthNumber,
+    required int totalMonths,
+  }) {
+    final int term1Months = (totalMonths == 6) ? 3 : 4;
+    if (monthNumber <= term1Months) {
+      // عمود تحريري كل شهر هو الخانة الرابعة في كتلته (Index = 4 + (m-1)*5 + 3 = 2 + m*5)
+      return 2 + (monthNumber * 5);
+    } else {
+      // قفز عمودي م١ وف١
+      return 2 + (monthNumber * 5) + 2;
+    }
+  }
+
+  /// حساب موقع عمود الرصد المستهدف (الشهور، أو ف١، أو ف٢) مع مراعاة إزاحة الـ 5 والـ 10 أعمدة بدقة
+  static int resolveTargetExamColumnIndex({
+    required String selectedPeriod,
+    required int totalMonths,
+  }) {
+    final clean = _normalizeArabic(selectedPeriod);
+    final int term1Months = (totalMonths == 6) ? 3 : 4;
+
+    // 1. حساب موقع عمود نهاية الفصل الأول (ف١)
+    if (clean == 'ف1' || clean == 'ف١' || clean.contains('فصل1') || clean.contains('فصل اول')) {
+      // في نظام 8 أشهر: 4 + (4 * 5) + 1 = 25
+      // في نظام 6 أشهر: 4 + (3 * 5) + 1 = 20 (تراجع 5 أعمدة)
+      return 4 + (term1Months * 5) + 1;
+    }
+
+    // 2. حساب موقع عمود نهاية الفصل الثاني (ف٢)
+    if (clean == 'ف2' || clean == 'ف٢' || clean.contains('فصل2') || clean.contains('فصل ثاني')) {
+      // في نظام 8 أشهر: 4 + (8 * 5) + 2 + 1 = 47
+      // في نظام 6 أشهر: 4 + (6 * 5) + 2 + 1 = 37 (تراجع 10 أعمدة)
+      return 4 + (totalMonths * 5) + 2 + 1;
+    }
+
+    // 3. حساب عمود اختبار الشهور العادية
+    final match = RegExp(r'\d+').firstMatch(clean);
+    int monthIndex = 1;
+    if (match != null) {
+      monthIndex = int.tryParse(match.group(0)!) ?? 1;
+    }
+
+    return calculateWrittenExamColumn(
+      monthNumber: monthIndex,
+      totalMonths: totalMonths,
+    );
+  }
+
+  /// قراءة ملف الإكسيل واستخراج بيانات طلاب الصف المحدد فقط مع احتساب الكود الذكي ونظام الأشهر
   static Future<StudentExcelResult> parseExcelFile(
     String filePath, {
     String? expectedSubject,
@@ -210,6 +308,7 @@ class StudentExcelService {
       throw Exception('ورقة العمل لا تحتوي على بيانات كافية (الطلاب يبدأون من الصف الرابع).');
     }
 
+    final int detectedMonths = detectTotalMonths(sheet);
     final String requiredGrade = targetGrade?.trim() ?? '';
     final List<StudentData> students = [];
 
@@ -238,7 +337,6 @@ class StudentExcelService {
       if (requiredGrade.isNotEmpty) {
         final matches = _isGradeMatch(rawGrade, requiredGrade);
         if (!matches) {
-          // استبعاد الطالب فوراً إذا لم يتطابق الصف
           continue;
         }
       }
@@ -257,26 +355,15 @@ class StudentExcelService {
       examTitle: examTitle ?? '',
       subjectName: expectedSubject ?? targetSheetName,
       excel: excel,
+      totalMonths: detectedMonths,
     );
 
     return StudentExcelResult(
       students: students,
       subjectCode: calculatedCode,
       matchedSubjectName: targetSheetName,
+      totalMonths: detectedMonths,
     );
-  }
-
-  /// حساب عمود التحريري
-  static int calculateWrittenExamColumn({
-    required int monthNumber,
-    required int totalMonths,
-  }) {
-    final int term1Months = (totalMonths == 6) ? 3 : 4;
-    if (monthNumber <= term1Months) {
-      return 2 + (monthNumber * 5); // شهر 1: عمود H (فهرس 7)
-    } else {
-      return 2 + (monthNumber * 5) + 2; // قفز عمودي م1 وف1
-    }
   }
 
   /// تحديث ورصد الدرجة مباشرة في ملف الإكسيل
@@ -291,7 +378,7 @@ class StudentExcelService {
       final file = File(filePath);
       if (!await file.exists()) return false;
 
-      final bytes = await File(filePath).readAsBytes();
+      final bytes = await file.readAsBytes();
       final excel = Excel.decodeBytes(bytes);
 
       if (!excel.tables.containsKey(sheetName)) return false;
