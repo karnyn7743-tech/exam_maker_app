@@ -36,7 +36,8 @@ class StudentExcelService {
 
     String text;
     if (val is TextCellValue) {
-      text = val.value;
+      // حزمة excel ترجع TextSpan داخل val.value فنستخرج text مباشرة
+      text = val.value.text;
     } else if (val is IntCellValue) {
       text = val.value.toString();
     } else if (val is DoubleCellValue) {
