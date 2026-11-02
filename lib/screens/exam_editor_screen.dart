@@ -497,11 +497,207 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  // نافذة إدخال مفتاح الإجابة السريع للاختبارات المؤتمتة
+  void _openAutomatedAnswerKeyDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.key, color: Color(0xFF1B5E20)),
+            SizedBox(width: 8),
+            Text('مفتاح الإجابة للاختبار المؤتمت', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: _exam.questions.isEmpty
+              ? const Text('لا توجد فقرات مضافة بعد لتحديد إجاباتها.', textAlign: TextAlign.center)
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _exam.questions.length,
+                  itemBuilder: (context, i) {
+                    final q = _exam.questions[i];
+                    final isTf = q.spans.map((s) => s.text).join('').contains('صح') || q.title.contains('س ١');
+                    final options = isTf ? ['ص', 'خ'] : ['أ', 'ب', 'جـ', 'د'];
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 50,
+                            child: Text(
+                              'فقرة ${i + 1}:',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                          ),
+                          Expanded(
+                            child: Wrap(
+                              spacing: 6,
+                              children: options.map((opt) {
+                                final isSelected = q.answerKey.trim() == opt;
+                                return ChoiceChip(
+                                  label: Text(opt, style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
+                                  selected: isSelected,
+                                  selectedColor: const Color(0xFF1B5E20),
+                                  onSelected: (val) {
+                                    setState(() {
+                                      q.answerKey = val ? opt : '';
+                                    });
+                                    (ctx as Element).markNeedsBuild();
+                                  },
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1B5E20)),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('تم الحفظ', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // الشريط السفلي المنظم في صفين (2x2) لكلا النمطين
+  Widget _buildUnifiedBottomBar() {
+    final bool isAutomated = _exam.examType == ExamType.automated;
     final double diff = _exam.totalMarks - _exam.targetTotalMarks;
     final bool isBalanced = diff.abs() < 0.05;
 
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 4,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // الصف الأول: إضافة سؤال/فقرة + بنك الأسئلة/مفتاح الحل
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1B5E20),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 1,
+                  ),
+                  icon: const Icon(Icons.add_circle_outline, size: 20),
+                  label: Text(
+                    isAutomated ? 'إضافة فقرة مؤتمتة' : 'إضافة سؤال جديد',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  onPressed: () => _openQuestionDialog(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF1B5E20),
+                    side: const BorderSide(color: Color(0xFF1B5E20)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: Icon(isAutomated ? Icons.key : Icons.account_balance, size: 18),
+                  label: Text(
+                    isAutomated ? 'مفتاح الإجابة' : 'بنك الأسئلة',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  onPressed: isAutomated ? _openAutomatedAnswerKeyDialog : _showQuestionBankImportDialog,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // الصف الثاني: قوالب جاهزة/ورقة التظليل + بطاقة رصد الدرجات والفقرات
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF5B3E96),
+                    side: const BorderSide(color: Color(0xFF5B3E96)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: Icon(isAutomated ? Icons.fact_check_outlined : Icons.auto_awesome, size: 18),
+                  label: Text(
+                    isAutomated ? 'ورقة التظليل (OMR)' : 'قوالب جاهزة',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  onPressed: isAutomated ? _exportOmrSheetToDownloads : _showQuestionTemplatesDialog,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // بطاقة الميزان والدرجات
+              InkWell(
+                onTap: _showMarkBalancingDialog,
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isBalanced ? Colors.green.shade50 : Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isBalanced ? Colors.green.shade400 : Colors.amber.shade600,
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${_exam.totalMarks.toStringAsFixed(1)} / ${_exam.targetTotalMarks.toStringAsFixed(0)} د',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: isBalanced ? Colors.green.shade900 : Colors.amber.shade900,
+                        ),
+                      ),
+                      Text(
+                        isAutomated
+                            ? '${_exam.questions.length} فقرة مضافة'
+                            : (isBalanced ? 'الميزان مضبوط ✓' : (diff > 0 ? '+${diff.toStringAsFixed(1)} زيادة' : '${diff.toStringAsFixed(1)} عجز')),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: isBalanced ? Colors.green.shade800 : (diff > 0 ? Colors.blue.shade800 : Colors.red.shade800),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFD6D9E0),
       appBar: AppBar(
@@ -514,7 +710,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         backgroundColor: _showAnswerKeyMode ? const Color(0xFF0F766E) : const Color(0xFF1E3A8A),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          // زر الطباعة المباشرة عبر الشبكة المحلية أو Wi-Fi
           IconButton(
             icon: const Icon(Icons.print_outlined, color: Colors.white),
             tooltip: 'طباعة مباشرة عبر الشبكة (Wi-Fi)',
@@ -529,7 +724,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               }
             },
           ),
-          // زر المصحح الآلي لأوراق التظليل بالكاميرا في حال كان الاختبار مؤتمتاً
           if (_exam.examType == ExamType.automated)
             IconButton(
               icon: const Icon(Icons.qr_code_scanner, color: Colors.tealAccent),
@@ -704,67 +898,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        color: Colors.white,
-        child: Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.add),
-                label: const Text('إضافة سؤال جديد'),
-                onPressed: () => _openQuestionDialog(),
-              ),
-            ),
-            const SizedBox(width: 6),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.account_balance, color: Color(0xFF1E3A8A), size: 18),
-              label: const Text('بنك الأسئلة', style: TextStyle(color: Color(0xFF1E3A8A), fontSize: 12)),
-              onPressed: _showQuestionBankImportDialog,
-            ),
-            const SizedBox(width: 6),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.auto_awesome, color: Color(0xFF1E3A8A), size: 18),
-              label: const Text('قوالب جاهزة', style: TextStyle(color: Color(0xFF1E3A8A), fontSize: 12)),
-              onPressed: () => _showQuestionTemplatesDialog(),
-            ),
-            const SizedBox(width: 8),
-            InkWell(
-              onTap: _showMarkBalancingDialog,
-              borderRadius: BorderRadius.circular(6),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                decoration: BoxDecoration(
-                  color: isBalanced ? Colors.green.shade50 : Colors.amber.shade50,
-                  border: Border.all(color: isBalanced ? Colors.green.shade300 : Colors.amber.shade600),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '${_exam.totalMarks.toStringAsFixed(1)} / ${_exam.targetTotalMarks.toStringAsFixed(0)} د',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        color: isBalanced ? Colors.green.shade900 : Colors.amber.shade900,
-                      ),
-                    ),
-                    Text(
-                      isBalanced ? 'الميزان مضبوط ✓' : (diff > 0 ? '+${diff.toStringAsFixed(1)} زيادة' : '${diff.toStringAsFixed(1)} عجز'),
-                      style: TextStyle(
-                        fontSize: 9.5,
-                        color: isBalanced ? Colors.green.shade800 : Colors.red.shade800,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      bottomNavigationBar: _buildUnifiedBottomBar(),
     );
   }
 
