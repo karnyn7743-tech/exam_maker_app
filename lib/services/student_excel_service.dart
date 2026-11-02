@@ -28,8 +28,63 @@ class StudentExcelResult {
 }
 
 class StudentExcelService {
-  /// قراءة ملف الإكسيل واستخراج بيانات الطلاب بدءاً من الصف الرابع (فهرس 3)
-  /// مع تنشيط ورقة المادة المطابقة تلقائياً إن وجدت
+  /// دالة ذكية لتطبيع ومطابقة أسماء الصفوف الدراسية في اليمن
+  static String _normalizeArabic(String text) {
+    var s = text.trim().toLowerCase();
+    // توحيد الهمزات والألفات
+    s = s.replaceAll(RegExp(r'[أإآ]'), 'ا');
+    // توحيد التاء المربوطة والهاء
+    s = s.replaceAll('ة', 'ه');
+    // توحيد الياء والألف المقصورة
+    s = s.replaceAll('ى', 'ي');
+    // إزالة علامات التشكيل والفراغات الزائدة
+    s = s.replaceAll(RegExp(r'[\u064B-\u0652]'), '');
+    s = s.replaceAll(RegExp(r'\s+'), ' ');
+    // حذف كلمة "الصف" إن وجدت للمقارنة النظيفة
+    s = s.replaceAll('الصف', '').trim();
+
+    // ربط مسميات صفوف المرحلة الأساسية المتبادلة
+    if (s == 'تاسع' || s == 'التاسع' || s == '9' || s == '٩' || s == 'ثالث اعدادي' || s == 'ثالث') {
+      // تنبيه: في بعض المدارس يسمون الصف التاسع "ثالث" (أي ثالث متوسط/إعدادي)
+    }
+    return s;
+  }
+
+  /// فحص تطابق الصف بين المدخل وما هو مكتوب في خلية الإكسيل
+  static bool _isGradeMatch(String studentGradeCell, String targetGrade) {
+    final normCell = _normalizeArabic(studentGradeCell);
+    final normTarget = _normalizeArabic(targetGrade);
+
+    if (normTarget.isEmpty) return true; // إذا لم يحدد صفاً يستورد الجميع
+    if (normCell.isEmpty) return false; // إذا كان هناك صف مستهدف وخلية الطالب فارغة يُرفض
+
+    // تطابق مباشر
+    if (normCell == normTarget || normCell.contains(normTarget) || normTarget.contains(normCell)) {
+      return true;
+    }
+
+    // توافق خاص بالصف التاسع / الثالث إعدادي
+    final isTargetGrade9 = normTarget.contains('تاسع') || normTarget == '9' || normTarget == '٩';
+    if (isTargetGrade9 && (normCell.contains('تاسع') || normCell.contains('ثالث') || normCell == '9' || normCell == '٩')) {
+      return true;
+    }
+
+    // توافق خاص بالصف الثامن / الثاني إعدادي
+    final isTargetGrade8 = normTarget.contains('ثامن') || normTarget == '8' || normTarget == '٨';
+    if (isTargetGrade8 && (normCell.contains('ثامن') || normCell.contains('ثاني') || normCell == '8' || normCell == '٨')) {
+      return true;
+    }
+
+    // توافق خاص بالصف السابع / الأول إعدادي
+    final isTargetGrade7 = normTarget.contains('سابع') || normTarget == '7' || normTarget == '٧';
+    if (isTargetGrade7 && (normCell.contains('سابع') || normCell.contains('اول') || normCell == '7' || normCell == '٧')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /// قراءة ملف الإكسيل واستخراج بيانات طلاب الصف المحدد فقط
   static Future<StudentExcelResult> parseExcelFile(
     String filePath, {
     String? expectedSubject,
@@ -42,14 +97,14 @@ class StudentExcelService {
       throw Exception('ملف الإكسيل فارغ ولا يحتوي على جداول بيانات.');
     }
 
-    // 1. التنشيط الذكي لورقة العمل (Sheet) المطابقة لاسم المادة
+    // 1. التنشيط التلقائي لورقة المادة
     String targetSheetName = excel.tables.keys.first;
-    final cleanExpected = expectedSubject?.trim().toLowerCase() ?? '';
+    final cleanExpected = _normalizeArabic(expectedSubject ?? '');
 
     if (cleanExpected.isNotEmpty) {
       for (final sheetName in excel.tables.keys) {
-        final cleanSheet = sheetName.trim().toLowerCase();
-        if (cleanSheet == cleanExpected || cleanSheet.contains(cleanExpected) || cleanExpected.contains(cleanSheet)) {
+        final normSheet = _normalizeArabic(sheetName);
+        if (normSheet == cleanExpected || normSheet.contains(cleanExpected) || cleanExpected.contains(normSheet)) {
           targetSheetName = sheetName;
           break;
         }
@@ -60,44 +115,49 @@ class StudentExcelService {
     final rows = sheet.rows;
 
     if (rows.length < 4) {
-      throw Exception('ورقة العمل لا تحتوي على بيانات طلاب كافية (البيانات تبدأ من الصف الرابع).');
+      throw Exception('ورقة العمل لا تحتوي على بيانات كافية (الطلاب يبدأون من الصف الرابع).');
     }
 
-    final cleanTargetGrade = targetGrade?.trim().toLowerCase() ?? '';
+    final String requiredGrade = targetGrade?.trim() ?? '';
     final List<StudentData> students = [];
 
-    // 2. البدء الصارم من الصف الرابع الفعلي (فهرس 3)
+    // 2. البدء الصارم من الصف الرابع (index = 3)
     const int startRowIndex = 3;
 
     for (int r = startRowIndex; r < rows.length; r++) {
       final row = rows[r];
       if (row.isEmpty) continue;
 
-      // عمود A (رقم الجلوس - فهرس 0)
+      // عمود A (رقم الجلوس - index 0)
       final rawSeat = row.isNotEmpty ? (row[0]?.value?.toString().trim() ?? '') : '';
-      // عمود B (اسم الطالب - فهرس 1)
+      // عمود B (اسم الطالب - index 1)
       final rawName = row.length > 1 ? (row[1]?.value?.toString().trim() ?? '') : '';
-      // عمود C (الصف الدراسي - فهرس 2)
+      // عمود C (الصف الدراسي - index 2)
       final rawGrade = row.length > 2 ? (row[2]?.value?.toString().trim() ?? '') : '';
-      // عمود D (الرقم السري - فهرس 3) وهو محتوى الـ QR الحصري
+      // عمود D (الرقم السري - index 3)
       final rawSecret = row.length > 3 ? (row[3]?.value?.toString().trim() ?? '') : '';
 
-      // شرط وجود الطالب: وجود الرقم السري أو الاسم
-      if (rawSecret.isNotEmpty || rawName.isNotEmpty) {
-        if (cleanTargetGrade.isNotEmpty && rawGrade.isNotEmpty) {
-          final cleanStudentGrade = rawGrade.toLowerCase();
-          if (!cleanStudentGrade.contains(cleanTargetGrade) && !cleanTargetGrade.contains(cleanStudentGrade)) {
-            continue;
-          }
-        }
-
-        students.add(StudentData(
-          seatNo: rawSeat,
-          name: rawName,
-          grade: rawGrade,
-          secretCode: rawSecret.isNotEmpty ? rawSecret : rawSeat,
-        ));
+      // تجاهل الأسطر الفارغة تماماً
+      if (rawSeat.isEmpty && rawName.isEmpty && rawSecret.isEmpty) {
+        continue;
       }
+
+      // 3. فلترة الصف الدراسي الصارمة
+      if (requiredGrade.isNotEmpty) {
+        final matches = _isGradeMatch(rawGrade, requiredGrade);
+        if (!matches) {
+          // إذا لم يطابق الصف المطلوب يتم استبعاده فوراً
+          continue;
+        }
+      }
+
+      // إضافة الطالب المطابق فقط
+      students.add(StudentData(
+        seatNo: rawSeat,
+        name: rawName,
+        grade: rawGrade.isNotEmpty ? rawGrade : requiredGrade,
+        secretCode: rawSecret.isNotEmpty ? rawSecret : rawSeat,
+      ));
     }
 
     return StudentExcelResult(
@@ -107,22 +167,20 @@ class StudentExcelService {
     );
   }
 
-  /// حساب عمود التحريري في الإكسيل بناءً على رقم الشهر ونظام السنة (6 أو 8 أشهر)
+  /// حساب عمود التحريري
   static int calculateWrittenExamColumn({
-    required int monthNumber, // 1..8
-    required int totalMonths, // 6 أو 8
+    required int monthNumber,
+    required int totalMonths,
   }) {
     final int term1Months = (totalMonths == 6) ? 3 : 4;
-    // أول شهر تحريري هو H (فهرس 7 بنظام 0-based)
     if (monthNumber <= term1Months) {
-      return 2 + (monthNumber * 5); // شهر 1: 2+5 = 7 (العمود H)
+      return 2 + (monthNumber * 5); // شهر 1: عمود H (فهرس 7)
     } else {
-      // قفز عمودين إضافيين لتخطي عمودي محصلة ف1 واختبار ف1 [م1 ، ف1]
-      return 2 + (monthNumber * 5) + 2;
+      return 2 + (monthNumber * 5) + 2; // قفز عمودي م1 وف1
     }
   }
 
-  /// رصد وتحديث درجة الطالب مباشرة في نفس مسار الملف ونفس الخلية
+  /// تحديث ورصد الدرجة مباشرة في ملف الإكسيل
   static Future<bool> updateStudentMarkInExcel({
     required String filePath,
     required String secretCode,
@@ -140,7 +198,6 @@ class StudentExcelService {
       if (!excel.tables.containsKey(sheetName)) return false;
       final sheet = excel.tables[sheetName]!;
 
-      // البحث عن صف الطالب بالرقم السري في العمود D (فهرس 3) بدءاً من الصف الرابع
       int targetRowIndex = -1;
       final cleanSecret = secretCode.trim();
 
@@ -154,12 +211,10 @@ class StudentExcelService {
 
       if (targetRowIndex == -1) return false;
 
-      // كتابة الدرجة في خلية التقاطع المحددة
       sheet
           .cell(CellIndex.indexByColumnRow(columnIndex: targetColumnIndex, rowIndex: targetRowIndex))
           .value = DoubleCellValue(mark);
 
-      // حفظ مباشر في نفس الملف المختار
       final updatedBytes = excel.save();
       if (updatedBytes != null) {
         await file.writeAsBytes(updatedBytes, flush: true);
