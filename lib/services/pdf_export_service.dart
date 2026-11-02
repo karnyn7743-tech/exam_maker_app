@@ -13,6 +13,15 @@ class PdfExportService {
   static const double cm = 28.3465;
   static const double mm = 2.83465;
 
+  /// دالة مساعدة لتنسيق الدرجة بحذف الأصفار العشرية الزائدة
+  static String _formatMark(double mark) {
+    if (mark <= 0) return '-';
+    if (mark % 1 == 0) {
+      return '${mark.toInt()} د';
+    }
+    return '$mark د';
+  }
+
   static Future<String> exportToDownloadsPdf(ExamModel exam) async {
     final pdf = pw.Document();
 
@@ -623,7 +632,9 @@ class PdfExportService {
                 padding: const pw.EdgeInsets.symmetric(vertical: 6),
                 child: pw.Center(
                   child: pw.Text(
-                    q.mark > 0 ? '${q.mark.toInt()} د' : '-',
+                    _formatMark(q.mark),
+                    textAlign: pw.TextAlign.center,
+                    textDirection: pw.TextDirection.rtl,
                     style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
                   ),
                 ),
@@ -1582,17 +1593,17 @@ class PdfExportService {
                         canvas.setFillColor(fillColor);
                         canvas
                           ..moveTo(offset, pw_y - 2)
-                          ..lineTo(pw_x - 2, pw_y - 2)
-                          ..lineTo(pw_x - offset, 2)
-                          ..lineTo(2, 2)
+                          ..lineTo(pw_x - 2, 2)
+                          ..lineTo(w - offset, h - 2)
+                          ..lineTo(2, h - 2)
                           ..closePath()
                           ..fillPath();
                       }
                       canvas
                         ..moveTo(offset, pw_y - 2)
-                        ..lineTo(pw_x - 2, pw_y - 2)
-                        ..lineTo(pw_x - offset, 2)
-                        ..lineTo(2, 2)
+                        ..lineTo(pw_x - 2, 2)
+                        ..lineTo(w - offset, h - 2)
+                        ..lineTo(2, h - 2)
                         ..closePath()
                         ..strokePath();
                       break;
