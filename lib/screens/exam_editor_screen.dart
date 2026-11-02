@@ -2218,7 +2218,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         return Center(
           child: IntrinsicWidth(
             child: Column(
-              mainAxisSize: min(0, 0) == 0 ? MainAxisSize.min : MainAxisSize.max,
+              
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
