@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:camera/camera.dart';
-import 'package:excel/excel.dart';
+import 'package:excel/excel.dart' hide Border;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
