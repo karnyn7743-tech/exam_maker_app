@@ -11,11 +11,13 @@ enum KeyboardMode {
 class ExamCustomKeyboard extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback? onClose;
+  final VoidCallback? onSwitchToSystemKeyboard;
 
   const ExamCustomKeyboard({
     super.key,
     required this.controller,
     this.onClose,
+    this.onSwitchToSystemKeyboard,
   });
 
   @override
@@ -125,6 +127,20 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          if (widget.onSwitchToSystemKeyboard != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: ActionChip(
+                avatar: const Icon(Icons.keyboard, size: 14, color: Colors.white),
+                label: const Text(
+                  'لوحة الجهاز',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                backgroundColor: const Color(0xFF0F766E),
+                visualDensity: VisualDensity.compact,
+                onPressed: widget.onSwitchToSystemKeyboard,
+              ),
+            ),
           _buildModeTab('عربي', KeyboardMode.arabic),
           _buildModeTab('English', KeyboardMode.english),
           _buildModeTab('رياضيات ع', KeyboardMode.mathArabic),
@@ -179,14 +195,14 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     }
   }
 
-  // 1. لوحة الحروف العربية ذات الشاشتين بعد توسيع الأزرار وحذف التكرار
+  // 1. لوحة الحروف العربية ذات الشاشتين بعد ضبط الترتيب القياسي الكامل
   Widget _buildArabicLayout() {
     if (!_arabicShift) {
-      // --- الشاشة الأولى: الأرقام والحروف اليومية الأكثر استخداماً (أزرار كبيرة واسعة) ---
+      // --- الشاشة الأولى: الترتيب القياسي الكامل بدون أي تكرار أو أخطاء ---
       final nums = ['١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '٠'];
-      final r1 = ['ض', 'ص', 'ث', 'ق', 'ف', 'غ', 'ع', 'ه', 'خ', 'ح', 'ج'];
-      final r2 = ['ض', 'س', 'ي', 'ب', 'ل', 'ا', 'ت', 'ن', 'م', 'ك', ;ش'];
-      final r3 = ['ذ', 'ء', 'ؤ', 'ر', 'ى', 'ة', 'و', 'ز', 'ظ', 'د'];
+      final r1 = ['ض', 'ص', 'ث', 'ق', 'ف', 'غ', 'ع', 'ه', 'خ', 'ح', 'ج', 'د'];
+      final r2 = ['ش', 'س', 'ي', 'ب', 'ل', 'ا', 'ت', 'ن', 'م', 'ك', 'ط'];
+      final r3 = ['ئ', 'ء', 'ؤ', 'ر', 'لا', 'ى', 'ة', 'و', 'ز', 'ظ', 'ذ'];
 
       return Column(
         children: [
@@ -196,7 +212,6 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // زر Shift للتنقل للشاشة الثانية (حركات وهمزات وبقية الحروف)
               _buildSpecialKey(
                 icon: Icons.arrow_upward,
                 color: Colors.blueGrey.shade800,
@@ -216,7 +231,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
         ],
       );
     } else {
-      // --- الشاشة الثانية: الحروف التكميلية النادرة، الهمزات، الحركات، والترقيم ---
+      // --- الشاشة الثانية: التشكيل، التنوين، الهمزات، وعلامات الترقيم ---
       final rDiacritics = [
         '\u064E', // فتحة
         '\u064B', // تنوين فتح
@@ -228,10 +243,8 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
         '\u0652', // سكون دائري
       ];
 
-      // حروف تكميلية غير موجودة في الشاشة 1 (بدون تكرار)
-      final rExtraLetters = ['.', '÷', '×', '+', 'أ', 'إ', 'آ', 'ء'];
-      // همزات وعلامات ترقيم
-      final rPunctuation = ['@', '!', 'لا', ':', '،', '؟', '!', '.'];
+      final rExtraLetters = ['أ', 'إ', 'آ', 'لإ', 'لأ', 'لآ', 'ـ', '؛', '<', '>'];
+      final rPunctuation = ['@', '!', ':', '،', '؟', '"', '«', '»', '.'];
 
       return Column(
         children: [
@@ -240,7 +253,6 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // زر Shift مفعّل للعودة للشاشة الأولى
               _buildSpecialKey(
                 icon: Icons.arrow_upward,
                 color: const Color(0xFF2563EB),
