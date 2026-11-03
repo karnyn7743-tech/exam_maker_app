@@ -525,11 +525,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       return;
     }
 
-    // مطابقة خيارات الرموز (أ، ب، جـ، د) أو (١، ٢، ٣، ٤) وفق إعدادات الاختبار
     final bool isLetters = _exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.arabicLetters;
     final List<String> mcqOptions = isLetters ? ['أ', 'ب', 'جـ', 'د'] : ['١', '٢', '٣', '٤'];
 
-    // مزامنة عدد الأسئلة ليغطي جميع الفقرات المرقمة إن لم تكن مكتملة
     while (_exam.questions.length < totalItems) {
       final int idx = _exam.questions.length + 1;
       final bool isTf = idx <= tfCount;
@@ -558,7 +556,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             height: MediaQuery.of(context).size.height * 0.70,
             child: ListView(
               children: [
-                // 1. قسم فقرات الصح والخطأ
                 if (tfCount > 0) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
@@ -615,7 +612,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   const SizedBox(height: 12),
                 ],
 
-                // 2. قسم فقرات الاختيار من متعدد
                 if (mcqCount > 0) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
@@ -2750,6 +2746,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     List<InsertableElement> currentElements = List.from(q.elements);
 
     bool showCustomKeyboard = true;
+    bool useSystemKeyboard = false;
     TextEditingController activeFieldController = textCtrl;
 
     List<TextSpanModel> workingSpans = q.spans.isNotEmpty
@@ -4296,7 +4293,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 icon: showCustomKeyboard ? Icons.keyboard_hide : Icons.keyboard,
                                 color: const Color(0xFF475569),
                                 tooltip: showCustomKeyboard ? 'إخفاء لوحة المفاتيح' : 'إظهار لوحة المفاتيح',
-                                onTap: () => setModalState(() => showCustomKeyboard = !showCustomKeyboard),
+                                onTap: () {
+                                  setModalState(() {
+                                    showCustomKeyboard = !showCustomKeyboard;
+                                    if (showCustomKeyboard) {
+                                      useSystemKeyboard = false;
+                                    }
+                                  });
+                                },
                               ),
                             ],
                           ),
@@ -4309,12 +4313,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         readOnly: false,
                         showCursor: true,
                         enableInteractiveSelection: true,
-                        keyboardType: TextInputType.none,
+                        keyboardType: useSystemKeyboard ? TextInputType.multiline : TextInputType.none,
                         maxLines: 4,
                         onTap: () {
                           setModalState(() {
                             activeFieldController = textCtrl;
-                            showCustomKeyboard = true;
+                            if (!useSystemKeyboard) {
+                              showCustomKeyboard = true;
+                            }
                           });
                         },
                         decoration: InputDecoration(
@@ -4347,17 +4353,19 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         readOnly: false,
                         showCursor: true,
                         enableInteractiveSelection: true,
-                        keyboardType: TextInputType.none,
+                        keyboardType: useSystemKeyboard ? TextInputType.multiline : TextInputType.none,
                         maxLines: 2,
                         onTap: () {
                           setModalState(() {
                             activeFieldController = answerCtrl;
-                            showCustomKeyboard = true;
+                            if (!useSystemKeyboard) {
+                              showCustomKeyboard = true;
+                            }
                           });
                         },
                         decoration: InputDecoration(
                           labelText: 'الإجابة النموذجية / مفتاح التصحيح (اختياري)',
-                          hintText: 'اضغط هنا للكتابة باستخدام لوحة المفاتيح أدناه...',
+                          hintText: 'اضغط هنا للكتابة...',
                           prefixIcon: const Icon(Icons.verified, color: Color(0xFF0F766E)),
                           filled: true,
                           fillColor: Colors.teal.shade50.withOpacity(0.5),
@@ -4506,10 +4514,16 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
               ),
 
-              if (showCustomKeyboard)
+              if (showCustomKeyboard && !useSystemKeyboard)
                 ExamCustomKeyboard(
                   controller: activeFieldController,
                   onClose: () => setModalState(() => showCustomKeyboard = false),
+                  onSwitchToSystemKeyboard: () {
+                    setModalState(() {
+                      useSystemKeyboard = true;
+                      showCustomKeyboard = false;
+                    });
+                  },
                 ),
             ],
           ),
