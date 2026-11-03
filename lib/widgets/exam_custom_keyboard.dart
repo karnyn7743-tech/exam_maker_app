@@ -184,9 +184,9 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
     if (!_arabicShift) {
       // --- الشاشة الأولى: الأرقام والحروف اليومية الأكثر استخداماً (أزرار كبيرة واسعة) ---
       final nums = ['١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '٠'];
-      final r1 = ['ض', 'ص', 'ث', 'ق', 'ف', 'غ', 'ع', 'ه', 'خ'];
-      final r2 = ['ح', 'ج', 'د', 'ش', 'س', 'ي', 'ب', 'ل', 'ا'];
-      final r3 = ['ت', 'ن', 'م', 'ك', 'ط', 'ر', 'و', 'ز'];
+      final r1 = ['ض', 'ص', 'ث', 'ق', 'ف', 'غ', 'ع', 'ه', 'خ', 'ح', 'ج'];
+      final r2 = ['ض', 'س', 'ي', 'ب', 'ل', 'ا', 'ت', 'ن', 'م', 'ك', ;ش'];
+      final r3 = ['ذ', 'ء', 'ؤ', 'ر', 'ى', 'ة', 'و', 'ز', 'ظ', 'د'];
 
       return Column(
         children: [
@@ -229,9 +229,9 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
       ];
 
       // حروف تكميلية غير موجودة في الشاشة 1 (بدون تكرار)
-      final rExtraLetters = ['ذ', 'ظ', 'ة', 'ى', 'أ', 'إ', 'آ', 'ء'];
+      final rExtraLetters = ['.', '÷', '×', '+', 'أ', 'إ', 'آ', 'ء'];
       // همزات وعلامات ترقيم
-      final rPunctuation = ['ئ', 'ؤ', 'لا', ':', '،', '؟', '!', '.'];
+      final rPunctuation = ['@', '!', 'لا', ':', '،', '؟', '!', '.'];
 
       return Column(
         children: [
