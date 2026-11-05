@@ -1,15 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- ⬅️ تمت الإضافة: تحديد أقصى إصدار لأذونات التخزين القديمة لمنع تحذيرات جوجل بلاي -->
-    <!-- إذن الكتابة مطلوب فقط حتى أندرويد 10 (API 29) وما قبله -->
+    <!-- ⬅️ تم إضافة tools:replace لحل تعارض القيم مع مكتبة الكاميرا -->
     <uses-permission 
         android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="29" />
-    <!-- إذن القراءة مطلوب حتى أندرويد 12 (API 32)، وبعدها يستخدم النظام أذونات الوسائط -->
+        android:maxSdkVersion="29" 
+        tools:replace="android:maxSdkVersion" />
+        
     <uses-permission 
         android:name="android.permission.READ_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="32" />
+        android:maxSdkVersion="32"
+        tools:replace="android:maxSdkVersion" />
     
     <!-- إذن إدارة الملفات الشاملة: ضروري جداً لأندرويد 11+ للحفظ في مجلد Download/درجات الطلاب -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
@@ -38,7 +39,6 @@
         android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="true" 
         tools:replace="android:label">
-        <!-- ⬅️ تمت الإضافة: usesCleartextTraffic="true" لتمكين تطبيقك من إرسال أوامر الطباعة عبر HTTP للطابعات المحلية (Wi-Fi) دون حظر من أندرويد 9+ -->
 
         <!-- تحميل نماذج ML Kit لقراءة النصوص والدرجات تلقائياً بدون اتصال إنترنت لاحقاً -->
         <meta-data
