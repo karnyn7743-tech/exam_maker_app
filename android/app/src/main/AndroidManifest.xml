@@ -1,14 +1,23 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- أذونات التخزين والوصول للمجلدات العامة لجميع إصدارات أندرويد -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <!-- ⬅️ تمت الإضافة: تحديد أقصى إصدار لأذونات التخزين القديمة لمنع تحذيرات جوجل بلاي -->
+    <!-- إذن الكتابة مطلوب فقط حتى أندرويد 10 (API 29) وما قبله -->
+    <uses-permission 
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
+        android:maxSdkVersion="29" />
+    <!-- إذن القراءة مطلوب حتى أندرويد 12 (API 32)، وبعدها يستخدم النظام أذونات الوسائط -->
+    <uses-permission 
+        android:name="android.permission.READ_EXTERNAL_STORAGE" 
+        android:maxSdkVersion="32" />
+    
+    <!-- إذن إدارة الملفات الشاملة: ضروري جداً لأندرويد 11+ للحفظ في مجلد Download/درجات الطلاب -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
+    
     <!-- إذن قراءة الصور للشعار على أندرويد 13 فما فوق -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
-    <!-- إذن الكاميرا لمسح وتصحيح ورقة التظليل OMR -->
+    <!-- إذن الكاميرا لمسح وتصحيح ورقة التظليل OMR ولقراءة QR -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature
         android:name="android.hardware.camera"
@@ -27,7 +36,9 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true"
+        android:usesCleartextTraffic="true" 
         tools:replace="android:label">
+        <!-- ⬅️ تمت الإضافة: usesCleartextTraffic="true" لتمكين تطبيقك من إرسال أوامر الطباعة عبر HTTP للطابعات المحلية (Wi-Fi) دون حظر من أندرويد 9+ -->
 
         <!-- تحميل نماذج ML Kit لقراءة النصوص والدرجات تلقائياً بدون اتصال إنترنت لاحقاً -->
         <meta-data
