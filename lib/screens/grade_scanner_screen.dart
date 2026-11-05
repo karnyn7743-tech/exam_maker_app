@@ -45,10 +45,14 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   final MobileScannerController _scannerController = MobileScannerController(
     autoStart: false,
     torchEnabled: false,
-    returnImage: true, // ← ضروري جداً لقراءة الصورة
+    returnImage: true,
   );
-  final TextRecognizer _textRecognizer =
+
+  // ✅ قارئان: لاتيني (0-9) وعربي (٠-٩)
+  final TextRecognizer _latinRecognizer =
       TextRecognizer(script: TextRecognitionScript.latin);
+  final TextRecognizer _arabicRecognizer =
+      TextRecognizer(script: TextRecognitionScript.arabic);
 
   @override
   void initState() {
@@ -60,7 +64,8 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   @override
   void dispose() {
     _scannerController.dispose();
-    _textRecognizer.close();
+    _latinRecognizer.close();
+    _arabicRecognizer.close();
     _gradeController.dispose();
     super.dispose();
   }
@@ -71,12 +76,9 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   Future<void> _requestPermissions() async {
     await Permission.camera.request();
     await Permission.storage.request();
-
     if (!await Permission.manageExternalStorage.isGranted) {
       final status = await Permission.manageExternalStorage.request();
-      if (status.isDenied && mounted) {
-        _showManageStorageDialog();
-      }
+      if (status.isDenied && mounted) _showManageStorageDialog();
     }
   }
 
@@ -86,8 +88,8 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('صلاحية مطلوبة'),
         content: const Text(
-          'لكي يعمل التطبيق بشكل صحيح، نحتاج صلاحية "إدارة جميع الملفات"\n\n'
-          'اضغط "فتح الإعدادات" ثم فعّل الخيار للتطبيق، ثم عد للتطبيق.',
+          'لكي يعمل التطبيق، نحتاج صلاحية "إدارة جميع الملفات".\n\n'
+          'اضغط "فتح الإعدادات" ثم فعّل الخيار للتطبيق.',
         ),
         actions: [
           TextButton(
@@ -107,7 +109,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 2) المسار الدائم: Download/درجات الطلاب/
+  // 2) المسار الدائم
   // ═══════════════════════════════════════════════════════════
   Future<String> _getPermanentExcelPath(
     String originalFileName,
@@ -140,7 +142,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 3) استرجاع آخر ملف مفتوح تلقائياً
+  // 3) استرجاع آخر ملف وورقة
   // ═══════════════════════════════════════════════════════════
   Future<void> _loadLastExcelFile() async {
     try {
@@ -151,13 +153,21 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
         final bytes = await file.readAsBytes();
         final excel = Excel.decodeBytes(bytes);
         final sheets = excel.tables.keys.toList();
+        final fileName = lastFile.split('/').last;
+
+        // استرجاع آخر ورقة مختارة لهذا الملف
+        final savedSheet = prefs.getString('last_sheet_$fileName');
+        final validSheet =
+            (savedSheet != null && sheets.contains(savedSheet))
+                ? savedSheet
+                : (sheets.isNotEmpty ? sheets.first : null);
 
         setState(() {
           _excelFilePath = lastFile;
-          _excelFileName = lastFile.split('/').last;
+          _excelFileName = fileName;
           _excelLoaded = true;
           _sheetNames = sheets;
-          _selectedSheet = sheets.isNotEmpty ? sheets.first : null;
+          _selectedSheet = validSheet;
         });
         await _loadMonthsAndStudents();
       }
@@ -172,18 +182,14 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   Future<void> _pickExcelFile() async {
     try {
       await _requestPermissions();
-
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['xlsx', 'xls', 'xlsm'],
       );
-
       if (result == null || result.files.single.path == null) return;
 
       final cachePath = result.files.single.path!;
       final fileName = result.files.single.name;
-
-      // نسخ إلى المسار الدائم
       final path = await _getPermanentExcelPath(fileName, cachePath);
 
       final file = File(path);
@@ -192,20 +198,24 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       final sheets = excel.tables.keys.toList();
       final initialSheet = sheets.isNotEmpty ? sheets.first : null;
 
+      // استرجاع آخر ورقة مختارة لهذا الملف
+      final prefs = await SharedPreferences.getInstance();
+      final savedSheet = prefs.getString('last_sheet_$fileName');
+      final validSheet = (savedSheet != null && sheets.contains(savedSheet))
+          ? savedSheet
+          : initialSheet;
+
       setState(() {
         _excelLoaded = true;
         _excelFilePath = path;
         _excelFileName = fileName;
         _sheetNames = sheets;
-        _selectedSheet = initialSheet;
+        _selectedSheet = validSheet;
       });
 
-      // حفظ المسار للاستخدام القادم
-      final prefs = await SharedPreferences.getInstance();
       await prefs.setString('last_excel_file', path);
-
       await _loadMonthsAndStudents();
-      _showSnack('✅ تم تحميل الملف: $fileName');
+      _showSnack('✅ تم تحميل: $fileName');
     } catch (e) {
       _showSnack('❌ تعذر قراءة الملف: $e');
     }
@@ -223,19 +233,16 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       if (!excel.tables.containsKey(_selectedSheet!)) return;
       final sheet = excel.tables[_selectedSheet!]!;
 
-      // عدد الطلاب من العمود D بدءاً من الصف 4 (index 3)
+      // عدد الطلاب (العمود D = index 3)
       int students = 0;
       for (int r = 3; r < sheet.maxRows; r++) {
         final val = sheet.cell(CellIndex.indexByColumnRow(
-          columnIndex: 3,
-          rowIndex: r,
+          columnIndex: 3, rowIndex: r,
         )).value;
-        if (val != null && val.toString().trim().isNotEmpty) {
-          students++;
-        }
+        if (val != null && val.toString().trim().isNotEmpty) students++;
       }
 
-      // استخراج الشهور من الصف الثاني (index 1) بدءاً من E (index 4)
+      // استخراج الشهور من الصف الثاني (index 1)
       List<String> term1List = [];
       List<String> term2List = [];
       bool foundF1 = false;
@@ -244,35 +251,28 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       int col = 4;
       while (col < sheet.maxColumns) {
         final cell = sheet.cell(CellIndex.indexByColumnRow(
-          columnIndex: col,
-          rowIndex: 1,
+          columnIndex: col, rowIndex: 1,
         ));
         final text = cell.value?.toString().trim() ?? '';
 
         if (text.isNotEmpty) {
           final cleanText = text.replaceAll(RegExp(r'\s+'), '');
 
-          if (cleanText == 'م١' || cleanText == 'م1') {
-            col += 1;
-            continue;
-          } else if (cleanText == 'ف١' || cleanText == 'ف1') {
-            foundF1 = true;
-            col += 1;
-            continue;
-          } else if (cleanText == 'م٢' || cleanText == 'م2') {
-            col += 1;
-            continue;
-          } else if (cleanText == 'ف٢' || cleanText == 'ف2') {
-            foundF2 = true;
-            break;
+          if (_isMahsala1(cleanText)) {
+            col += 1; continue;
+          } else if (_isFasl1(cleanText)) {
+            foundF1 = true; col += 1; continue;
+          } else if (_isMahsala2(cleanText)) {
+            col += 1; continue;
+          } else if (_isFasl2(cleanText)) {
+            foundF2 = true; break;
           } else {
-            // اسم شهر
             if (!foundF1) {
               term1List.add(text);
             } else if (!foundF2) {
               term2List.add(text);
             }
-            col += 5; // القفز 5 أعمدة (كتلة الشهر)
+            col += 5;
           }
         } else {
           col += 1;
@@ -299,6 +299,16 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
     }
   }
 
+  // ─── أدوات كشف الرموز (تدعم العربية + الفارسية + اللاتينية) ───
+  bool _isMahsala1(String t) =>
+      t == 'م١' || t == 'م1' || t == 'م۱';
+  bool _isMahsala2(String t) =>
+      t == 'م٢' || t == 'م2' || t == 'م۲';
+  bool _isFasl1(String t) =>
+      t == 'ف١' || t == 'ف1' || t == 'ف۱';
+  bool _isFasl2(String t) =>
+      t == 'ف٢' || t == 'ف2' || t == 'ف۲';
+
   void _switchTerm(bool isSecondTerm) {
     if (!_excelLoaded) return;
     setState(() => _isTerm2 = isSecondTerm);
@@ -306,12 +316,16 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 6) دوال OCR
+  // 6) دوال OCR (أرقام هندية/فارسية/لاتينية + ألوان متعددة)
   // ═══════════════════════════════════════════════════════════
   String _convertArabicHindiDigits(String input) {
     const map = {
-      '٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9',
-      '۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9',
+      // أرقام هندية عربية
+      '٠':'0','١':'1','٢':'2','٣':'3','٤':'4',
+      '٥':'5','٦':'6','٧':'7','٨':'8','٩':'9',
+      // أرقام فارسية
+      '۰':'0','۱':'1','۲':'2','۳':'3','۴':'4',
+      '۵':'5','۶':'6','۷':'7','۸':'8','۹':'9',
     };
     String out = input;
     map.forEach((k, v) => out = out.replaceAll(k, v));
@@ -320,19 +334,31 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
 
   String _extractNumber(String text) {
     final converted = _convertArabicHindiDigits(text);
-    final match = RegExp(r'\d+\.?\d*').firstMatch(converted);
-    return match?.group(0) ?? '';
+    // يدعم الأعداد الصحيحة والعشرية
+    final match = RegExp(r'\d+(?:[.,]\d+)?').firstMatch(converted);
+    return match?.group(0)?.replaceAll(',', '.') ?? '';
   }
 
+  /// ✅ معالجة محسّنة: تحويل الأحمر والأزرق والأسود إلى أسود ناصع
   img.Image _preprocessImageForOcr(img.Image src) {
     final processed = img.Image.from(src);
     for (int y = 0; y < processed.height; y++) {
       for (int x = 0; x < processed.width; x++) {
         final pixel = processed.getPixel(x, y);
         final num r = pixel.r, g = pixel.g, b = pixel.b;
-        // الحبر الأحمر → أسود ناصع
-        if (r > 90 && (r - g) > 25 && (r - b) > 25) {
-          processed.setPixelRgb(x, y, 0, 0, 0);
+
+        // حساب السطوع (Luminance)
+        final luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+
+        // 🎨 كشف الحبر الأحمر (قوي وواضح)
+        final isRedInk = r > 100 && (r - g) > 50 && (r - b) > 50;
+        // 🎨 كشف الحبر الأزرق (قوي وواضح)
+        final isBlueInk = b > 100 && (b - r) > 50 && (b - g) > 50;
+        // 🖤 كشف الحبر الأسود (داكن)
+        final isBlackInk = luminance < 100;
+
+        if (isRedInk || isBlueInk || isBlackInk) {
+          processed.setPixelRgb(x, y, 0, 0, 0); // أسود ناصع
         }
       }
     }
@@ -349,8 +375,9 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       final int h = full.height;
       final int regionW = w ~/ 3;
 
-      // الجزء الأيسر = الدرجة المكتوبة بخط اليد
-      var left = img.copyCrop(full, x: 0, y: 0, width: regionW, height: h);
+      var left = img.copyCrop(
+        full, x: 0, y: 0, width: regionW, height: h,
+      );
       left = _preprocessImageForOcr(left);
       return Uint8List.fromList(img.encodePng(left));
     } catch (e) {
@@ -359,26 +386,63 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
     }
   }
 
+  /// ✅ OCR مزدوج: لاتيني أولاً، عربي كاحتياطي
   Future<String> _ocrFromBytes(Uint8List bytes) async {
+    File? tempFile;
+    Directory? tempDir;
     try {
-      final tempDir = await Directory.systemTemp.createTemp('ocr_');
-      final tempFile = File('${tempDir.path}/img.png');
+      tempDir = await Directory.systemTemp.createTemp('ocr_');
+      tempFile = File('${tempDir.path}/img.png');
       await tempFile.writeAsBytes(bytes);
 
       final input = InputImage.fromFile(tempFile);
-      final recognized = await _textRecognizer.processImage(input);
 
-      await tempFile.delete();
-      await tempDir.delete();
-      return recognized.text.trim();
+      // 1) لاتيني (0-9)
+      final latinResult = await _latinRecognizer.processImage(input);
+      final latinText = latinResult.text.trim();
+
+      // هل وجدنا رقماً؟ إن نعم، اكتفِ به
+      if (_extractNumber(latinText).isNotEmpty) {
+        return latinText;
+      }
+
+      // 2) عربي كاحتياطي (٠-٩)
+      final arabicResult = await _arabicRecognizer.processImage(input);
+      final arabicText = arabicResult.text.trim();
+
+      // دمج النتائج
+      final combined = '$latinText $arabicText'.trim();
+      debugPrint('🔍 OCR Latin: "$latinText" | Arabic: "$arabicText"');
+      return combined;
     } catch (e) {
       debugPrint('خطأ OCR: $e');
       return '';
+    } finally {
+      try { await tempFile?.delete(); } catch (_) {}
+      try { await tempDir?.delete(); } catch (_) {}
     }
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 7) الحفظ في الخلية الصحيحة
+  // 7) استخراج نص آمن من خلية إكسيل (للتحقق من التكرار)
+  // ═══════════════════════════════════════════════════════════
+  String _getCellText(dynamic cellValue) {
+    if (cellValue == null) return '';
+    if (cellValue is TextCellValue) {
+      return (cellValue.value.text ?? '').trim();
+    }
+    if (cellValue is IntCellValue) {
+      return cellValue.value.toString().trim();
+    }
+    if (cellValue is DoubleCellValue) {
+      final d = cellValue.value;
+      return (d == d.toInt() ? d.toInt().toString() : d.toString()).trim();
+    }
+    return cellValue.toString().trim();
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 8) الحفظ مع منع التكرار
   // ═══════════════════════════════════════════════════════════
   Future<void> _saveGradeDirectly() async {
     if (!_excelLoaded || _excelFilePath == null || _selectedSheet == null) {
@@ -412,8 +476,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       final cleanSecret = _secretCode.trim();
       for (int r = 3; r < sheet.maxRows; r++) {
         final cellVal = sheet.cell(CellIndex.indexByColumnRow(
-          columnIndex: 3,
-          rowIndex: r,
+          columnIndex: 3, rowIndex: r,
         )).value;
         if (cellVal != null && cellVal.toString().trim() == cleanSecret) {
           targetRow = r;
@@ -425,7 +488,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
         return;
       }
 
-      // ─── 2. إيجاد عمود الدرجة ديناميكياً من الصف الثاني ───
+      // ─── 2. إيجاد عمود الدرجة ديناميكياً ───
       int targetCol = -1;
       final cleanSelected =
           _selectedMonthOrSubject!.replaceAll(RegExp(r'\s+'), '');
@@ -433,8 +496,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       int c = 4;
       while (c < sheet.maxColumns) {
         final cell = sheet.cell(CellIndex.indexByColumnRow(
-          columnIndex: c,
-          rowIndex: 1,
+          columnIndex: c, rowIndex: 1,
         ));
         final text = cell.value?.toString().trim() ?? '';
 
@@ -442,26 +504,20 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
           final cleanText = text.replaceAll(RegExp(r'\s+'), '');
 
           bool isMatch = (cleanText == cleanSelected) ||
-              (cleanSelected == 'ف١' && cleanText == 'ف1') ||
-              (cleanSelected == 'ف٢' && cleanText == 'ف2');
+              (_isFasl1(cleanSelected) && _isFasl1(cleanText)) ||
+              (_isFasl2(cleanSelected) && _isFasl2(cleanText));
 
           if (isMatch) {
-            if (cleanSelected == 'ف١' ||
-                cleanSelected == 'ف٢' ||
-                cleanSelected == 'ف1' ||
-                cleanSelected == 'ف2') {
-              targetCol = c; // ف١/ف٢: عمود واحد
+            if (_isFasl1(cleanSelected) || _isFasl2(cleanSelected)) {
+              targetCol = c; // ف١/ف٢: عمود مباشر
             } else {
-              targetCol = c + 3; // الشهر: العمود الرابع من الكتلة
+              targetCol = c + 3; // شهر: العمود الرابع
             }
             break;
           }
 
-          // القفز المنطقي داخل الصف الثاني
-          if (cleanText == 'م١' || cleanText == 'ف١' ||
-              cleanText == 'م1' || cleanText == 'ف1' ||
-              cleanText == 'م٢' || cleanText == 'ف٢' ||
-              cleanText == 'م2' || cleanText == 'ف2') {
+          if (_isMahsala1(cleanText) || _isFasl1(cleanText) ||
+              _isMahsala2(cleanText) || _isFasl2(cleanText)) {
             c += 1;
           } else {
             c += 5;
@@ -472,26 +528,41 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       }
 
       if (targetCol == -1) {
-        _showSnack('❌ تعذر تحديد عمود الدرجة للفترة المختارة!');
+        _showSnack('❌ تعذر تحديد عمود الدرجة!');
         return;
       }
 
-      // ─── 3. الكتابة في خلية التقاطع ───
+      // ─── 3. ✅ التحقق من عدم وجود رصد مسبق ───
+      final existingCell = sheet.cell(CellIndex.indexByColumnRow(
+        columnIndex: targetCol, rowIndex: targetRow,
+      )).value;
+      final existingText = _getCellText(existingCell);
+
+      if (existingText.isNotEmpty) {
+        _showDialogAlert(
+          title: '⚠️ رصد مسبق!',
+          message:
+              'الطالب ($cleanSecret) تم رصده مسبقاً في '
+              '($_selectedMonthOrSubject) بدرجة ($existingText).\n\n'
+              'إذا أردت تعديل الدرجة، امسحها يدوياً من الملف أو من تطبيق '
+              'Excel ثم أعد المحاولة.',
+        );
+        return;
+      }
+
+      // ─── 4. الكتابة في خلية التقاطع ───
       sheet.cell(CellIndex.indexByColumnRow(
-        columnIndex: targetCol,
-        rowIndex: targetRow,
+        columnIndex: targetCol, rowIndex: targetRow,
       )).value = DoubleCellValue(gradeVal);
 
       final encodedData = excel.encode();
       if (encodedData != null) {
         await file.writeAsBytes(encodedData, mode: FileMode.write, flush: true);
-
         setState(() {
           _scannedStudentsCount++;
           _secretCode = '';
           _gradeController.clear();
         });
-
         _showSnack('✅ تم حفظ الدرجة ($gradeVal) في ($_selectedMonthOrSubject)');
       }
     } catch (e) {
@@ -499,12 +570,31 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
     }
   }
 
+  void _showDialogAlert({required String title, required String message}) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Text(title, style: const TextStyle(
+          color: Colors.redAccent, fontWeight: FontWeight.bold)),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('حسناً'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════
-  // 8) معالجة الالتقاط (QR + OCR)
+  // 9) معالجة الالتقاط (QR + OCR)
   // ═══════════════════════════════════════════════════════════
   Future<void> _processCapture(BarcodeCapture capture) async {
     if (_isProcessingCapture) return;
-    if (capture.barcodes.isEmpty || capture.barcodes.first.rawValue == null) return;
+    if (capture.barcodes.isEmpty ||
+        capture.barcodes.first.rawValue == null) return;
 
     final qrValue = capture.barcodes.first.rawValue!.trim();
     if (qrValue.isEmpty || qrValue == _secretCode) return;
@@ -517,13 +607,12 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       _gradeController.clear();
     });
 
-    // قراءة الدرجة من الصورة
     if (capture.image != null) {
       final leftBytes = await _cropLeftRegion(capture.image!);
       if (leftBytes != null) {
         final leftText = await _ocrFromBytes(leftBytes);
         final gradeText = _extractNumber(leftText);
-        debugPrint('⭐ OCR النص: $leftText | الرقم: $gradeText');
+        debugPrint('⭐ الدرجة المستخرجة: "$gradeText"');
 
         if (gradeText.isNotEmpty) {
           setState(() => _gradeController.text = gradeText);
@@ -541,7 +630,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 9) أدوات مساعدة
+  // 10) أدوات مساعدة
   // ═══════════════════════════════════════════════════════════
   void _showSnack(String msg) {
     if (!mounted) return;
@@ -563,7 +652,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 10) الواجهة
+  // 11) الواجهة
   // ═══════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
@@ -572,13 +661,15 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       appBar: AppBar(
         title: const Text(
           'إدخال الدرجات من أوراق الإجابة',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+          style: TextStyle(
+            fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
         ),
         backgroundColor: const Color(0xFF0288D1),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(_isTorchOn ? Icons.flash_on : Icons.flash_off, color: Colors.white),
+            icon: Icon(_isTorchOn ? Icons.flash_on : Icons.flash_off,
+                color: Colors.white),
             onPressed: () async {
               setState(() => _isTorchOn = !_isTorchOn);
               if (_isScanningActive) await _scannerController.toggleTorch();
@@ -596,13 +687,16 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4CAF50),
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25)),
               ),
               icon: const Icon(Icons.folder_open, color: Colors.white),
               onPressed: _pickExcelFile,
               label: Text(
                 _excelLoaded ? 'تغيير ملف الأكسيل' : 'اختر ملف الأكسيل (الكشوفات)',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold, fontSize: 15),
               ),
             ),
             const SizedBox(height: 8),
@@ -632,8 +726,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                       _excelFileName ?? 'لم يتم تحديد ملف إكسيل بعد',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
+                        fontWeight: FontWeight.bold, fontSize: 13,
                         color: _excelLoaded ? Colors.black87 : Colors.red.shade700,
                       ),
                       overflow: TextOverflow.ellipsis,
@@ -644,7 +737,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
             ),
             const SizedBox(height: 12),
 
-            // قائمة المادة
+            // المادة (ورقة العمل)
             const Text('المادة (ورقة العمل):',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
             const SizedBox(height: 4),
@@ -661,17 +754,21 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                   isExpanded: true,
                   hint: Text(
                     _excelLoaded ? 'اختر المادة' : 'يرجى اختيار ملف الأكسيل أولاً',
-                    style: TextStyle(color: _excelLoaded ? Colors.black54 : Colors.grey),
+                    style: TextStyle(
+                      color: _excelLoaded ? Colors.black54 : Colors.grey),
                   ),
                   items: _excelLoaded
                       ? _sheetNames.map((s) => DropdownMenuItem(
                             value: s,
-                            child: Text(s, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            child: Text(s, style: const TextStyle(
+                              fontWeight: FontWeight.bold)),
                           )).toList()
                       : null,
                   onChanged: _excelLoaded
-                      ? (v) {
+                      ? (v) async {
                           setState(() => _selectedSheet = v);
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setString('last_sheet_$_excelFileName', v!);
                           _loadMonthsAndStudents();
                         }
                       : null,
@@ -687,19 +784,19 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
                       backgroundColor: (!_isTerm2 && _excelLoaded)
-                          ? const Color(0xFF1976D2)
-                          : Colors.white,
+                          ? const Color(0xFF1976D2) : Colors.white,
                       foregroundColor: (!_isTerm2 && _excelLoaded)
-                          ? Colors.white
-                          : Colors.black87,
+                          ? Colors.white : Colors.black87,
                       side: BorderSide(
-                          color: _excelLoaded ? const Color(0xFF1976D2) : Colors.grey),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        color: _excelLoaded ? const Color(0xFF1976D2) : Colors.grey),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
                     onPressed: _excelLoaded ? () => _switchTerm(false) : null,
                     child: const Text('اختبار الفصل الأول',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 12)),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -707,26 +804,26 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
                       backgroundColor: (_isTerm2 && _excelLoaded)
-                          ? const Color(0xFF1976D2)
-                          : Colors.white,
+                          ? const Color(0xFF1976D2) : Colors.white,
                       foregroundColor: (_isTerm2 && _excelLoaded)
-                          ? Colors.white
-                          : Colors.black87,
+                          ? Colors.white : Colors.black87,
                       side: BorderSide(
-                          color: _excelLoaded ? const Color(0xFF1976D2) : Colors.grey),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        color: _excelLoaded ? const Color(0xFF1976D2) : Colors.grey),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
                     onPressed: _excelLoaded ? () => _switchTerm(true) : null,
                     child: const Text('اختبار الفصل الثاني',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 12)),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 10),
 
-            // قائمة الشهور
+            // الشهور
             const Text('فترة الرصد (الشهر / نهاية الفصل):',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
             const SizedBox(height: 4),
@@ -750,8 +847,10 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                             child: Text(
                               isTerm ? '$m (نهاية الفصل)' : m,
                               style: TextStyle(
-                                fontWeight: isTerm ? FontWeight.bold : FontWeight.normal,
-                                color: isTerm ? const Color(0xFF0F766E) : Colors.black87,
+                                fontWeight: isTerm
+                                    ? FontWeight.bold : FontWeight.normal,
+                                color: isTerm
+                                    ? const Color(0xFF0F766E) : Colors.black87,
                               ),
                             ),
                           );
@@ -780,9 +879,9 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                 child: Text(
                   _secretCode.isNotEmpty ? _secretCode : 'سيظهر بعد المسح',
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: _secretCode.isNotEmpty ? const Color(0xFF1976D2) : Colors.grey,
+                    fontWeight: FontWeight.bold, fontSize: 15,
+                    color: _secretCode.isNotEmpty
+                        ? const Color(0xFF1976D2) : Colors.grey,
                   ),
                 ),
               ),
@@ -797,20 +896,26 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text('الدرجة:',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 13)),
                       const SizedBox(height: 4),
                       TextField(
                         controller: _gradeController,
                         enabled: _excelLoaded,
                         textAlign: TextAlign.center,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16),
                         decoration: InputDecoration(
                           hintText: '0.0',
                           filled: true,
-                          fillColor: _excelLoaded ? Colors.white : Colors.grey.shade200,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          fillColor: _excelLoaded
+                              ? Colors.white : Colors.grey.shade200,
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                         ),
                       ),
                     ],
@@ -822,12 +927,14 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text('العداد:',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 13)),
                       const SizedBox(height: 4),
                       Container(
                         height: 48,
                         decoration: BoxDecoration(
-                          color: _excelLoaded ? Colors.white : Colors.grey.shade200,
+                          color: _excelLoaded
+                              ? Colors.white : Colors.grey.shade200,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: Colors.grey.shade300),
                         ),
@@ -835,9 +942,9 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                           child: Text(
                             '$_totalStudentsCount / $_scannedStudentsCount',
                             style: TextStyle(
-                              color: _excelLoaded ? const Color(0xFF2E7D32) : Colors.grey,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                              color: _excelLoaded
+                                  ? const Color(0xFF2E7D32) : Colors.grey,
+                              fontWeight: FontWeight.bold, fontSize: 16,
                             ),
                           ),
                         ),
@@ -854,14 +961,21 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: !_excelLoaded
                     ? Colors.grey
-                    : (_isScanningActive ? Colors.red.shade700 : const Color(0xFF4CAF50)),
+                    : (_isScanningActive
+                        ? Colors.red.shade700 : const Color(0xFF4CAF50)),
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25)),
               ),
-              icon: Icon(_isScanningActive ? Icons.stop : Icons.camera_alt, color: Colors.white),
+              icon: Icon(
+                _isScanningActive ? Icons.stop : Icons.camera_alt,
+                color: Colors.white,
+              ),
               label: Text(
                 _isScanningActive ? 'إيقاف الكاميرا' : 'ابدأ المسح',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold, fontSize: 14),
               ),
               onPressed: _excelLoaded ? _toggleScanning : null,
             ),
@@ -870,14 +984,18 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
             // زر الحفظ
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: _excelLoaded ? const Color(0xFF0288D1) : const Color(0xFFB0BEC5),
+                backgroundColor: _excelLoaded
+                    ? const Color(0xFF0288D1) : const Color(0xFFB0BEC5),
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25)),
               ),
               onPressed: _excelLoaded ? _saveGradeDirectly : null,
               child: const Text(
                 'تأكيد وحفظ الدرجة',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold, fontSize: 14),
               ),
             ),
             const SizedBox(height: 12),
@@ -889,7 +1007,8 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                 decoration: BoxDecoration(
                   color: Colors.black,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade400, width: 2),
+                  border: Border.all(
+                    color: Colors.grey.shade400, width: 2),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: MobileScanner(
