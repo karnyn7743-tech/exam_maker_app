@@ -48,11 +48,9 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
     returnImage: true,
   );
 
-  // ✅ قارئان: لاتيني (0-9) وعربي (٠-٩)
+  // ✅ قارئ لاتيني (0-9)
   final TextRecognizer _latinRecognizer =
       TextRecognizer(script: TextRecognitionScript.latin);
-  final TextRecognizer _arabicRecognizer =
-      TextRecognizer(script: TextRecognitionScript.arabic);
 
   @override
   void initState() {
@@ -65,7 +63,6 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   void dispose() {
     _scannerController.dispose();
     _latinRecognizer.close();
-    _arabicRecognizer.close();
     _gradeController.dispose();
     super.dispose();
   }
@@ -386,7 +383,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
     }
   }
 
-  /// ✅ OCR مزدوج: لاتيني أولاً، عربي كاحتياطي
+  /// ✅ OCR لاتيني (بدون القارئ العربي لحل مشكلة البناء)
   Future<String> _ocrFromBytes(Uint8List bytes) async {
     File? tempFile;
     Directory? tempDir;
@@ -396,24 +393,11 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       await tempFile.writeAsBytes(bytes);
 
       final input = InputImage.fromFile(tempFile);
-
-      // 1) لاتيني (0-9)
-      final latinResult = await _latinRecognizer.processImage(input);
-      final latinText = latinResult.text.trim();
-
-      // هل وجدنا رقماً؟ إن نعم، اكتفِ به
-      if (_extractNumber(latinText).isNotEmpty) {
-        return latinText;
-      }
-
-      // 2) عربي كاحتياطي (٠-٩)
-      final arabicResult = await _arabicRecognizer.processImage(input);
-      final arabicText = arabicResult.text.trim();
-
-      // دمج النتائج
-      final combined = '$latinText $arabicText'.trim();
-      debugPrint('🔍 OCR Latin: "$latinText" | Arabic: "$arabicText"');
-      return combined;
+      final result = await _latinRecognizer.processImage(input);
+      final text = result.text.trim();
+      
+      debugPrint('🔍 OCR Latin: "$text"');
+      return text;
     } catch (e) {
       debugPrint('خطأ OCR: $e');
       return '';
