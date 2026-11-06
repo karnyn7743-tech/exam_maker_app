@@ -1,16 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:syncfusion_flutter_core/core.dart'; // ✅ تمت الإضافة: ضروري لتسجيل ترخيص Syncfusion
 import 'screens/activation_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/activation_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // ✅ تمت الإضافة: تسجيل ترخيص Syncfusion
-  // يمكنك تركها null للاستخدام الشخصي/التعليمي المجاني، أو وضع مفتاح الترخيص هنا إذا حصلت عليه مستقبلاً
-  SyncfusionLicense.registerLicense(null);
 
   // فحص حالة الترخيص: لا يمكن الدخول إلا بترخيص ساري (تجريبي أو دائم)
   final status = await ActivationService.getLicenseStatus();
@@ -30,7 +25,7 @@ class ExamMakerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'صانع الاختبارات',
+      title: 'المحرر البسيط للاختبارات',
       debugShowCheckedModeBanner: false,
       locale: const Locale('ar', 'YE'),
       supportedLocales: const [
