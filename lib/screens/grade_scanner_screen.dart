@@ -606,7 +606,6 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                 final result = await OpenFilex.open(
                   _excelFilePath!,
                   type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                  writePermission: true,
                 );
                 if (result.type != ResultType.done) {
                   _showSnack('تعذر فتح الملف: ${result.message}');
