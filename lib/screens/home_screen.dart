@@ -456,7 +456,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                     // الزر الثالث
                     _buildMainActionButton(
-                      title: 'إدخال درجات الطلاب',
+                      title: 'إدخال درجات الطلاب من أوراق الإختبار',
                       icon: Icons.qr_code_scanner,
                       onTap: _openGradeScanner,
                     ),
