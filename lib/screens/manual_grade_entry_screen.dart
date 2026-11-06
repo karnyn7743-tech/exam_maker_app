@@ -1,12 +1,13 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:excel/excel.dart' hide Border;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
+import 'package:open_filex/open_filex.dart'; // ✅ مكتبة فتح الملف
 
 bool _isMahsala1(String t) => t == 'م١' || t == 'م1' || t == 'م۱';
 bool _isMahsala2(String t) => t == 'م٢' || t == 'م2' || t == 'م۲';
@@ -15,10 +16,8 @@ bool _isFasl2(String t) => t == 'ف٢' || t == 'ف2' || t == 'ف۲';
 
 List<String> _extractSheetNamesIsolate(String filePath) {
   final bytes = File(filePath).readAsBytesSync();
-  final workbook = xlsio.Workbook.fromBytes(bytes);
-  final sheets = workbook.worksheets.map((sheet) => sheet.name).toList();
-  workbook.dispose();
-  return sheets;
+  final excel = Excel.decodeBytes(bytes);
+  return excel.tables.keys.toList();
 }
 
 Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
@@ -27,26 +26,19 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   final bool isTerm2 = args['isTerm2'];
 
   final bytes = File(filePath).readAsBytesSync();
-  final workbook = xlsio.Workbook.fromBytes(bytes);
-
-  // ✅ تعريف غير قابل للفراغ
-  final xlsio.Worksheet sheet;
-  try {
-    sheet = workbook.worksheets.firstWhere((s) => s.name == sheetName);
-  } catch (e) {
-    workbook.dispose();
-    return {'error': 'Sheet not found'};
-  }
+  final excel = Excel.decodeBytes(bytes);
+  final sheet = excel.tables[sheetName];
+  if (sheet == null) return {'error': 'Sheet not found'};
 
   List<String> term1List = [];
   List<String> term2List = [];
   bool foundF1 = false;
   bool foundF2 = false;
 
-  int col = 5;
-  while (col <= sheet.getLastColumn()) {
-    // ✅ معالجة النص الفارغ
-    final text = (sheet.getRangeByIndex(2, col).text ?? '').trim();
+  int col = 4;
+  while (col < sheet.maxColumns) {
+    final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 1));
+    final text = cell.value?.toString().trim() ?? '';
 
     if (text.isNotEmpty) {
       final cleanText = text.replaceAll(RegExp(r'\s+'), '');
@@ -84,11 +76,14 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   List<Map<String, dynamic>> students = [];
   Set<String> gradesSet = {};
 
-  for (int r = 4; r <= sheet.getLastRow(); r++) {
-    // ✅ معالجة النصوص الفارغة
-    final seat = (sheet.getRangeByIndex(r, 1).text ?? '').trim();
-    final name = (sheet.getRangeByIndex(r, 2).text ?? '').trim();
-    final grade = (sheet.getRangeByIndex(r, 3).text ?? '').trim();
+  for (int r = 3; r < sheet.maxRows; r++) {
+    final seatVal = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: r)).value;
+    final nameVal = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: r)).value;
+    final gradeVal = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: r)).value;
+
+    final seat = seatVal?.toString().trim() ?? '';
+    final name = nameVal?.toString().trim() ?? '';
+    final grade = gradeVal?.toString().trim() ?? '';
 
     if (name.isNotEmpty) {
       if (grade.isNotEmpty) gradesSet.add(grade);
@@ -96,12 +91,11 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
         'seat': seat,
         'name': name,
         'grade': grade,
-        'row': r - 1,
+        'row': r,
       });
     }
   }
 
-  workbook.dispose();
   return {
     'months': activeMonths,
     'students': students,
@@ -121,23 +115,16 @@ Map<String, dynamic> _saveManualGradesIsolate(Map<String, dynamic> args) {
   try {
     final file = File(filePath);
     final bytes = file.readAsBytesSync();
-    final workbook = xlsio.Workbook.fromBytes(bytes);
-
-    // ✅ تعريف غير قابل للفراغ
-    final xlsio.Worksheet sheet;
-    try {
-      sheet = workbook.worksheets.firstWhere((s) => s.name == sheetName);
-    } catch (e) {
-      workbook.dispose();
-      return {'success': false, 'message': 'الورقة غير موجودة'};
-    }
+    final excel = Excel.decodeBytes(bytes);
+    final sheet = excel.tables[sheetName];
+    if (sheet == null) return {'success': false, 'message': 'الورقة غير موجودة'};
 
     int targetCol = -1;
     final cleanSelected = selectedMonth.replaceAll(RegExp(r'\s+'), '');
-    int c = 5;
-    while (c <= sheet.getLastColumn()) {
-      // ✅ معالجة النص الفارغ
-      final text = (sheet.getRangeByIndex(2, c).text ?? '').trim();
+    int c = 4;
+    while (c < sheet.maxColumns) {
+      final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 1));
+      final text = cell.value?.toString().trim() ?? '';
 
       if (text.isNotEmpty) {
         final cleanText = text.replaceAll(RegExp(r'\s+'), '');
@@ -159,22 +146,24 @@ Map<String, dynamic> _saveManualGradesIsolate(Map<String, dynamic> args) {
       }
     }
 
-    if (targetCol == -1) {
-      workbook.dispose();
-      return {'success': false, 'message': 'تعذر تحديد عمود الشهر'};
+    if (targetCol == -1) return {'success': false, 'message': 'تعذر تحديد عمود الشهر'};
+
+    if (hw != null) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: targetCol, rowIndex: targetRow)).value = DoubleCellValue(hw);
+    }
+    if (oral != null) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: targetCol + 1, rowIndex: targetRow)).value = DoubleCellValue(oral);
+    }
+    if (att != null) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: targetCol + 2, rowIndex: targetRow)).value = DoubleCellValue(att);
     }
 
-    final int xlsioRow = targetRow + 1;
-
-    if (hw != null) sheet.getRangeByIndex(xlsioRow, targetCol).setNumber(hw);
-    if (oral != null) sheet.getRangeByIndex(xlsioRow, targetCol + 1).setNumber(oral);
-    if (att != null) sheet.getRangeByIndex(xlsioRow, targetCol + 2).setNumber(att);
-
-    final List<int> newBytes = workbook.saveSync();
-    file.writeAsBytesSync(newBytes, flush: true);
-
-    workbook.dispose();
-    return {'success': true};
+    final encodedData = excel.encode();
+    if (encodedData != null) {
+      file.writeAsBytesSync(encodedData, flush: true);
+      return {'success': true};
+    }
+    return {'success': false, 'message': 'فشل ترميز الملف'};
   } catch (e) {
     return {'success': false, 'message': 'خطأ في الحفظ: $e'};
   }
@@ -464,6 +453,7 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
       });
 
       if (result['success'] == true) {
+        // ✅ تفريغ الحقول بعد الحفظ مباشرة
         setState(() {
           _studentNameController.clear();
           _hwController.clear();
@@ -496,6 +486,24 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
         title: const Text('إدخال بقية درجات أعمال السنة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
         backgroundColor: const Color(0xFF00897B),
         centerTitle: true,
+        actions: [
+          // ✅ زر فتح الملف بصلاحيات الكتابة
+          if (_excelLoaded && _excelFilePath != null)
+            IconButton(
+              icon: const Icon(Icons.table_chart, color: Colors.white),
+              tooltip: 'فتح الملف في تطبيق آخر',
+              onPressed: () async {
+                final result = await OpenFilex.open(
+                  _excelFilePath!,
+                  type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                  writePermission: true,
+                );
+                if (result.type != ResultType.done) {
+                  _showSnack('تعذر فتح الملف: ${result.message}');
+                }
+              },
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
