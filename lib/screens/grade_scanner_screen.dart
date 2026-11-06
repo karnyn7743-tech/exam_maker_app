@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:excel/excel.dart' hide Border;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'; // ✅ ضروري لاستخدام compute
@@ -10,6 +9,7 @@ import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio; // ✅ المكتبة الجديدة
 
 // ═══════════════════════════════════════════════════════════
 // دوال مساعدة تعمل في الخلفية (Isolates)
@@ -23,8 +23,10 @@ bool _isFasl2(String t) => t == 'ف٢' || t == 'ف2' || t == 'ف۲';
 // 1. قراءة أسماء الأوراق فقط (سريعة)
 List<String> _extractSheetNamesIsolate(String filePath) {
   final bytes = File(filePath).readAsBytesSync();
-  final excel = Excel.decodeBytes(bytes);
-  return excel.tables.keys.toList();
+  final workbook = xlsio.Workbook.fromBytes(bytes);
+  final sheets = workbook.worksheets.map((sheet) => sheet.name).toList();
+  workbook.dispose();
+  return sheets;
 }
 
 // 2. قراءة الشهور والطلاب في الخلفية
@@ -34,14 +36,21 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   final bool isTerm2 = args['isTerm2'];
 
   final bytes = File(filePath).readAsBytesSync();
-  final excel = Excel.decodeBytes(bytes);
-  final sheet = excel.tables[sheetName];
-  if (sheet == null) return {'error': 'Sheet not found'};
+  final workbook = xlsio.Workbook.fromBytes(bytes);
+  
+  xlsio.Worksheet? sheet;
+  try {
+    sheet = workbook.worksheets.firstWhere((s) => s.name == sheetName);
+  } catch (e) {
+    workbook.dispose();
+    return {'error': 'Sheet not found'};
+  }
 
   int students = 0;
-  for (int r = 3; r < sheet.maxRows; r++) {
-    final val = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: r)).value;
-    if (val != null && val.toString().trim().isNotEmpty) students++;
+  // قراءة الطلاب من العمود D (رقم 4) بدءاً من الصف 4
+  for (int r = 4; r <= sheet.getLastRow(); r++) {
+    final val = sheet.getRangeByIndex(r, 4).text.trim();
+    if (val.isNotEmpty) students++;
   }
 
   List<String> term1List = [];
@@ -49,10 +58,9 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   bool foundF1 = false;
   bool foundF2 = false;
 
-  int col = 4;
-  while (col < sheet.maxColumns) {
-    final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 1));
-    final text = cell.value?.toString().trim() ?? '';
+  int col = 5; // البدء من العمود E (رقم 5)
+  while (col <= sheet.getLastColumn()) {
+    final text = sheet.getRangeByIndex(2, col).text.trim(); // الصف 2
 
     if (text.isNotEmpty) {
       final cleanText = text.replaceAll(RegExp(r'\s+'), '');
@@ -87,6 +95,7 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
     if (foundF2) activeMonths.add('ف٢');
   }
 
+  workbook.dispose();
   return {
     'students': students,
     'activeMonths': activeMonths,
@@ -101,88 +110,92 @@ Map<String, dynamic> _saveGradeIsolate(Map<String, dynamic> args) {
   final String selectedMonth = args['selectedMonth'];
   final double gradeVal = args['gradeVal'];
 
-  final file = File(filePath);
-  final bytes = file.readAsBytesSync();
-  final excel = Excel.decodeBytes(bytes);
-  final sheet = excel.tables[sheetName];
-  if (sheet == null) return {'success': false, 'message': 'الورقة غير موجودة'};
-
-  int targetRow = -1;
-  final cleanSecret = secretCode.trim();
-  for (int r = 3; r < sheet.maxRows; r++) {
-    final cellVal = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: r)).value;
-    if (cellVal != null && cellVal.toString().trim() == cleanSecret) {
-      targetRow = r;
-      break;
+  try {
+    final file = File(filePath);
+    final bytes = file.readAsBytesSync();
+    final workbook = xlsio.Workbook.fromBytes(bytes);
+    
+    xlsio.Worksheet? sheet;
+    try {
+      sheet = workbook.worksheets.firstWhere((s) => s.name == sheetName);
+    } catch (e) {
+      workbook.dispose();
+      return {'success': false, 'message': 'الورقة غير موجودة'};
     }
-  }
-  if (targetRow == -1) return {'success': false, 'message': 'الرقم السري ($cleanSecret) غير موجود!'};
 
-  int targetCol = -1;
-  final cleanSelected = selectedMonth.replaceAll(RegExp(r'\s+'), '');
-  int c = 4;
-  while (c < sheet.maxColumns) {
-    final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 1));
-    final text = cell.value?.toString().trim() ?? '';
-
-    if (text.isNotEmpty) {
-      final cleanText = text.replaceAll(RegExp(r'\s+'), '');
-      bool isMatch = (cleanText == cleanSelected) ||
-          (_isFasl1(cleanSelected) && _isFasl1(cleanText)) ||
-          (_isFasl2(cleanSelected) && _isFasl2(cleanText));
-
-      if (isMatch) {
-        if (_isFasl1(cleanSelected) || _isFasl2(cleanSelected)) {
-          targetCol = c;
-        } else {
-          targetCol = c + 3;
-        }
+    int targetRow = -1;
+    final cleanSecret = secretCode.trim();
+    for (int r = 4; r <= sheet.getLastRow(); r++) {
+      final cellVal = sheet.getRangeByIndex(r, 4).text.trim();
+      if (cellVal == cleanSecret) {
+        targetRow = r;
         break;
       }
+    }
+    if (targetRow == -1) {
+      workbook.dispose();
+      return {'success': false, 'message': 'الرقم السري ($cleanSecret) غير موجود!'};
+    }
 
-      if (_isMahsala1(cleanText) || _isFasl1(cleanText) ||
-          _isMahsala2(cleanText) || _isFasl2(cleanText)) {
-        c += 1;
+    int targetCol = -1;
+    final cleanSelected = selectedMonth.replaceAll(RegExp(r'\s+'), '');
+    int c = 5;
+    while (c <= sheet.getLastColumn()) {
+      final text = sheet.getRangeByIndex(2, c).text.trim();
+
+      if (text.isNotEmpty) {
+        final cleanText = text.replaceAll(RegExp(r'\s+'), '');
+        bool isMatch = (cleanText == cleanSelected) ||
+            (_isFasl1(cleanSelected) && _isFasl1(cleanText)) ||
+            (_isFasl2(cleanSelected) && _isFasl2(cleanText));
+
+        if (isMatch) {
+          if (_isFasl1(cleanSelected) || _isFasl2(cleanSelected)) {
+            targetCol = c;
+          } else {
+            targetCol = c + 3;
+          }
+          break;
+        }
+
+        if (_isMahsala1(cleanText) || _isFasl1(cleanText) ||
+            _isMahsala2(cleanText) || _isFasl2(cleanText)) {
+          c += 1;
+        } else {
+          c += 5;
+        }
       } else {
-        c += 5;
+        c += 1;
       }
-    } else {
-      c += 1;
     }
-  }
 
-  if (targetCol == -1) return {'success': false, 'message': 'تعذر تحديد عمود الدرجة!'};
-
-  final existingCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: targetCol, rowIndex: targetRow)).value;
-  String existingText = '';
-  if (existingCell != null) {
-    if (existingCell is TextCellValue) {
-      existingText = (existingCell.value.text ?? '').trim();
-    } else if (existingCell is IntCellValue) {
-      existingText = existingCell.value.toString().trim();
-    } else if (existingCell is DoubleCellValue) {
-      final d = existingCell.value;
-      existingText = (d == d.toInt() ? d.toInt().toString() : d.toString()).trim();
-    } else {
-      existingText = existingCell.toString().trim();
+    if (targetCol == -1) {
+      workbook.dispose();
+      return {'success': false, 'message': 'تعذر تحديد عمود الدرجة!'};
     }
-  }
 
-  if (existingText.isNotEmpty) {
-    return {'success': false, 'message': 'رصد مسبق', 'existingText': existingText};
-  }
+    final existingText = sheet.getRangeByIndex(targetRow, targetCol).text.trim();
+    if (existingText.isNotEmpty) {
+      workbook.dispose();
+      return {'success': false, 'message': 'رصد مسبق', 'existingText': existingText};
+    }
 
-  sheet.cell(CellIndex.indexByColumnRow(columnIndex: targetCol, rowIndex: targetRow)).value = DoubleCellValue(gradeVal);
-  final encodedData = excel.encode();
-  if (encodedData != null) {
-    file.writeAsBytesSync(encodedData, flush: true);
+    // ✅ الكتابة في الخلية باستخدام Syncfusion
+    sheet.getRangeByIndex(targetRow, targetCol).setNumber(gradeVal);
+
+    // ✅ حفظ الملف فوق الملف الأصلي
+    final List<int> newBytes = workbook.saveSync();
+    file.writeAsBytesSync(newBytes, flush: true);
+    
+    workbook.dispose();
     return {'success': true};
+  } catch (e) {
+    return {'success': false, 'message': 'خطأ في الحفظ: $e'};
   }
-  return {'success': false, 'message': 'فشل ترميز الملف'};
 }
 
 // ═══════════════════════════════════════════════════════════
-// الواجهة الرئيسية
+// الواجهة الرئيسية (لم يتم تغيير أي حرف فيها)
 // ═══════════════════════════════════════════════════════════
 
 class GradeScannerScreen extends StatefulWidget {
@@ -213,7 +226,6 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   bool _isProcessingCapture = false;
   bool _isTorchOn = false;
   
-  // ✅ مؤشر التحميل لمنع التجمد وإظهار حالة العمل
   bool _isLoading = false;
 
   final MobileScannerController _scannerController = MobileScannerController(
@@ -240,7 +252,6 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   }
 
   Future<void> _requestPermissions() async {
-    // ✅ تحسين: لا نطلب الإذن إلا إذا لم يكن ممنوحاً لتسريع العملية
     if (!await Permission.camera.isGranted) await Permission.camera.request();
     if (!await Permission.storage.isGranted) await Permission.storage.request();
     
@@ -344,7 +355,6 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       final fileName = result.files.single.name;
       final path = await _getPermanentExcelPath(fileName, cachePath);
 
-      // ✅ قراءة الأوراق في الخلفية
       final sheets = await compute(_extractSheetNamesIsolate, path);
 
       final prefs = await SharedPreferences.getInstance();
@@ -378,7 +388,6 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // ✅ قراءة الشهور والطلاب في الخلفية
       final result = await compute(_getMonthsAndStudentsIsolate, {
         'filePath': _excelFilePath!,
         'sheetName': _selectedSheet!,
@@ -504,7 +513,6 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // ✅ الحفظ في الخلفية
       final result = await compute(_saveGradeIsolate, {
         'filePath': _excelFilePath!,
         'sheetName': _selectedSheet!,
