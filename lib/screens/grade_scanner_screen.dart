@@ -2,25 +2,20 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // ✅ ضروري لاستخدام compute
+import 'package:flutter/foundation.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio; // ✅ المكتبة الجديدة
-
-// ═══════════════════════════════════════════════════════════
-// دوال مساعدة تعمل في الخلفية (Isolates)
-// ═══════════════════════════════════════════════════════════
+import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 
 bool _isMahsala1(String t) => t == 'م١' || t == 'م1' || t == 'م۱';
 bool _isMahsala2(String t) => t == 'م٢' || t == 'م2' || t == 'م۲';
 bool _isFasl1(String t) => t == 'ف١' || t == 'ف1' || t == 'ف۱';
 bool _isFasl2(String t) => t == 'ف٢' || t == 'ف2' || t == 'ف۲';
 
-// 1. قراءة أسماء الأوراق فقط (سريعة)
 List<String> _extractSheetNamesIsolate(String filePath) {
   final bytes = File(filePath).readAsBytesSync();
   final workbook = xlsio.Workbook.fromBytes(bytes);
@@ -29,7 +24,6 @@ List<String> _extractSheetNamesIsolate(String filePath) {
   return sheets;
 }
 
-// 2. قراءة الشهور والطلاب في الخلفية
 Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   final String filePath = args['filePath'];
   final String sheetName = args['sheetName'];
@@ -37,8 +31,9 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
 
   final bytes = File(filePath).readAsBytesSync();
   final workbook = xlsio.Workbook.fromBytes(bytes);
-  
-  xlsio.Worksheet? sheet;
+
+  // ✅ تعريف غير قابل للفراغ
+  final xlsio.Worksheet sheet;
   try {
     sheet = workbook.worksheets.firstWhere((s) => s.name == sheetName);
   } catch (e) {
@@ -47,9 +42,9 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   }
 
   int students = 0;
-  // قراءة الطلاب من العمود D (رقم 4) بدءاً من الصف 4
   for (int r = 4; r <= sheet.getLastRow(); r++) {
-    final val = sheet.getRangeByIndex(r, 4).text.trim();
+    // ✅ معالجة النص الفارغ
+    final val = (sheet.getRangeByIndex(r, 4).text ?? '').trim();
     if (val.isNotEmpty) students++;
   }
 
@@ -58,9 +53,10 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   bool foundF1 = false;
   bool foundF2 = false;
 
-  int col = 5; // البدء من العمود E (رقم 5)
+  int col = 5;
   while (col <= sheet.getLastColumn()) {
-    final text = sheet.getRangeByIndex(2, col).text.trim(); // الصف 2
+    // ✅ معالجة النص الفارغ
+    final text = (sheet.getRangeByIndex(2, col).text ?? '').trim();
 
     if (text.isNotEmpty) {
       final cleanText = text.replaceAll(RegExp(r'\s+'), '');
@@ -102,7 +98,6 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   };
 }
 
-// 3. عملية الحفظ كاملة في الخلفية
 Map<String, dynamic> _saveGradeIsolate(Map<String, dynamic> args) {
   final String filePath = args['filePath'];
   final String sheetName = args['sheetName'];
@@ -114,8 +109,9 @@ Map<String, dynamic> _saveGradeIsolate(Map<String, dynamic> args) {
     final file = File(filePath);
     final bytes = file.readAsBytesSync();
     final workbook = xlsio.Workbook.fromBytes(bytes);
-    
-    xlsio.Worksheet? sheet;
+
+    // ✅ تعريف غير قابل للفراغ
+    final xlsio.Worksheet sheet;
     try {
       sheet = workbook.worksheets.firstWhere((s) => s.name == sheetName);
     } catch (e) {
@@ -126,7 +122,8 @@ Map<String, dynamic> _saveGradeIsolate(Map<String, dynamic> args) {
     int targetRow = -1;
     final cleanSecret = secretCode.trim();
     for (int r = 4; r <= sheet.getLastRow(); r++) {
-      final cellVal = sheet.getRangeByIndex(r, 4).text.trim();
+      // ✅ معالجة النص الفارغ
+      final cellVal = (sheet.getRangeByIndex(r, 4).text ?? '').trim();
       if (cellVal == cleanSecret) {
         targetRow = r;
         break;
@@ -141,7 +138,8 @@ Map<String, dynamic> _saveGradeIsolate(Map<String, dynamic> args) {
     final cleanSelected = selectedMonth.replaceAll(RegExp(r'\s+'), '');
     int c = 5;
     while (c <= sheet.getLastColumn()) {
-      final text = sheet.getRangeByIndex(2, c).text.trim();
+      // ✅ معالجة النص الفارغ
+      final text = (sheet.getRangeByIndex(2, c).text ?? '').trim();
 
       if (text.isNotEmpty) {
         final cleanText = text.replaceAll(RegExp(r'\s+'), '');
@@ -174,19 +172,18 @@ Map<String, dynamic> _saveGradeIsolate(Map<String, dynamic> args) {
       return {'success': false, 'message': 'تعذر تحديد عمود الدرجة!'};
     }
 
-    final existingText = sheet.getRangeByIndex(targetRow, targetCol).text.trim();
+    // ✅ معالجة النص الفارغ
+    final existingText = (sheet.getRangeByIndex(targetRow, targetCol).text ?? '').trim();
     if (existingText.isNotEmpty) {
       workbook.dispose();
       return {'success': false, 'message': 'رصد مسبق', 'existingText': existingText};
     }
 
-    // ✅ الكتابة في الخلية باستخدام Syncfusion
     sheet.getRangeByIndex(targetRow, targetCol).setNumber(gradeVal);
 
-    // ✅ حفظ الملف فوق الملف الأصلي
     final List<int> newBytes = workbook.saveSync();
     file.writeAsBytesSync(newBytes, flush: true);
-    
+
     workbook.dispose();
     return {'success': true};
   } catch (e) {
@@ -195,7 +192,7 @@ Map<String, dynamic> _saveGradeIsolate(Map<String, dynamic> args) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// الواجهة الرئيسية (لم يتم تغيير أي حرف فيها)
+// الواجهة الرئيسية
 // ═══════════════════════════════════════════════════════════
 
 class GradeScannerScreen extends StatefulWidget {
@@ -225,7 +222,6 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   bool _isScanningActive = false;
   bool _isProcessingCapture = false;
   bool _isTorchOn = false;
-  
   bool _isLoading = false;
 
   final MobileScannerController _scannerController = MobileScannerController(
@@ -254,7 +250,6 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   Future<void> _requestPermissions() async {
     if (!await Permission.camera.isGranted) await Permission.camera.request();
     if (!await Permission.storage.isGranted) await Permission.storage.request();
-    
     if (!await Permission.manageExternalStorage.isGranted) {
       final status = await Permission.manageExternalStorage.request();
       if (status.isDenied && mounted) _showManageStorageDialog();
@@ -266,10 +261,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('صلاحية مطلوبة'),
-        content: const Text(
-          'لكي يعمل التطبيق، نحتاج صلاحية "إدارة جميع الملفات".\n\n'
-          'اضغط "فتح الإعدادات" ثم فعّل الخيار للتطبيق.',
-        ),
+        content: const Text('لكي يعمل التطبيق، نحتاج صلاحية "إدارة جميع الملفات".\n\nاضغط "فتح الإعدادات" ثم فعّل الخيار للتطبيق.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('لاحقاً')),
           ElevatedButton(
@@ -314,7 +306,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       final String? lastFile = prefs.getString('last_excel_file');
       if (lastFile != null && await File(lastFile).exists()) {
         setState(() => _isLoading = true);
-        
+
         final sheets = await compute(_extractSheetNamesIsolate, lastFile);
         final fileName = lastFile.split('/').last;
 
@@ -331,7 +323,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
           _selectedSheet = validSheet;
           _isLoading = false;
         });
-        
+
         if (validSheet != null) await _loadMonthsAndStudents();
       }
     } catch (e) {
@@ -373,7 +365,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       });
 
       await prefs.setString('last_excel_file', path);
-      
+
       if (validSheet != null) await _loadMonthsAndStudents();
       _showSnack('✅ تم تحميل: $fileName');
     } catch (e) {
@@ -641,8 +633,8 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
               ),
-              icon: _isLoading 
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+              icon: _isLoading
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                   : const Icon(Icons.folder_open, color: Colors.white),
               onPressed: _isLoading ? null : _pickExcelFile,
               label: Text(
