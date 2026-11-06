@@ -7,6 +7,7 @@ import '../services/exam_storage_service.dart';
 import 'activation_screen.dart';
 import 'exam_editor_screen.dart';
 import 'grade_scanner_screen.dart';
+import 'manual_grade_entry_screen.dart'; // ✅ تمت إضافة استدعاء الشاشة الجديدة
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -293,11 +294,19 @@ class _HomeScreenState extends State<HomeScreen> {
     ).then((_) => _checkActivationStatus());
   }
 
-  // 3. إدخال درجات الطلاب
+  // 3. إدخال درجات الطلاب من أوراق الاختبار
   void _openGradeScanner() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const GradeScannerScreen()),
+    );
+  }
+
+  // 4. إدخال بقية درجات أعمال السنة (جديد)
+  void _openManualGradeEntry() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ManualGradeEntryScreen()),
     );
   }
 
@@ -443,6 +452,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       title: 'تصميم اختبار شامل',
                       icon: Icons.edit_document,
                       onTap: _designTraditionalExam,
+                      backgroundColor: const Color(0xFF7E57C2), // بنفسجي
                     ),
                     const SizedBox(height: 20),
 
@@ -451,6 +461,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       title: 'تصميم اختبار مؤتمت',
                       icon: Icons.checklist_rtl,
                       onTap: _designAutomatedExam,
+                      backgroundColor: const Color(0xFF7E57C2), // بنفسجي
                     ),
                     const SizedBox(height: 20),
 
@@ -459,6 +470,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       title: 'إدخال درجات الطلاب من أوراق الإختبار',
                       icon: Icons.qr_code_scanner,
                       onTap: _openGradeScanner,
+                      backgroundColor: const Color(0xFF00897B), // أخضر مزرق للتمييز
+                    ),
+                    const SizedBox(height: 20),
+
+                    // الزر الرابع (الجديد)
+                    _buildMainActionButton(
+                      title: 'إدخال بقية درجات أعمال السنة',
+                      icon: Icons.playlist_add_check,
+                      onTap: _openManualGradeEntry,
+                      backgroundColor: const Color(0xFF00897B), // أخضر مزرق للتمييز
                     ),
                   ],
                 ),
@@ -543,11 +564,12 @@ class _HomeScreenState extends State<HomeScreen> {
     required String title,
     required IconData icon,
     required VoidCallback onTap,
+    Color backgroundColor = const Color(0xFF7E57C2), // ✅ تمت إضافة خاصية اللون هنا
   }) {
     return Container(
       height: 64,
       decoration: BoxDecoration(
-        color: const Color(0xFF7E57C2), // بنفسجي خفيف هادئ
+        color: backgroundColor, // استخدام اللون الممرر
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(
