@@ -6,14 +6,13 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio; // ✅ المكتبة الجديدة
+import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 
 bool _isMahsala1(String t) => t == 'م١' || t == 'م1' || t == 'م۱';
 bool _isMahsala2(String t) => t == 'م٢' || t == 'م2' || t == 'م۲';
 bool _isFasl1(String t) => t == 'ف١' || t == 'ف1' || t == 'ف۱';
 bool _isFasl2(String t) => t == 'ف٢' || t == 'ف2' || t == 'ف۲';
 
-// 1. قراءة أسماء الأوراق فقط (سريعة)
 List<String> _extractSheetNamesIsolate(String filePath) {
   final bytes = File(filePath).readAsBytesSync();
   final workbook = xlsio.Workbook.fromBytes(bytes);
@@ -22,7 +21,6 @@ List<String> _extractSheetNamesIsolate(String filePath) {
   return sheets;
 }
 
-// 2. قراءة الشهور والطلاب في الخلفية
 Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   final String filePath = args['filePath'];
   final String sheetName = args['sheetName'];
@@ -31,7 +29,8 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   final bytes = File(filePath).readAsBytesSync();
   final workbook = xlsio.Workbook.fromBytes(bytes);
 
-  xlsio.Worksheet? sheet;
+  // ✅ تعريف غير قابل للفراغ
+  final xlsio.Worksheet sheet;
   try {
     sheet = workbook.worksheets.firstWhere((s) => s.name == sheetName);
   } catch (e) {
@@ -39,15 +38,15 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
     return {'error': 'Sheet not found'};
   }
 
-  // استخراج الشهور
   List<String> term1List = [];
   List<String> term2List = [];
   bool foundF1 = false;
   bool foundF2 = false;
 
-  int col = 5; // البدء من العمود E (رقم 5)
+  int col = 5;
   while (col <= sheet.getLastColumn()) {
-    final text = sheet.getRangeByIndex(2, col).text.trim(); // الصف الثاني
+    // ✅ معالجة النص الفارغ
+    final text = (sheet.getRangeByIndex(2, col).text ?? '').trim();
 
     if (text.isNotEmpty) {
       final cleanText = text.replaceAll(RegExp(r'\s+'), '');
@@ -82,14 +81,14 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
     if (foundF2) activeMonths.add('ف٢');
   }
 
-  // استخراج الطلاب والصفوف
   List<Map<String, dynamic>> students = [];
   Set<String> gradesSet = {};
 
   for (int r = 4; r <= sheet.getLastRow(); r++) {
-    final seat = sheet.getRangeByIndex(r, 1).text.trim(); // العمود A
-    final name = sheet.getRangeByIndex(r, 2).text.trim(); // العمود B
-    final grade = sheet.getRangeByIndex(r, 3).text.trim(); // العمود C
+    // ✅ معالجة النصوص الفارغة
+    final seat = (sheet.getRangeByIndex(r, 1).text ?? '').trim();
+    final name = (sheet.getRangeByIndex(r, 2).text ?? '').trim();
+    final grade = (sheet.getRangeByIndex(r, 3).text ?? '').trim();
 
     if (name.isNotEmpty) {
       if (grade.isNotEmpty) gradesSet.add(grade);
@@ -97,7 +96,7 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
         'seat': seat,
         'name': name,
         'grade': grade,
-        'row': r - 1, // تحويلها إلى 0-based لتتوافق مع الواجهة
+        'row': r - 1,
       });
     }
   }
@@ -110,11 +109,10 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   };
 }
 
-// 3. عملية الحفظ في الخلفية
 Map<String, dynamic> _saveManualGradesIsolate(Map<String, dynamic> args) {
   final String filePath = args['filePath'];
   final String sheetName = args['sheetName'];
-  final int targetRow = args['targetRow']; // 0-based coming from UI
+  final int targetRow = args['targetRow'];
   final String selectedMonth = args['selectedMonth'];
   final double? hw = args['hw'];
   final double? oral = args['oral'];
@@ -125,7 +123,8 @@ Map<String, dynamic> _saveManualGradesIsolate(Map<String, dynamic> args) {
     final bytes = file.readAsBytesSync();
     final workbook = xlsio.Workbook.fromBytes(bytes);
 
-    xlsio.Worksheet? sheet;
+    // ✅ تعريف غير قابل للفراغ
+    final xlsio.Worksheet sheet;
     try {
       sheet = workbook.worksheets.firstWhere((s) => s.name == sheetName);
     } catch (e) {
@@ -137,14 +136,15 @@ Map<String, dynamic> _saveManualGradesIsolate(Map<String, dynamic> args) {
     final cleanSelected = selectedMonth.replaceAll(RegExp(r'\s+'), '');
     int c = 5;
     while (c <= sheet.getLastColumn()) {
-      final text = sheet.getRangeByIndex(2, c).text.trim();
+      // ✅ معالجة النص الفارغ
+      final text = (sheet.getRangeByIndex(2, c).text ?? '').trim();
 
       if (text.isNotEmpty) {
         final cleanText = text.replaceAll(RegExp(r'\s+'), '');
         bool isMatch = (cleanText == cleanSelected);
 
         if (isMatch) {
-          targetCol = c; 
+          targetCol = c;
           break;
         }
 
@@ -164,17 +164,15 @@ Map<String, dynamic> _saveManualGradesIsolate(Map<String, dynamic> args) {
       return {'success': false, 'message': 'تعذر تحديد عمود الشهر'};
     }
 
-    // تحويل الصف من 0-based إلى 1-based لمكتبة Syncfusion
     final int xlsioRow = targetRow + 1;
 
-    // الواجبات = العمود الأول، الشفهي = الثاني، المواظبة = الثالث
     if (hw != null) sheet.getRangeByIndex(xlsioRow, targetCol).setNumber(hw);
     if (oral != null) sheet.getRangeByIndex(xlsioRow, targetCol + 1).setNumber(oral);
     if (att != null) sheet.getRangeByIndex(xlsioRow, targetCol + 2).setNumber(att);
 
     final List<int> newBytes = workbook.saveSync();
     file.writeAsBytesSync(newBytes, flush: true);
-    
+
     workbook.dispose();
     return {'success': true};
   } catch (e) {
@@ -289,7 +287,7 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
       final String? lastFile = prefs.getString('last_excel_file');
       if (lastFile != null && await File(lastFile).exists()) {
         setState(() => _isLoading = true);
-        
+
         final sheets = await compute(_extractSheetNamesIsolate, lastFile);
         final fileName = lastFile.split('/').last;
 
@@ -306,7 +304,7 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
           _selectedSheet = validSheet;
           _isLoading = false;
         });
-        
+
         if (validSheet != null) await _loadData();
       }
     } catch (e) {
@@ -348,7 +346,7 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
       });
 
       await prefs.setString('last_excel_file', path);
-      
+
       if (validSheet != null) await _loadData();
       _showSnack('✅ تم تحميل: $fileName');
     } catch (e) {
@@ -382,7 +380,7 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
       setState(() {
         _monthsList = months;
         _selectedMonthOrSubject = months.isNotEmpty ? months.first : null;
-        
+
         _allStudents = students.cast<Map<String, dynamic>>();
         _filteredStudents = [];
         _gradesList = grades;
@@ -390,7 +388,7 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
         _selectedStudentRow = null;
         _studentNameController.clear();
         _showSuggestions = false;
-        
+
         _isLoading = false;
       });
     } catch (e) {
@@ -466,7 +464,6 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
       });
 
       if (result['success'] == true) {
-        // ✅ التعديل الجديد: تفريغ حقل الاسم وتصفير الصف المحدد بعد الحفظ مباشرة
         setState(() {
           _studentNameController.clear();
           _hwController.clear();
@@ -511,8 +508,8 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
               ),
-              icon: _isLoading 
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+              icon: _isLoading
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                   : const Icon(Icons.folder_open, color: Colors.white),
               onPressed: _isLoading ? null : _pickExcelFile,
               label: Text(_excelLoaded ? 'تغيير ملف الأكسيل' : 'اختر ملف الأكسيل (الكشوفات)', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
