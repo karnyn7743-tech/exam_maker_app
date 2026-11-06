@@ -1,33 +1,43 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:excel/excel.dart' hide Border;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio; // ✅ المكتبة الجديدة
 
 bool _isMahsala1(String t) => t == 'م١' || t == 'م1' || t == 'م۱';
 bool _isMahsala2(String t) => t == 'م٢' || t == 'م2' || t == 'م۲';
 bool _isFasl1(String t) => t == 'ف١' || t == 'ف1' || t == 'ف۱';
 bool _isFasl2(String t) => t == 'ف٢' || t == 'ف2' || t == 'ف۲';
 
+// 1. قراءة أسماء الأوراق فقط (سريعة)
 List<String> _extractSheetNamesIsolate(String filePath) {
   final bytes = File(filePath).readAsBytesSync();
-  final excel = Excel.decodeBytes(bytes);
-  return excel.tables.keys.toList();
+  final workbook = xlsio.Workbook.fromBytes(bytes);
+  final sheets = workbook.worksheets.map((sheet) => sheet.name).toList();
+  workbook.dispose();
+  return sheets;
 }
 
+// 2. قراءة الشهور والطلاب في الخلفية
 Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   final String filePath = args['filePath'];
   final String sheetName = args['sheetName'];
   final bool isTerm2 = args['isTerm2'];
 
   final bytes = File(filePath).readAsBytesSync();
-  final excel = Excel.decodeBytes(bytes);
-  final sheet = excel.tables[sheetName];
-  if (sheet == null) return {'error': 'Sheet not found'};
+  final workbook = xlsio.Workbook.fromBytes(bytes);
+
+  xlsio.Worksheet? sheet;
+  try {
+    sheet = workbook.worksheets.firstWhere((s) => s.name == sheetName);
+  } catch (e) {
+    workbook.dispose();
+    return {'error': 'Sheet not found'};
+  }
 
   // استخراج الشهور
   List<String> term1List = [];
@@ -35,10 +45,9 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   bool foundF1 = false;
   bool foundF2 = false;
 
-  int col = 4;
-  while (col < sheet.maxColumns) {
-    final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 1));
-    final text = cell.value?.toString().trim() ?? '';
+  int col = 5; // البدء من العمود E (رقم 5)
+  while (col <= sheet.getLastColumn()) {
+    final text = sheet.getRangeByIndex(2, col).text.trim(); // الصف الثاني
 
     if (text.isNotEmpty) {
       final cleanText = text.replaceAll(RegExp(r'\s+'), '');
@@ -77,14 +86,10 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   List<Map<String, dynamic>> students = [];
   Set<String> gradesSet = {};
 
-  for (int r = 3; r < sheet.maxRows; r++) {
-    final seatVal = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: r)).value;
-    final nameVal = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: r)).value;
-    final gradeVal = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: r)).value;
-    
-    final seat = seatVal?.toString().trim() ?? '';
-    final name = nameVal?.toString().trim() ?? '';
-    final grade = gradeVal?.toString().trim() ?? '';
+  for (int r = 4; r <= sheet.getLastRow(); r++) {
+    final seat = sheet.getRangeByIndex(r, 1).text.trim(); // العمود A
+    final name = sheet.getRangeByIndex(r, 2).text.trim(); // العمود B
+    final grade = sheet.getRangeByIndex(r, 3).text.trim(); // العمود C
 
     if (name.isNotEmpty) {
       if (grade.isNotEmpty) gradesSet.add(grade);
@@ -92,11 +97,12 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
         'seat': seat,
         'name': name,
         'grade': grade,
-        'row': r,
+        'row': r - 1, // تحويلها إلى 0-based لتتوافق مع الواجهة
       });
     }
   }
 
+  workbook.dispose();
   return {
     'months': activeMonths,
     'students': students,
@@ -104,67 +110,76 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   };
 }
 
+// 3. عملية الحفظ في الخلفية
 Map<String, dynamic> _saveManualGradesIsolate(Map<String, dynamic> args) {
   final String filePath = args['filePath'];
   final String sheetName = args['sheetName'];
-  final int targetRow = args['targetRow'];
+  final int targetRow = args['targetRow']; // 0-based coming from UI
   final String selectedMonth = args['selectedMonth'];
   final double? hw = args['hw'];
   final double? oral = args['oral'];
   final double? att = args['att'];
 
-  final file = File(filePath);
-  final bytes = file.readAsBytesSync();
-  final excel = Excel.decodeBytes(bytes);
-  final sheet = excel.tables[sheetName];
-  if (sheet == null) return {'success': false, 'message': 'الورقة غير موجودة'};
+  try {
+    final file = File(filePath);
+    final bytes = file.readAsBytesSync();
+    final workbook = xlsio.Workbook.fromBytes(bytes);
 
-  int targetCol = -1;
-  final cleanSelected = selectedMonth.replaceAll(RegExp(r'\s+'), '');
-  int c = 4;
-  while (c < sheet.maxColumns) {
-    final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 1));
-    final text = cell.value?.toString().trim() ?? '';
-
-    if (text.isNotEmpty) {
-      final cleanText = text.replaceAll(RegExp(r'\s+'), '');
-      bool isMatch = (cleanText == cleanSelected);
-
-      if (isMatch) {
-        targetCol = c; 
-        break;
-      }
-
-      if (_isMahsala1(cleanText) || _isFasl1(cleanText) ||
-          _isMahsala2(cleanText) || _isFasl2(cleanText)) {
-        c += 1;
-      } else {
-        c += 5;
-      }
-    } else {
-      c += 1;
+    xlsio.Worksheet? sheet;
+    try {
+      sheet = workbook.worksheets.firstWhere((s) => s.name == sheetName);
+    } catch (e) {
+      workbook.dispose();
+      return {'success': false, 'message': 'الورقة غير موجودة'};
     }
-  }
 
-  if (targetCol == -1) return {'success': false, 'message': 'تعذر تحديد عمود الشهر'};
+    int targetCol = -1;
+    final cleanSelected = selectedMonth.replaceAll(RegExp(r'\s+'), '');
+    int c = 5;
+    while (c <= sheet.getLastColumn()) {
+      final text = sheet.getRangeByIndex(2, c).text.trim();
 
-  // الواجبات = العمود الأول، الشفهي = الثاني، المواظبة = الثالث
-  if (hw != null) {
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: targetCol, rowIndex: targetRow)).value = DoubleCellValue(hw);
-  }
-  if (oral != null) {
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: targetCol + 1, rowIndex: targetRow)).value = DoubleCellValue(oral);
-  }
-  if (att != null) {
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: targetCol + 2, rowIndex: targetRow)).value = DoubleCellValue(att);
-  }
+      if (text.isNotEmpty) {
+        final cleanText = text.replaceAll(RegExp(r'\s+'), '');
+        bool isMatch = (cleanText == cleanSelected);
 
-  final encodedData = excel.encode();
-  if (encodedData != null) {
-    file.writeAsBytesSync(encodedData, flush: true);
+        if (isMatch) {
+          targetCol = c; 
+          break;
+        }
+
+        if (_isMahsala1(cleanText) || _isFasl1(cleanText) ||
+            _isMahsala2(cleanText) || _isFasl2(cleanText)) {
+          c += 1;
+        } else {
+          c += 5;
+        }
+      } else {
+        c += 1;
+      }
+    }
+
+    if (targetCol == -1) {
+      workbook.dispose();
+      return {'success': false, 'message': 'تعذر تحديد عمود الشهر'};
+    }
+
+    // تحويل الصف من 0-based إلى 1-based لمكتبة Syncfusion
+    final int xlsioRow = targetRow + 1;
+
+    // الواجبات = العمود الأول، الشفهي = الثاني، المواظبة = الثالث
+    if (hw != null) sheet.getRangeByIndex(xlsioRow, targetCol).setNumber(hw);
+    if (oral != null) sheet.getRangeByIndex(xlsioRow, targetCol + 1).setNumber(oral);
+    if (att != null) sheet.getRangeByIndex(xlsioRow, targetCol + 2).setNumber(att);
+
+    final List<int> newBytes = workbook.saveSync();
+    file.writeAsBytesSync(newBytes, flush: true);
+    
+    workbook.dispose();
     return {'success': true};
+  } catch (e) {
+    return {'success': false, 'message': 'خطأ في الحفظ: $e'};
   }
-  return {'success': false, 'message': 'فشل ترميز الملف'};
 }
 
 class ManualGradeEntryScreen extends StatefulWidget {
@@ -451,10 +466,16 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
       });
 
       if (result['success'] == true) {
+        // ✅ التعديل الجديد: تفريغ حقل الاسم وتصفير الصف المحدد بعد الحفظ مباشرة
+        setState(() {
+          _studentNameController.clear();
+          _hwController.clear();
+          _oralController.clear();
+          _attController.clear();
+          _selectedStudentRow = null;
+          _showSuggestions = false;
+        });
         _showSnack('✅ تم حفظ درجات أعمال السنة بنجاح');
-        _hwController.clear();
-        _oralController.clear();
-        _attController.clear();
       } else {
         _showSnack('❌ ${result['message']}');
       }
