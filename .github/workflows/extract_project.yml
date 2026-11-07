@@ -1,3 +1,4 @@
+
 name: Extract Flutter ZIP Project
 
 on:
@@ -13,6 +14,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Extract ZIP into Repository Root
         run: |
@@ -20,11 +23,12 @@ jobs:
           TEMP_DIR="/tmp/flutter_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ZIP file not found!"
+            echo "ERROR: ZIP file not found!"
             exit 1
           fi
 
           mkdir -p "$TEMP_DIR"
+
           unzip -q "$ZIP_FILE" -d "$TEMP_DIR"
 
           COUNT=$(find "$TEMP_DIR" -mindepth 1 -maxdepth 1 | wc -l)
@@ -33,18 +37,23 @@ jobs:
 
           if [ "$COUNT" -eq 1 ]; then
             FIRST=$(find "$TEMP_DIR" -mindepth 1 -maxdepth 1)
+
             if [ -d "$FIRST" ]; then
               SOURCE_DIR="$FIRST"
             fi
           fi
 
-          # Copy everything except GitHub workflows
+          echo "Copying Flutter project files..."
+
           rsync -a \
             --exclude='.github/workflows/' \
             "$SOURCE_DIR"/ .
 
-          # Remove uploaded ZIP
+          echo "Removing ZIP file..."
+
           rm -f "$ZIP_FILE"
+
+          echo "Project extraction completed."
 
       - name: Commit Extracted Project
         run: |
@@ -54,6 +63,17 @@ jobs:
           git add -A
 
           if ! git diff --cached --quiet; then
-            git commit -m "Extract Flutter project excluding workflows"
-            git push
+            git commit -m "Extract complete Flutter project"
+          else
+            echo "No changes to commit."
           fi
+
+      - name: Sync and Push to GitHub
+        run: |
+          git fetch origin main
+
+          git rebase origin/main
+
+          git push origin HEAD:main
+
+          echo "Project successfully uploaded to GitHub!"
