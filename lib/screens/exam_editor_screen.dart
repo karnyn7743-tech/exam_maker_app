@@ -1010,7 +1010,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         ),
         body: Column(
           children: [
-            // شريط أوفيس Ribbon المبوب أعلى ورقة الاختبار
+            // شريط أوفيس Ribbon المبوب أعلى ورقة الاختبار (بدون الكلمات الأربع السفلية)
             ExamRibbonToolbar(
               isBold: _isBold,
               isUnderline: _isUnderline,
@@ -1193,128 +1193,130 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   );
                 }
               },
-              onQuickAction: (action) {
-                if (_exam.questions.isNotEmpty) {
-                  setState(() {
-                    if (action == 'numbering') _exam.questions.last.spans.add(TextSpanModel(text: '١ - '));
-                    if (action == 'bullets') _exam.questions.last.spans.add(TextSpanModel(text: '• '));
-                    if (action == 'end_paragraph') _exam.questions.last.spans.add(TextSpanModel(text: ' .\n'));
-                    if (action == 'end_question') _exam.questions.last.spans.add(TextSpanModel(text: ' ؟\n'));
-                  });
-                }
-              },
             ),
 
             // ورقة الاختبار الحية
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                child: Directionality(
-                  textDirection: examDir,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        constraints: const BoxConstraints(maxWidth: 820),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(2),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.black26,
-                              blurRadius: 8,
-                              offset: Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        padding: EdgeInsets.only(
-                          top: _exam.header.topMargin1cm ? 8.5 : 12.0,
-                          left: 12.0,
-                          right: 12.0,
-                          bottom: 12.0,
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (_exam.header.topMargin1cm) ...[
-                              // تثبيت اتجاه شريط رأس الطالب دائماً RTL لمنع انعكاس الاسم ورقم الجلوس
-                              Directionality(
-                                textDirection: TextDirection.rtl,
-                                child: InkWell(
-                                  onTap: _openFooterSettingsDialog,
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
-                                    margin: const EdgeInsets.only(bottom: 6.0),
-                                    decoration: BoxDecoration(
-                                      color: _exam.header.studentDataMode != 'none'
-                                          ? Colors.green.shade50
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: _exam.header.studentDataMode != 'none'
-                                          ? Border.all(color: Colors.green.shade200, width: 0.8)
-                                          : null,
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            if (_exam.header.studentDataMode != 'none')
-                                              const Icon(Icons.how_to_reg, size: 14, color: Colors.green),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              _exam.header.studentDataMode != 'none'
-                                                  ? 'اسم الطالب: [ كشف إكسيل مفعّل ]'
-                                                  : 'اسم الطالب: .................................................',
-                                              style: TextStyle(
-                                                fontFamily: _exam.header.adminFont,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 11,
-                                                color: _exam.header.studentDataMode != 'none'
-                                                    ? Colors.green.shade900
-                                                    : Colors.black87,
-                                              ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      constraints: const BoxConstraints(maxWidth: 820),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(2),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 8,
+                            offset: Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      padding: EdgeInsets.only(
+                        top: _exam.header.topMargin1cm ? 8.5 : 12.0,
+                        left: 12.0,
+                        right: 12.0,
+                        bottom: 12.0,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // 1. رأس الطالب: ثابت دائماً RTL لمنع انعكاس الاسم والجلوس
+                          if (_exam.header.topMargin1cm) ...[
+                            Directionality(
+                              textDirection: TextDirection.rtl,
+                              child: InkWell(
+                                onTap: _openFooterSettingsDialog,
+                                borderRadius: BorderRadius.circular(4),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
+                                  margin: const EdgeInsets.only(bottom: 6.0),
+                                  decoration: BoxDecoration(
+                                    color: _exam.header.studentDataMode != 'none'
+                                        ? Colors.green.shade50
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: _exam.header.studentDataMode != 'none'
+                                        ? Border.all(color: Colors.green.shade200, width: 0.8)
+                                        : null,
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          if (_exam.header.studentDataMode != 'none')
+                                            const Icon(Icons.how_to_reg, size: 14, color: Colors.green),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            _exam.header.studentDataMode != 'none'
+                                                ? 'اسم الطالب: [ كشف إكسيل مفعّل ]'
+                                                : 'اسم الطالب: .................................................',
+                                            style: TextStyle(
+                                              fontFamily: _exam.header.adminFont,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 11,
+                                              color: _exam.header.studentDataMode != 'none'
+                                                  ? Colors.green.shade900
+                                                  : Colors.black87,
                                             ),
-                                          ],
-                                        ),
-                                        Row(
-                                          children: [
-                                            Text(
-                                              _exam.header.studentDataMode != 'none'
-                                                  ? 'رقم الجلوس: [ آلي ]'
-                                                  : 'رقم الجلوس: [ ........... ]',
-                                              style: TextStyle(
-                                                fontFamily: _exam.header.detailsFont,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 11,
-                                                color: _exam.header.studentDataMode != 'none'
-                                                    ? Colors.green.shade900
-                                                    : Colors.black87,
-                                              ),
+                                          ),
+                                        ],
+                                      ),
+                                      Row(
+                                        children: [
+                                          Text(
+                                            _exam.header.studentDataMode != 'none'
+                                                ? 'رقم الجلوس: [ آلي ]'
+                                                : 'رقم الجلوس: [ ........... ]',
+                                            style: TextStyle(
+                                              fontFamily: _exam.header.detailsFont,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 11,
+                                              color: _exam.header.studentDataMode != 'none'
+                                                  ? Colors.green.shade900
+                                                  : Colors.black87,
                                             ),
-                                            const SizedBox(width: 6),
-                                            const Icon(Icons.settings, size: 13, color: Colors.grey),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          const Icon(Icons.settings, size: 13, color: Colors.grey),
+                                        ],
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                            ],
-                            _buildExamHeader(),
-                            const SizedBox(height: 8),
-                            _buildQuestionsTable(),
-                            const SizedBox(height: 10),
-                            _buildFooterPreview(),
+                            ),
                           ],
-                        ),
+
+                          // 2. ترويسة الامتحان الرسمية: ثابتة دائماً RTL لمنع أي تبعثر للشعار أو البيانات الإدارية
+                          Directionality(
+                            textDirection: TextDirection.rtl,
+                            child: _buildExamHeader(),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // 3. مساحة جدول الأسئلة وعمودا السؤال والدرجة: يتحول اتجاهها حسب لغة الاختبار
+                          Directionality(
+                            textDirection: examDir,
+                            child: _buildQuestionsTable(),
+                          ),
+                          const SizedBox(height: 10),
+
+                          // 4. التذييل: ثابت دائماً RTL لسلامة التوقيع
+                          Directionality(
+                            textDirection: TextDirection.rtl,
+                            child: _buildFooterPreview(),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 40),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 40),
+                  ],
                 ),
               ),
             ),
@@ -1437,10 +1439,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 child: InkWell(
                   onTap: _editExamDetailsDialog,
                   child: Column(
-                    crossAxisAlignment: _isArabicExam ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _isArabicExam ? 'الصف : ${_exam.header.grade}' : 'Grade: ${_exam.header.grade}',
+                        'الصف : ${_exam.header.grade}',
                         style: TextStyle(
                           fontFamily: _exam.header.detailsFont,
                           fontWeight: _exam.header.detailsBold ? FontWeight.bold : FontWeight.normal,
@@ -1448,7 +1450,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         ),
                       ),
                       Text(
-                        _isArabicExam ? 'الماده : ${_exam.header.subject}' : 'Subject: ${_exam.header.subject}',
+                        'الماده : ${_exam.header.subject}',
                         style: TextStyle(
                           fontFamily: _exam.header.detailsFont,
                           fontWeight: _exam.header.detailsBold ? FontWeight.bold : FontWeight.normal,
@@ -1456,7 +1458,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         ),
                       ),
                       Text(
-                        _isArabicExam ? 'التاريخ: ${_exam.header.examDate}' : 'Date: ${_exam.header.examDate}',
+                        'التاريخ: ${_exam.header.examDate}',
                         style: TextStyle(
                           fontFamily: _exam.header.detailsFont,
                           fontWeight: _exam.header.detailsBold ? FontWeight.bold : FontWeight.normal,
@@ -1464,7 +1466,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         ),
                       ),
                       Text(
-                        _isArabicExam ? 'الزمن: ${_exam.header.examTime}' : 'Time: ${_exam.header.examTime}',
+                        'الزمن: ${_exam.header.examTime}',
                         style: TextStyle(
                           fontFamily: _exam.header.detailsFont,
                           fontWeight: _exam.header.detailsBold ? FontWeight.bold : FontWeight.normal,
@@ -1472,7 +1474,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         ),
                       ),
                       Text(
-                        _isArabicExam ? 'الفتره: ${_exam.header.period}' : 'Period: ${_exam.header.period}',
+                        'الفتره: ${_exam.header.period}',
                         style: TextStyle(
                           fontFamily: _exam.header.detailsFont,
                           fontWeight: _exam.header.detailsBold ? FontWeight.bold : FontWeight.normal,
@@ -2191,7 +2193,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       return _buildAutomatedEditorMcqGrid(q);
     }
 
-    // المحاذاة والاتجاه المعتمد للفقرة لحمايتها من التبعثر عند اللصق
     final TextAlign chosenAlign = q.alignment ?? (_isArabicExam ? TextAlign.right : TextAlign.left);
     final TextDirection contentDirection = (chosenAlign == TextAlign.left || !_isArabicExam)
         ? TextDirection.ltr
@@ -5060,76 +5061,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  Future<void> _handleTopMarginToggle(bool val, StateSetter setDlgState) async {
-    if (!val) {
-      setDlgState(() {
-        _exam.header.topMargin1cm = false;
-        _exam.header.studentDataMode = 'none';
-        _exam.header.excelFilePath = null;
-      });
-      return;
-    }
-
-    final gradeFilterCtrl = TextEditingController(text: _exam.header.grade);
-
-    final choice = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (cCtx) => AlertDialog(
-        title: const Text(
-          'إدراج بيانات الطلاب في رأس الصفحة',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'تم تفعيل فراغ رأس الصفحة.\nهل ترغب في جلب بيانات الطلاب لتوليد نسخ مخصصة لكل طالب؟',
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: gradeFilterCtrl,
-              decoration: const InputDecoration(
-                labelText: 'الصف الدراسي المطلوب استيراده فقط',
-                hintText: 'مثال: التاسع',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.school, color: Color(0xFF1E3A8A)),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(cCtx, 'none'),
-            child: const Text('تجاهل (ورق عادي)'),
-          ),
-          OutlinedButton(
-            onPressed: () => Navigator.pop(cCtx, 'namesOnly'),
-            child: const Text('الاسم ورقم الجلوس فقط'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
-            onPressed: () => Navigator.pop(cCtx, 'namesAndQr'),
-            child: const Text('الاسم + الجلوس + رمز QR وكود المادة', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-
-    if (choice == null || choice == 'none') {
-      setDlgState(() {
-        _exam.header.topMargin1cm = true;
-        _exam.header.studentDataMode = 'none';
-        _exam.header.excelFilePath = null;
-      });
-      return;
-    }
-
+  Future<void> _pickExcelFileForStudents(StateSetter setDlgState) async {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['xlsb', 'xlsm', 'xlsx', 'xls'],
+        allowedExtensions: ['xlsx', 'xls', 'xlsm', 'xlsb'],
       );
 
       if (result != null && result.files.single.path != null) {
@@ -5137,32 +5073,29 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         final excelRes = await StudentExcelService.parseExcelFile(
           path,
           expectedSubject: _exam.header.subject,
-          targetGrade: gradeFilterCtrl.text.trim(),
+          targetGrade: _exam.header.grade,
+          examTitle: _exam.header.examTitle,
         );
 
         setDlgState(() {
-          _exam.header.topMargin1cm = true;
-          _exam.header.studentDataMode = choice;
           _exam.header.excelFilePath = path;
           _exam.header.subjectCode = excelRes.subjectCode;
+          if (_exam.header.studentDataMode == 'none') {
+            _exam.header.studentDataMode = 'namesOnly';
+          }
         });
+        setState(() {});
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'تم تحميل ${excelRes.students.length} طالباً بنجاح.\nكود المادة: ${excelRes.subjectCode} (${excelRes.matchedSubjectName.isNotEmpty ? excelRes.matchedSubjectName : _exam.header.subject})',
+                'تم تنشيط ورقة [${excelRes.matchedSubjectName}] لمادة (${_exam.header.subject})\nتم تحميل ${excelRes.students.length} طالباً لصف (${_exam.header.grade}).',
               ),
               backgroundColor: Colors.green.shade800,
             ),
           );
         }
-      } else {
-        setDlgState(() {
-          _exam.header.topMargin1cm = true;
-          _exam.header.studentDataMode = 'none';
-          _exam.header.excelFilePath = null;
-        });
       }
     } catch (e) {
       if (mounted) {
@@ -5173,11 +5106,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
         );
       }
-      setDlgState(() {
-        _exam.header.topMargin1cm = true;
-        _exam.header.studentDataMode = 'none';
-        _exam.header.excelFilePath = null;
-      });
     }
   }
 
@@ -5192,7 +5120,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDlgState) => AlertDialog(
-          title: const Text('خيارات التذييل والهامش وكشف الطلاب'),
+          title: const Text('خيارات الترويسة والتذييل وكشف الطلاب',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -5200,52 +5129,101 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               children: [
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('فراغ رأس الصفحة'),
-                  subtitle: Text(
-                    _exam.header.studentDataMode == 'none'
-                        ? 'توليد ورق عادي (بدون كشف طلاب)'
-                        : (_exam.header.studentDataMode == 'namesOnly'
-                            ? 'مفعّل: استيراد الاسم ورقم الجلوس فقط'
-                            : 'مفعّل: الاسم ورقم الجلوس ورمز QR'),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: _exam.header.studentDataMode != 'none' ? Colors.green.shade800 : Colors.grey.shade600,
-                      fontWeight: _exam.header.studentDataMode != 'none' ? FontWeight.bold : FontWeight.normal,
-                    ),
-                  ),
+                  title: const Text('فراغ رأس الصفحة لبيانات الطلاب'),
+                  subtitle: const Text('إظهار سطر اسم الطالب ورقم الجلوس أعلى الامتحان'),
                   value: topMargin,
-                  onChanged: (val) async {
-                    await _handleTopMarginToggle(val, setDlgState);
-                    topMargin = _exam.header.topMargin1cm;
+                  onChanged: (val) {
+                    setDlgState(() {
+                      topMargin = val;
+                      _exam.header.topMargin1cm = val;
+                      if (!val) {
+                        _exam.header.studentDataMode = 'none';
+                      } else if (_exam.header.studentDataMode == 'none') {
+                        _exam.header.studentDataMode = 'namesOnly';
+                      }
+                    });
                   },
                 ),
                 if (topMargin) ...[
-                  const SizedBox(height: 4),
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF1E3A8A),
-                      side: const BorderSide(color: Color(0xFF1E3A8A)),
+                  const Divider(),
+                  const Text(
+                    'كشف الطلاب من ملف Excel:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Color(0xFF1E3A8A)),
+                  ),
+                  const SizedBox(height: 6),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E3A8A),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
-                    icon: const Icon(Icons.table_chart_outlined, size: 18),
+                    icon: const Icon(Icons.file_upload_outlined, color: Colors.white, size: 18),
                     label: Text(
-                      _exam.header.excelFilePath != null
-                          ? 'تغيير كشف الطلاب (Excel)'
-                          : 'إدراج كشف الطلاب من ملف Excel',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      _exam.header.excelFilePath != null ? 'تغيير ملف Excel' : 'اختيار ملف كشف الطلاب (Excel)',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                     ),
-                    onPressed: () async {
-                      await _handleTopMarginToggle(true, setDlgState);
-                    },
+                    onPressed: () => _pickExcelFileForStudents(setDlgState),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _exam.header.excelFilePath != null
+                              ? 'الملف المختار: ${_exam.header.excelFilePath!.split(Platform.pathSeparator).last}'
+                              : 'لم يتم اختيار ملف بعد (سيتم توليد ورق عادي بالنقط)',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: _exam.header.excelFilePath != null ? Colors.green.shade900 : Colors.black54,
+                          ),
+                        ),
+                        if (_exam.header.excelFilePath != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'المادة المربوطة: ${_exam.header.subject} | الصف: ${_exam.header.grade}',
+                            style: const TextStyle(fontSize: 10.5, color: Color(0xFF1E3A8A)),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text('نوع البيانات المستخرجة:', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 6,
+                    children: [
+                      ChoiceChip(
+                        label: const Text('الاسم والجلوس فقط', style: TextStyle(fontSize: 11)),
+                        selected: _exam.header.studentDataMode == 'namesOnly',
+                        onSelected: (v) {
+                          if (v) setDlgState(() => _exam.header.studentDataMode = 'namesOnly');
+                        },
+                      ),
+                      ChoiceChip(
+                        label: const Text('الاسم + الجلوس + QR', style: TextStyle(fontSize: 11)),
+                        selected: _exam.header.studentDataMode == 'namesAndQr',
+                        onSelected: (v) {
+                          if (v) setDlgState(() => _exam.header.studentDataMode = 'namesAndQr');
+                        },
+                      ),
+                      ChoiceChip(
+                        label: const Text('ورق عادي (فارغ)', style: TextStyle(fontSize: 11)),
+                        selected: _exam.header.studentDataMode == 'none',
+                        onSelected: (v) {
+                          if (v) setDlgState(() => _exam.header.studentDataMode = 'none');
+                        },
+                      ),
+                    ],
                   ),
                 ],
-                if (_exam.header.excelFilePath != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
-                    child: Text(
-                      'الملف المربوط: ${_exam.header.excelFilePath!.split(Platform.pathSeparator).last} (كود المادة: ${_exam.header.subjectCode})',
-                      style: const TextStyle(fontSize: 10.5, color: Colors.blueGrey, fontWeight: FontWeight.bold),
-                    ),
-                  ),
                 const Divider(),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
@@ -5275,6 +5253,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
               onPressed: () {
                 setState(() {
                   _exam.header.topMargin1cm = topMargin;
@@ -5285,7 +5264,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 });
                 Navigator.pop(ctx);
               },
-              child: const Text('حفظ الإعدادات'),
+              child: const Text('حفظ الإعدادات', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
