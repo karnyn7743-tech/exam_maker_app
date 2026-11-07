@@ -1,0 +1,40 @@
+# .github/workflows/build_1.yml
+name: build_1
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'project.zip'
+      - '.github/workflows/build_1.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  unzip-project:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: فك ضغط project.zip داخل المستودع
+        run: |
+          # يفك الضغط في جذر المستودع
+          # مع استثناء مجلد .github من الأرشيف لتجنب التعارض مع build_1.yml
+          unzip -o project.zip -d . -x ".github/*"
+
+      - name: عرض الملفات المستخرجة
+        run: |
+          find . -maxdepth 2 -type f | sort | head -100
+
+      # اختياري: هذه الخطوة تثبت الملفات المستخرجة داخل المستودع فعليًا
+      # احذفها إذا كنت تريد فك الضغط داخل بيئة التشغيل فقط دون تعديل المستودع
+      - name: Commit extracted files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "Extract project.zip into repository"
+          git push
