@@ -68,14 +68,14 @@ class StudentExcelService {
     s = s.replaceAll('ى', 'ي');
     // إزالة الحركات وعلامات التشكيل
     s = s.replaceAll(RegExp(r'[\u064B-\u0652]'), '');
-    // إزالة كلمة "الصف" إن وجدت
-    s = s.replaceAll('الصف', '').trim();
+    // إزالة الكلمات الزائدة العامة
+    s = s.replaceAll('الصف', '').replaceAll('اساسي', '').replaceAll('الاساسي', '').trim();
     // إزالة جميع المسافات لإجراء مقارنة مجردة تماماً
     s = s.replaceAll(RegExp(r'\s+'), '');
     return s;
   }
 
-  /// فحص تطابق الصف بين المدخل وما هو مكتوب في خلية الإكسيل (العمود C)
+  /// فحص تطابق الصف بين المدخل وما هو مكتوب في خلية الإكسيل (العمود C) بدقة تامة
   static bool _isGradeMatch(String studentGradeCell, String targetGrade) {
     final normCell = _normalizeArabic(studentGradeCell);
     final normTarget = _normalizeArabic(targetGrade);
@@ -83,35 +83,37 @@ class StudentExcelService {
     if (normTarget.isEmpty) return true; // إذا لم يُحدد صف يتم استيراد الجميع
     if (normCell.isEmpty) return false;  // إذا طُلب صف محدد وخانة الطالب فارغة يُستبعد
 
-    // التطابق المباشر التام أو الجزئي بعد التجريد
-    if (normCell == normTarget || normCell.contains(normTarget) || normTarget.contains(normCell)) {
+    // التطابق المباشر التام بعد التجريد
+    if (normCell == normTarget) {
       return true;
     }
 
-    // توافق مسميات الصف التاسع (تاسع / ثالث إعدادي / 9 / ٩)
-    final isTargetGrade9 = normTarget.contains('تاسع') || normTarget == '9' || normTarget == '٩' || normTarget.contains('ثالث');
-    if (isTargetGrade9 && (normCell.contains('تاسع') || normCell.contains('ثالث') || normCell == '9' || normCell == '٩')) {
-      return true;
+    // مطابقة الصف التاسع الحصرية (تاسع / 9 / ٩ / ثالث إعدادي)
+    final bool isTargetGrade9 = normTarget.contains('تاسع') || normTarget.contains('9') || normTarget.contains('٩') || normTarget.contains('ثالث');
+    if (isTargetGrade9) {
+      return normCell.contains('تاسع') || normCell.contains('9') || normCell.contains('٩') || normCell.contains('ثالث');
     }
 
-    // توافق مسميات الصف الثامن (ثامن / ثاني إعدادي / 8 / ٨)
-    final isTargetGrade8 = normTarget.contains('ثامن') || normTarget == '8' || normTarget == '٨' || normTarget.contains('ثاني');
-    if (isTargetGrade8 && (normCell.contains('ثامن') || normCell.contains('ثاني') || normCell == '8' || normCell == '٨')) {
-      return true;
+    // مطابقة الصف الثامن الحصرية (ثامن / 8 / ٨ / ثاني إعدادي)
+    final bool isTargetGrade8 = normTarget.contains('ثامن') || normTarget.contains('8') || normTarget.contains('٨') || normTarget.contains('ثاني');
+    if (isTargetGrade8) {
+      return normCell.contains('ثامن') || normCell.contains('8') || normCell.contains('٨') || normCell.contains('ثاني');
     }
 
-    // توافق مسميات الصف السابع (سابع / أول إعدادي / 7 / ٧)
-    final isTargetGrade7 = normTarget.contains('سابع') || normTarget == '7' || normTarget == '٧' || normTarget.contains('اول');
-    if (isTargetGrade7 && (normCell.contains('سابع') || normCell.contains('اول') || normCell == '7' || normCell == '٧')) {
-      return true;
+    // مطابقة الصف السابع الحصرية (سابع / 7 / ٧ / أول إعدادي)
+    final bool isTargetGrade7 = normTarget.contains('سابع') || normTarget.contains('7') || normTarget.contains('٧') || normTarget.contains('اول');
+    if (isTargetGrade7) {
+      return normCell.contains('سابع') || normCell.contains('7') || normCell.contains('٧') || normCell.contains('اول');
     }
 
     // بقية الصفوف الأساسية (سادس، خامس، رابع...)
     for (final g in ['سادس', 'خامس', 'رابع', 'ثالث', 'ثاني', 'اول']) {
-      if (normTarget.contains(g) && normCell.contains(g)) return true;
+      if (normTarget.contains(g)) {
+        return normCell.contains(g);
+      }
     }
 
-    return false;
+    return normCell.contains(normTarget) || normTarget.contains(normCell);
   }
 
   /// فحص ما إذا كان ملف الإكسيل يعتمد نظام 8 أشهر أم 6 أشهر تلقائياً من خلايا الصف الثاني
@@ -388,7 +390,7 @@ class StudentExcelService {
     }
 
     final int detectedMonths = detectTotalMonths(sheet);
-    final String cleanTargetGrade = _normalizeArabic(targetGrade ?? '');
+    final String requiredGrade = targetGrade?.trim() ?? '';
     final List<StudentData> students = [];
 
     // 2. احتساب الكود الذكي يمين الـ QR ديناميكياً بحسب عنوان الاختبار وترتيب ورقة المادة
@@ -399,9 +401,8 @@ class StudentExcelService {
       totalMonths: detectedMonths,
     );
 
-    // 3. البدء الصارم من الصف الرابع (index = 3) ومسح العمود C لجلب نطاق الصف المحدد
+    // 3. مسح كافة الصفوف ابتداءً من الصف الرابع (index = 3) وتصفية الصف الحصري
     const int startRowIndex = 3;
-    bool foundGradeBlock = false;
 
     for (int r = startRowIndex; r < rows.length; r++) {
       final row = rows[r];
@@ -417,38 +418,30 @@ class StudentExcelService {
       final rawSecret = row.length > 3 ? _extractCleanText(row[3]) : '';
 
       // تجاهل الأسطر الفارغة تماماً
-      if (rawSeat.isEmpty && rawName.isEmpty && rawSecret.isEmpty) {
+      if (rawSeat.isEmpty && rawName.isEmpty) {
         continue;
       }
 
-      // فحص مطابقة الصف بالعمود C
-      bool isMatch = false;
-      if (cleanTargetGrade.isEmpty) {
-        isMatch = true; // استيراد الجميع إذا لم يحدد صف
-      } else {
-        isMatch = _isGradeMatch(rawGrade, targetGrade!);
-      }
-
-      if (isMatch) {
-        foundGradeBlock = true;
-        // الرقم السري المعتمد لرمز الـ QR: إن لم يوجد في عمود D يُربط رقم الجلوس بالكود الذكي
-        final finalSecretCode = rawSecret.isNotEmpty ? rawSecret : '$rawSeat-$calculatedCode';
-
-        students.add(StudentData(
-          seatNo: rawSeat,
-          name: rawName,
-          grade: rawGrade.isNotEmpty ? rawGrade : (targetGrade ?? ''),
-          secretCode: finalSecretCode,
-        ));
-      } else {
-        // إذا كنا داخل نطاق الصف وبدأ صف دراسي جديد مختلف ننهي النطاق
-        if (foundGradeBlock && rawGrade.trim().isNotEmpty) {
-          break;
+      // فحص مطابقة الصف بالعمود C حصرياً
+      if (requiredGrade.isNotEmpty) {
+        final bool isMatch = _isGradeMatch(rawGrade, requiredGrade);
+        if (!isMatch) {
+          continue; // تخطي طلاب أي صف دراسي آخر لا يطابق الصف المطلوب
         }
       }
+
+      // الرقم السري المعتمد لرمز الـ QR
+      final finalSecretCode = rawSecret.isNotEmpty ? rawSecret : '$rawSeat-$calculatedCode';
+
+      students.add(StudentData(
+        seatNo: rawSeat,
+        name: rawName,
+        grade: rawGrade.isNotEmpty ? rawGrade : requiredGrade,
+        secretCode: finalSecretCode,
+      ));
     }
 
-    // 4. فرز الطلاب تصاعدياً برقم الجلوس لضمان صحة تسلسل الطباعة
+    // 4. فرز طلاب الصف المستورد تصاعدياً برقم الجلوس
     students.sort((a, b) {
       final intA = int.tryParse(a.seatNo.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
       final intB = int.tryParse(b.seatNo.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
