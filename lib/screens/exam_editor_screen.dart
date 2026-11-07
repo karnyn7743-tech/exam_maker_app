@@ -86,7 +86,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   InsertableElement? _copiedElement;
   String? _selectedElementId;
 
-  // الحالات النشطة لتنسيق الشريط الرئيسي
+  // الحالات النشطة لتنسيق الشريط المبوب الرئيسي
   bool _isBold = false;
   bool _isUnderline = false;
   TextAlign _activeAlignment = TextAlign.right;
@@ -1010,7 +1010,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         ),
         body: Column(
           children: [
-            // شريط أوفيس Ribbon المبوب في أعلى الشاشة الرئيسية
+            // شريط أوفيس Ribbon المبوب أعلى ورقة الاختبار
             ExamRibbonToolbar(
               isBold: _isBold,
               isUnderline: _isUnderline,
@@ -1238,64 +1238,68 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             if (_exam.header.topMargin1cm) ...[
-                              InkWell(
-                                onTap: _openFooterSettingsDialog,
-                                borderRadius: BorderRadius.circular(4),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
-                                  margin: const EdgeInsets.only(bottom: 6.0),
-                                  decoration: BoxDecoration(
-                                    color: _exam.header.studentDataMode != 'none'
-                                        ? Colors.green.shade50
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: _exam.header.studentDataMode != 'none'
-                                        ? Border.all(color: Colors.green.shade200, width: 0.8)
-                                        : null,
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          if (_exam.header.studentDataMode != 'none')
-                                            const Icon(Icons.how_to_reg, size: 14, color: Colors.green),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            _exam.header.studentDataMode != 'none'
-                                                ? (_isArabicExam ? 'اسم الطالب: [ كشف إكسيل مفعّل ]' : 'Student Name: [ Excel Enabled ]')
-                                                : (_isArabicExam ? 'اسم الطالب: .................................................' : 'Student Name: .................................................'),
-                                            style: TextStyle(
-                                              fontFamily: _exam.header.adminFont,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 11,
-                                              color: _exam.header.studentDataMode != 'none'
-                                                  ? Colors.green.shade900
-                                                  : Colors.black87,
+                              // تثبيت اتجاه شريط رأس الطالب دائماً RTL لمنع انعكاس الاسم ورقم الجلوس
+                              Directionality(
+                                textDirection: TextDirection.rtl,
+                                child: InkWell(
+                                  onTap: _openFooterSettingsDialog,
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
+                                    margin: const EdgeInsets.only(bottom: 6.0),
+                                    decoration: BoxDecoration(
+                                      color: _exam.header.studentDataMode != 'none'
+                                          ? Colors.green.shade50
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: _exam.header.studentDataMode != 'none'
+                                          ? Border.all(color: Colors.green.shade200, width: 0.8)
+                                          : null,
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            if (_exam.header.studentDataMode != 'none')
+                                              const Icon(Icons.how_to_reg, size: 14, color: Colors.green),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              _exam.header.studentDataMode != 'none'
+                                                  ? 'اسم الطالب: [ كشف إكسيل مفعّل ]'
+                                                  : 'اسم الطالب: .................................................',
+                                              style: TextStyle(
+                                                fontFamily: _exam.header.adminFont,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 11,
+                                                color: _exam.header.studentDataMode != 'none'
+                                                    ? Colors.green.shade900
+                                                    : Colors.black87,
+                                              ),
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                      Row(
-                                        children: [
-                                          Text(
-                                            _exam.header.studentDataMode != 'none'
-                                                ? (_isArabicExam ? 'رقم الجلوس: [ آلي ]' : 'Seat No: [ Auto ]')
-                                                : (_isArabicExam ? 'رقم الجلوس: [ ........... ]' : 'Seat No: [ ........... ]'),
-                                            style: TextStyle(
-                                              fontFamily: _exam.header.detailsFont,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 11,
-                                              color: _exam.header.studentDataMode != 'none'
-                                                  ? Colors.green.shade900
-                                                  : Colors.black87,
+                                          ],
+                                        ),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              _exam.header.studentDataMode != 'none'
+                                                  ? 'رقم الجلوس: [ آلي ]'
+                                                  : 'رقم الجلوس: [ ........... ]',
+                                              style: TextStyle(
+                                                fontFamily: _exam.header.detailsFont,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 11,
+                                                color: _exam.header.studentDataMode != 'none'
+                                                    ? Colors.green.shade900
+                                                    : Colors.black87,
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          const Icon(Icons.settings, size: 13, color: Colors.grey),
-                                        ],
-                                      ),
-                                    ],
+                                            const SizedBox(width: 6),
+                                            const Icon(Icons.settings, size: 13, color: Colors.grey),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
@@ -2187,56 +2191,65 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       return _buildAutomatedEditorMcqGrid(q);
     }
 
-    // المحاذاة المحددة للسؤال (افتراضياً تبدأ حسب لغة الورقة إذا لم تحدد)
+    // المحاذاة والاتجاه المعتمد للفقرة لحمايتها من التبعثر عند اللصق
     final TextAlign chosenAlign = q.alignment ?? (_isArabicExam ? TextAlign.right : TextAlign.left);
+    final TextDirection contentDirection = (chosenAlign == TextAlign.left || !_isArabicExam)
+        ? TextDirection.ltr
+        : TextDirection.rtl;
 
     if (!q.isTwoColumns) {
-      return Text.rich(
-        TextSpan(
-          children: q.spans.map((s) {
-            Color spanColor = Colors.black87;
-            try {
-              spanColor = Color(int.parse(s.colorHex.replaceFirst('#', '0xFF')));
-            } catch (_) {}
+      return Directionality(
+        textDirection: contentDirection,
+        child: Text.rich(
+          TextSpan(
+            children: q.spans.map((s) {
+              Color spanColor = Colors.black87;
+              try {
+                spanColor = Color(int.parse(s.colorHex.replaceFirst('#', '0xFF')));
+              } catch (_) {}
 
-            final style = TextStyle(
-              fontFamily: s.fontFamily,
-              fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
-              decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
-              fontSize: s.fontSize,
-              color: spanColor,
-              height: 1.5,
-            );
-            return _buildInlineSpanWithFractions(s.text, style);
-          }).toList(),
+              final style = TextStyle(
+                fontFamily: s.fontFamily,
+                fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
+                decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
+                fontSize: s.fontSize,
+                color: spanColor,
+                height: 1.5,
+              );
+              return _buildInlineSpanWithFractions(s.text, style);
+            }).toList(),
+          ),
+          textAlign: chosenAlign,
         ),
-        textAlign: chosenAlign,
       );
     }
 
     final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
 
     if (lines.length <= 1) {
-      return Text.rich(
-        TextSpan(
-          children: q.spans.map((s) {
-            Color spanColor = Colors.black87;
-            try {
-              spanColor = Color(int.parse(s.colorHex.replaceFirst('#', '0xFF')));
-            } catch (_) {}
+      return Directionality(
+        textDirection: contentDirection,
+        child: Text.rich(
+          TextSpan(
+            children: q.spans.map((s) {
+              Color spanColor = Colors.black87;
+              try {
+                spanColor = Color(int.parse(s.colorHex.replaceFirst('#', '0xFF')));
+              } catch (_) {}
 
-            final style = TextStyle(
-              fontFamily: s.fontFamily,
-              fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
-              decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
-              fontSize: s.fontSize,
-              color: spanColor,
-              height: 1.5,
-            );
-            return _buildInlineSpanWithFractions(s.text, style);
-          }).toList(),
+              final style = TextStyle(
+                fontFamily: s.fontFamily,
+                fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
+                decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
+                fontSize: s.fontSize,
+                color: spanColor,
+                height: 1.5,
+              );
+              return _buildInlineSpanWithFractions(s.text, style);
+            }).toList(),
+          ),
+          textAlign: chosenAlign,
         ),
-        textAlign: chosenAlign,
       );
     }
 
@@ -2260,45 +2273,48 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       height: 1.4,
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text.rich(
-          _buildInlineSpanWithFractions(intro, introStyle),
-          textAlign: chosenAlign,
-        ),
-        const SizedBox(height: 4),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: col1.map((item) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text.rich(
-                    _buildInlineSpanWithFractions(item, itemStyle),
-                    textAlign: chosenAlign,
-                  ),
-                )).toList(),
+    return Directionality(
+      textDirection: contentDirection,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text.rich(
+            _buildInlineSpanWithFractions(intro, introStyle),
+            textAlign: chosenAlign,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: col1.map((item) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Text.rich(
+                      _buildInlineSpanWithFractions(item, itemStyle),
+                      textAlign: chosenAlign,
+                    ),
+                  )).toList(),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: col2.map((item) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text.rich(
-                    _buildInlineSpanWithFractions(item, itemStyle),
-                    textAlign: chosenAlign,
-                  ),
-                )).toList(),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: col2.map((item) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Text.rich(
+                      _buildInlineSpanWithFractions(item, itemStyle),
+                      textAlign: chosenAlign,
+                    ),
+                  )).toList(),
+                ),
               ),
-            ),
-          ],
-        ),
-      ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -3133,10 +3149,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           );
 
     final titleCtrl = TextEditingController(text: q.title);
-    final textCtrl = TextEditingController(text: q.spans.map((e) => e.text).join(''));
-    final markCtrl = TextEditingController(text: q.mark > 0 ? (q.mark % 1 == 0 ? q.mark.toInt().toString() : q.mark.toString()) : '5');
+    final textCtrl =
+        TextEditingController(text: q.spans.map((e) => e.text).join(''));
+    final markCtrl =
+        TextEditingController(text: q.mark > 0 ? (q.mark % 1 == 0 ? q.mark.toInt().toString() : q.mark.toString()) : '5');
     final answerCtrl = TextEditingController(text: q.answerKey);
-
     QuestionTitleOrientation orientation = q.titleOrientation;
     GradeTextOrientation gradeOrient = q.gradeOrientation;
     bool isTwoCols = q.isTwoColumns;
