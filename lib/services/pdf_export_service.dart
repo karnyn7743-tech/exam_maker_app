@@ -226,12 +226,25 @@ class PdfExportService {
           },
           build: (pw.Context context) {
             return [
-              _buildExamHeaderBox(exam, ttf, logoImage, isAr),
+              // ترويسة الامتحان ثابتة دائماً RTL لمنع تبعثر الترويسة والشعار في الإنجليزي
+              pw.Directionality(
+                textDirection: pw.TextDirection.rtl,
+                child: _buildExamHeaderBox(exam, ttf, logoImage, isAr),
+              ),
               pw.SizedBox(height: 6),
-              if (isAutomated)
-                ..._buildAutomatedQuestionsList(exam, symbols, ttf, isAr)
-              else
-                ..._buildTraditionalExamWidgets(exam, ttf, isAr),
+              // مساحة جدول الأسئلة تتبع اتجاه لغة الاختبار
+              pw.Directionality(
+                textDirection: pageDir,
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                  children: [
+                    if (isAutomated)
+                      ..._buildAutomatedQuestionsList(exam, symbols, ttf, isAr)
+                    else
+                      ..._buildTraditionalExamWidgets(exam, ttf, isAr),
+                  ],
+                ),
+              ),
             ];
           },
         ),
@@ -342,19 +355,19 @@ class PdfExportService {
               pw.Container(
                 width: 135,
                 child: pw.Column(
-                  crossAxisAlignment: isAr ? pw.CrossAxisAlignment.start : pw.CrossAxisAlignment.end,
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text(isAr ? 'الصف : ${exam.header.grade}' : 'Grade: ${exam.header.grade}',
+                    pw.Text('الصف : ${exam.header.grade}',
                         style: pw.TextStyle(
                             font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
-                    pw.Text(isAr ? 'المادة : ${exam.header.subject}' : 'Subject: ${exam.header.subject}',
+                    pw.Text('المادة : ${exam.header.subject}',
                         style: pw.TextStyle(
                             font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
-                    pw.Text(isAr ? 'التاريخ: ${exam.header.examDate}' : 'Date: ${exam.header.examDate}',
+                    pw.Text('التاريخ: ${exam.header.examDate}',
                         style: pw.TextStyle(font: ttf, fontSize: 8.5)),
-                    pw.Text(isAr ? 'الزمن: ${exam.header.examTime}' : 'Time: ${exam.header.examTime}',
+                    pw.Text('الزمن: ${exam.header.examTime}',
                         style: pw.TextStyle(font: ttf, fontSize: 8.5)),
-                    pw.Text(isAr ? 'الفترة: ${exam.header.period}' : 'Period: ${exam.header.period}',
+                    pw.Text('الفترة: ${exam.header.period}',
                         style: pw.TextStyle(font: ttf, fontSize: 8.5)),
                   ],
                 ),
@@ -1589,7 +1602,6 @@ class PdfExportService {
                 color: isHeaderRow ? PdfColors.grey200 : PdfColors.white,
               ),
               children: List.generate(cols, (colIndex) {
-                // في العربي يُعكس ترتيب قراءة الأعمدة ليطابق اتجاه RTL
                 final c = isAr ? (cols - 1 - colIndex) : colIndex;
                 String text = '';
                 if (r < rawGrid.length && c < (rawGrid[r] as List).length) {
