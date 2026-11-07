@@ -444,7 +444,7 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
           title: 'عمليات وصيغ',
           child: Row(
             children: [
-              _buildToolItem(icon: Icons.fraction, label: 'بسط/مقام', onTap: widget.onInsertFraction),
+              _buildToolItem(icon: Icons.percent, label: 'بسط/مقام', onTap: widget.onInsertFraction),
               _buildToolItem(icon: Icons.square_foot, label: 'جذر', onTap: widget.onInsertRadical),
               _buildToolItem(icon: Icons.functions, label: 'معادلة f(x)', onTap: widget.onInsertEquation),
               _buildToolItem(icon: Icons.view_headline, label: 'عمودي ± ×', onTap: widget.onInsertVerticalMath),
