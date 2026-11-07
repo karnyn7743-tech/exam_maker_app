@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:barcode/barcode.dart';
 import 'package:better_download_saver/better_download_saver.dart';
+import 'package:flutter/material.dart' show TextAlign;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
@@ -14,12 +15,13 @@ class PdfExportService {
   static const double mm = 2.83465;
 
   /// دالة مساعدة لتنسيق الدرجة بحذف الأصفار العشرية الزائدة
-  static String _formatMark(double mark) {
+  static String _formatMark(double mark, bool isArabic) {
     if (mark <= 0) return '-';
+    final unit = isArabic ? 'د' : 'm';
     if (mark % 1 == 0) {
-      return '${mark.toInt()} د';
+      return '${mark.toInt()} $unit';
     }
-    return '$mark د';
+    return '$mark $unit';
   }
 
   static Future<String> exportToDownloadsPdf(ExamModel exam) async {
@@ -60,8 +62,8 @@ class PdfExportService {
         final excelRes = await StudentExcelService.parseExcelFile(
           exam.header.excelFilePath!,
           expectedSubject: exam.header.subject,
-          targetGrade: exam.header.grade, // تصفية حصرية حسب الصف المكتوب بالامتحان
-          examTitle: exam.header.examTitle, // احتساب رقم الشهر من الصف 2 أو ترتيب ورقة المادة ديناميكياً
+          targetGrade: exam.header.grade,
+          examTitle: exam.header.examTitle,
         );
         studentList = excelRes.students;
         currentSubjectCode = excelRes.subjectCode;
@@ -74,9 +76,18 @@ class PdfExportService {
         ? studentList
         : [StudentData(seatNo: '', name: '', secretCode: '')];
 
+    final bool isAr = exam.isArabic;
     final bool isAutomated = exam.examType == ExamType.automated;
-    final bool isLetters = exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.arabicLetters;
-    final List<String> symbols = isLetters ? ['أ', 'ب', 'جـ', 'د'] : ['١', '٢', '٣', '٤'];
+
+    // تحديد رموز الاختيارات وفق لغة الاختبار ونوع الرمز المحدد
+    final List<String> symbols;
+    if (exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.numbers) {
+      symbols = isAr ? ['١', '٢', '٣', '٤'] : ['1', '2', '3', '4'];
+    } else {
+      symbols = isAr ? ['أ', 'ب', 'جـ', 'د'] : ['A', 'B', 'C', 'D'];
+    }
+
+    final pw.TextDirection pageDir = isAr ? pw.TextDirection.rtl : pw.TextDirection.ltr;
 
     for (final student in studentsToIterate) {
       final bool hasStudent = student.seatNo.isNotEmpty;
@@ -93,16 +104,18 @@ class PdfExportService {
             left: 20.0,
             right: 20.0,
           ),
-          textDirection: pw.TextDirection.rtl,
+          textDirection: pageDir,
           header: (pw.Context context) {
             if (exam.header.topMargin1cm && hasStudent) {
+              final nameLabel = isAr ? 'اسم الطالب: ' : 'Student Name: ';
+              final seatLabel = isAr ? 'رقم الجلوس: ' : 'Seat No: ';
               return pw.Padding(
                 padding: const pw.EdgeInsets.only(bottom: 4.0),
                 child: pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
                     pw.Text(
-                      'اسم الطالب: ${student.name}',
+                      '$nameLabel${student.name}',
                       style: pw.TextStyle(
                         font: ttf,
                         fontSize: 10.5,
@@ -110,7 +123,7 @@ class PdfExportService {
                       ),
                     ),
                     pw.Text(
-                      'رقم الجلوس: [ ${student.seatNo} ]',
+                      '$seatLabel[ ${student.seatNo} ]',
                       style: pw.TextStyle(
                         font: ttf,
                         fontSize: 10.5,
@@ -124,6 +137,20 @@ class PdfExportService {
             return pw.SizedBox.shrink();
           },
           footer: (pw.Context context) {
+            final defaultFooter = isAr
+                ? 'انتهت الأسئلة مع تمنياتنا لكم بالتوفيق والنجاح'
+                : 'End of Questions - Best of Luck';
+            final footerText = exam.header.singlePageFooterText.isNotEmpty
+                ? exam.header.singlePageFooterText
+                : defaultFooter;
+
+            final defaultSign = isAr
+                ? 'معلم المادة: ......................'
+                : 'Teacher: ......................';
+            final signText = exam.header.teacherSignature.isNotEmpty
+                ? exam.header.teacherSignature
+                : defaultSign;
+
             return pw.Container(
               padding: const pw.EdgeInsets.only(top: 2),
               child: pw.Column(
@@ -131,7 +158,7 @@ class PdfExportService {
                 children: [
                   pw.Center(
                     child: pw.Text(
-                      exam.header.singlePageFooterText,
+                      footerText,
                       style: pw.TextStyle(
                         font: ttf,
                         fontSize: 9.5,
@@ -145,7 +172,7 @@ class PdfExportService {
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
                       pw.Text(
-                        exam.header.teacherSignature,
+                        signText,
                         style: pw.TextStyle(font: ttf, fontSize: 9.0),
                       ),
                       if (showQrMode)
@@ -194,26 +221,24 @@ class PdfExportService {
           },
           build: (pw.Context context) {
             return [
-              _buildExamHeaderBox(exam, ttf, logoImage),
+              _buildExamHeaderBox(exam, ttf, logoImage, isAr),
               pw.SizedBox(height: 6),
               if (isAutomated)
-                ..._buildAutomatedQuestionsList(exam, symbols, ttf)
+                ..._buildAutomatedQuestionsList(exam, symbols, ttf, isAr)
               else
-                ..._buildTraditionalExamWidgets(exam, ttf),
+                ..._buildTraditionalExamWidgets(exam, ttf, isAr),
             ];
           },
         ),
       );
     }
 
-    // ============ صياغة التسمية الجديدة التلقائية ============
     final pdfBytes = await pdf.save();
 
     final gradeName = exam.header.grade.trim().isNotEmpty ? exam.header.grade.trim() : 'عام';
     final subjectName = exam.header.subject.trim().isNotEmpty ? exam.header.subject.trim() : 'مادة';
-    final typeName = isAutomated ? 'مؤتمت' : 'شامل';
+    final typeName = isAutomated ? (isAr ? 'مؤتمت' : 'Automated') : (isAr ? 'شامل' : 'Comprehensive');
 
-    // التسمية الرسمية: [الصف _ المادة _ شامل / مؤتمت]
     final defaultGeneratedName = '$gradeName _ $subjectName _ $typeName';
     final nameToUse = exam.fileName.trim().isNotEmpty && !exam.fileName.startsWith('اختبار_')
         ? exam.fileName.trim()
@@ -222,7 +247,6 @@ class PdfExportService {
     final safeName = nameToUse.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final fileName = '$safeName.pdf';
 
-    // المحاولة الأولى: الحفظ في مجلد التنزيلات العام (Downloads)
     try {
       final saver = BetterDownloadSaver();
       final String? savedPath = await saver.saveToDownloads(
@@ -232,11 +256,8 @@ class PdfExportService {
       if (savedPath != null && savedPath.isNotEmpty) {
         return savedPath;
       }
-    } catch (_) {
-      // نمر إلى الخطة البديلة
-    }
+    } catch (_) {}
 
-    // الخطة البديلة: الحفظ في مجلد التطبيق المخصص لضمان حفظ الملف
     try {
       Directory fallbackDir;
       if (Platform.isAndroid) {
@@ -256,7 +277,12 @@ class PdfExportService {
     }
   }
 
-  static pw.Widget _buildExamHeaderBox(ExamModel exam, pw.Font ttf, pw.MemoryImage? logoImage) {
+  static pw.Widget _buildExamHeaderBox(
+    ExamModel exam,
+    pw.Font ttf,
+    pw.MemoryImage? logoImage,
+    bool isAr,
+  ) {
     return pw.Container(
       decoration: pw.BoxDecoration(
         border: pw.Border.all(color: PdfColors.black, width: 1.5),
@@ -311,19 +337,19 @@ class PdfExportService {
               pw.Container(
                 width: 135,
                 child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  crossAxisAlignment: isAr ? pw.CrossAxisAlignment.start : pw.CrossAxisAlignment.end,
                   children: [
-                    pw.Text('الصف : ${exam.header.grade}',
+                    pw.Text(isAr ? 'الصف : ${exam.header.grade}' : 'Grade: ${exam.header.grade}',
                         style: pw.TextStyle(
                             font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
-                    pw.Text('المادة : ${exam.header.subject}',
+                    pw.Text(isAr ? 'المادة : ${exam.header.subject}' : 'Subject: ${exam.header.subject}',
                         style: pw.TextStyle(
                             font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
-                    pw.Text('التاريخ: ${exam.header.examDate}',
+                    pw.Text(isAr ? 'التاريخ: ${exam.header.examDate}' : 'Date: ${exam.header.examDate}',
                         style: pw.TextStyle(font: ttf, fontSize: 8.5)),
-                    pw.Text('الزمن: ${exam.header.examTime}',
+                    pw.Text(isAr ? 'الزمن: ${exam.header.examTime}' : 'Time: ${exam.header.examTime}',
                         style: pw.TextStyle(font: ttf, fontSize: 8.5)),
-                    pw.Text('الفترة: ${exam.header.period}',
+                    pw.Text(isAr ? 'الفترة: ${exam.header.period}' : 'Period: ${exam.header.period}',
                         style: pw.TextStyle(font: ttf, fontSize: 8.5)),
                   ],
                 ),
@@ -351,10 +377,15 @@ class PdfExportService {
     ExamModel exam,
     List<String> symbols,
     pw.Font ttf,
+    bool isAr,
   ) {
     final List<pw.Widget> widgets = [];
     final int tfCount = exam.automatedConfig.trueFalseCount;
     final int mcqCount = exam.automatedConfig.mcqCount;
+
+    final defaultInstruction = isAr
+        ? 'أجب بتظليل الدائرة المناسبة في ورقة الإجابة المخصصة (OMR)'
+        : 'Answer by shading the corresponding bubble on the designated OMR sheet';
 
     widgets.add(
       pw.Container(
@@ -364,7 +395,7 @@ class PdfExportService {
         child: pw.Text(
           exam.header.instructionText.isNotEmpty
               ? exam.header.instructionText
-              : 'أجب بتظليل الدائرة المناسبة في ورقة الإجابة المخصصة (OMR)',
+              : defaultInstruction,
           style: pw.TextStyle(font: ttf, fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.red900),
           textAlign: pw.TextAlign.center,
         ),
@@ -372,13 +403,17 @@ class PdfExportService {
     );
 
     if (tfCount > 0) {
+      final tfHeader = isAr
+          ? 'أولاً: فقرات الصح والخطأ (ظلل الدائرة ص أو خ في ورقة الإجابة):'
+          : 'Part 1: True / False items (Shade T or F bubble on the answer sheet):';
+
       widgets.add(
         pw.Container(
           margin: const pw.EdgeInsets.only(bottom: 4),
           padding: const pw.EdgeInsets.symmetric(vertical: 2.5, horizontal: 8),
           color: PdfColors.grey300,
           child: pw.Text(
-            'أولاً: فقرات الصح والخطأ (ظلل الدائرة ص أو خ في ورقة الإجابة):',
+            tfHeader,
             style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
           ),
         ),
@@ -396,8 +431,11 @@ class PdfExportService {
                 pw.Container(
                   width: 28,
                   padding: const pw.EdgeInsets.symmetric(vertical: 4),
-                  decoration: const pw.BoxDecoration(
-                    border: pw.Border(left: pw.BorderSide(color: PdfColors.black, width: 0.8)),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border(
+                      left: isAr ? const pw.BorderSide(color: PdfColors.black, width: 0.8) : pw.BorderSide.none,
+                      right: !isAr ? const pw.BorderSide(color: PdfColors.black, width: 0.8) : pw.BorderSide.none,
+                    ),
                   ),
                   child: pw.Center(
                     child: pw.Text('$i', style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
@@ -409,6 +447,7 @@ class PdfExportService {
                     child: pw.Text(
                       '(      ) ............................................................................................',
                       style: pw.TextStyle(font: ttf, fontSize: 9.5),
+                      textAlign: isAr ? pw.TextAlign.right : pw.TextAlign.left,
                     ),
                   ),
                 ),
@@ -421,13 +460,17 @@ class PdfExportService {
     }
 
     if (mcqCount > 0) {
+      final mcqHeader = isAr
+          ? 'ثانياً: فقرات الاختيار من متعدد (ظلل رمز الإجابة الصحيحة في ورقة الإجابة):'
+          : 'Part 2: Multiple Choice items (Shade the correct choice symbol on the answer sheet):';
+
       widgets.add(
         pw.Container(
           margin: const pw.EdgeInsets.only(bottom: 4),
           padding: const pw.EdgeInsets.symmetric(vertical: 2.5, horizontal: 8),
           color: PdfColors.grey300,
           child: pw.Text(
-            'ثانياً: فقرات الاختيار من متعدد (ظلل رمز الإجابة الصحيحة في ورقة الإجابة):',
+            mcqHeader,
             style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
           ),
         ),
@@ -442,6 +485,7 @@ class PdfExportService {
             choices: ['', '', '', ''],
             symbols: symbols,
             ttf: ttf,
+            isAr: isAr,
           ),
         );
       }
@@ -456,6 +500,7 @@ class PdfExportService {
     required List<String> choices,
     required List<String> symbols,
     required pw.Font ttf,
+    required bool isAr,
   }) {
     return pw.Container(
       margin: const pw.EdgeInsets.only(bottom: 5.0),
@@ -467,8 +512,11 @@ class PdfExportService {
         children: [
           pw.Container(
             width: 30,
-            decoration: const pw.BoxDecoration(
-              border: pw.Border(left: pw.BorderSide(color: PdfColors.black, width: 0.9)),
+            decoration: pw.BoxDecoration(
+              border: pw.Border(
+                left: isAr ? const pw.BorderSide(color: PdfColors.black, width: 0.9) : pw.BorderSide.none,
+                right: !isAr ? const pw.BorderSide(color: PdfColors.black, width: 0.9) : pw.BorderSide.none,
+              ),
             ),
             child: pw.Center(
               child: pw.Text(
@@ -495,7 +543,7 @@ class PdfExportService {
                         ? questionText
                         : '................................................................................................',
                     style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
-                    textAlign: pw.TextAlign.right,
+                    textAlign: isAr ? pw.TextAlign.right : pw.TextAlign.left,
                   ),
                 ),
                 pw.Container(
@@ -509,7 +557,10 @@ class PdfExportService {
                         child: pw.Container(
                           decoration: pw.BoxDecoration(
                             border: pw.Border(
-                              left: index > 0
+                              left: (isAr && index > 0)
+                                  ? const pw.BorderSide(color: PdfColors.black, width: 0.8)
+                                  : pw.BorderSide.none,
+                              right: (!isAr && index > 0)
                                   ? const pw.BorderSide(color: PdfColors.black, width: 0.8)
                                   : pw.BorderSide.none,
                             ),
@@ -518,10 +569,11 @@ class PdfExportService {
                             children: [
                               pw.Container(
                                 width: 18,
-                                decoration: const pw.BoxDecoration(
+                                decoration: pw.BoxDecoration(
                                   color: PdfColors.white,
                                   border: pw.Border(
-                                    left: pw.BorderSide(color: PdfColors.black, width: 0.8),
+                                    left: isAr ? const pw.BorderSide(color: PdfColors.black, width: 0.8) : pw.BorderSide.none,
+                                    right: !isAr ? const pw.BorderSide(color: PdfColors.black, width: 0.8) : pw.BorderSide.none,
                                   ),
                                 ),
                                 child: pw.Center(
@@ -560,7 +612,7 @@ class PdfExportService {
     );
   }
 
-  static List<pw.Widget> _buildTraditionalExamWidgets(ExamModel exam, pw.Font ttf) {
+  static List<pw.Widget> _buildTraditionalExamWidgets(ExamModel exam, pw.Font ttf, bool isAr) {
     final List<pw.Widget> widgets = [];
     List<QuestionModel> currentChunk = [];
 
@@ -572,14 +624,14 @@ class PdfExportService {
       currentChunk.add(q);
 
       if (hasPageBreak && i < exam.questions.length - 1) {
-        widgets.add(_buildQuestionsSubTable(currentChunk, exam.header.instructionText, ttf));
+        widgets.add(_buildQuestionsSubTable(currentChunk, exam.header.instructionText, ttf, isAr));
         widgets.add(pw.NewPage());
         currentChunk = [];
       }
     }
 
     if (currentChunk.isNotEmpty) {
-      widgets.add(_buildQuestionsSubTable(currentChunk, exam.header.instructionText, ttf));
+      widgets.add(_buildQuestionsSubTable(currentChunk, exam.header.instructionText, ttf, isAr));
     }
 
     return widgets;
@@ -589,7 +641,16 @@ class PdfExportService {
     List<QuestionModel> questions,
     String instructionText,
     pw.Font ttf,
+    bool isAr,
   ) {
+    final defaultInstruction = isAr ? 'أجب عن جميع الأسئلة الآتية' : 'Answer all questions';
+    final headerInstruction = instructionText.isNotEmpty ? instructionText : defaultInstruction;
+
+    final String colQuestionTitle = isAr ? 'السؤال' : 'Question';
+    final String colMarkTitle = isAr ? 'الدرجة' : 'Mark';
+
+    // في الجدول: إذا كان عربي، العمود 0 هو السؤال والعمود 2 هو الدرجة
+    // وإذا كان إنجليزي مع اتجاه ltr، يُعرض بالترتيب الطبيعي المتوافق
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
       columnWidths: {
@@ -603,13 +664,13 @@ class PdfExportService {
           children: [
             pw.Padding(
               padding: const pw.EdgeInsets.all(4),
-              child: pw.Text('الدرجة',
+              child: pw.Text(colQuestionTitle,
                   textAlign: pw.TextAlign.center,
                   style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
             ),
             pw.Padding(
               padding: const pw.EdgeInsets.all(4),
-              child: pw.Text(instructionText,
+              child: pw.Text(headerInstruction,
                   textAlign: pw.TextAlign.center,
                   style: pw.TextStyle(
                       font: ttf,
@@ -619,7 +680,7 @@ class PdfExportService {
             ),
             pw.Padding(
               padding: const pw.EdgeInsets.all(4),
-              child: pw.Text('السؤال',
+              child: pw.Text(colMarkTitle,
                   textAlign: pw.TextAlign.center,
                   style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
             ),
@@ -631,12 +692,9 @@ class PdfExportService {
               pw.Padding(
                 padding: const pw.EdgeInsets.symmetric(vertical: 6),
                 child: pw.Center(
-                  child: pw.Text(
-                    _formatMark(q.mark),
-                    textAlign: pw.TextAlign.center,
-                    textDirection: pw.TextDirection.rtl,
-                    style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
-                  ),
+                  child: pw.Text(q.title,
+                      textAlign: pw.TextAlign.center,
+                      style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
                 ),
               ),
               pw.Padding(
@@ -644,18 +702,20 @@ class PdfExportService {
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                   children: [
-                    _buildPdfQuestionContent(q, ttf),
+                    _buildPdfQuestionContent(q, ttf, isAr),
                     if (q.elements.isNotEmpty) pw.SizedBox(height: 4),
-                    ...q.elements.map((el) => _buildPdfElement(el, ttf)),
+                    ...q.elements.map((el) => _buildPdfElement(el, ttf, isAr)),
                   ],
                 ),
               ),
               pw.Padding(
                 padding: const pw.EdgeInsets.symmetric(vertical: 6),
                 child: pw.Center(
-                  child: pw.Text(q.title,
-                      textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+                  child: pw.Text(
+                    _formatMark(q.mark, isAr),
+                    textAlign: pw.TextAlign.center,
+                    style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
+                  ),
                 ),
               ),
             ],
@@ -679,7 +739,29 @@ class PdfExportService {
     return defaultColor;
   }
 
-  static pw.Widget _buildPdfQuestionContent(QuestionModel q, pw.Font ttf) {
+  static pw.TextAlign _convertTextAlign(TextAlign? align, bool isAr) {
+    if (align == null) {
+      return isAr ? pw.TextAlign.right : pw.TextAlign.left;
+    }
+    switch (align) {
+      case TextAlign.right:
+        return pw.TextAlign.right;
+      case TextAlign.center:
+        return pw.TextAlign.center;
+      case TextAlign.left:
+        return pw.TextAlign.left;
+      case TextAlign.justify:
+        return pw.TextAlign.justify;
+      case TextAlign.start:
+        return isAr ? pw.TextAlign.right : pw.TextAlign.left;
+      case TextAlign.end:
+        return isAr ? pw.TextAlign.left : pw.TextAlign.right;
+    }
+  }
+
+  static pw.Widget _buildPdfQuestionContent(QuestionModel q, pw.Font ttf, bool isAr) {
+    final pw.TextAlign chosenAlign = _convertTextAlign(q.alignment, isAr);
+
     if (!q.isTwoColumns) {
       return pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
@@ -694,6 +776,8 @@ class PdfExportService {
             isBold: s.isBold,
             textColor: spanColor,
             lineSpacing: 2,
+            textAlign: chosenAlign,
+            isAr: isAr,
           );
         }).toList(),
       );
@@ -715,6 +799,8 @@ class PdfExportService {
             isBold: s.isBold,
             textColor: spanColor,
             lineSpacing: 2,
+            textAlign: chosenAlign,
+            isAr: isAr,
           );
         }).toList(),
       );
@@ -723,13 +809,13 @@ class PdfExportService {
     final intro = lines.first;
     final items = lines.sublist(1);
     final int half = (items.length / 2).ceil();
-    final colRight = items.sublist(0, half);
-    final colLeft = items.sublist(half);
+    final col1 = items.sublist(0, half);
+    final col2 = items.sublist(half);
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
-        _renderInlineMathText(intro, ttf, fontSize: 11, isBold: true),
+        _renderInlineMathText(intro, ttf, fontSize: 11, isBold: true, textAlign: chosenAlign, isAr: isAr),
         pw.SizedBox(height: 3),
         pw.Row(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -737,10 +823,10 @@ class PdfExportService {
             pw.Expanded(
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                children: colRight
+                children: col1
                     .map((item) => pw.Padding(
                           padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-                          child: _renderInlineMathText(item, ttf, fontSize: 10),
+                          child: _renderInlineMathText(item, ttf, fontSize: 10, textAlign: chosenAlign, isAr: isAr),
                         ))
                     .toList(),
               ),
@@ -749,10 +835,10 @@ class PdfExportService {
             pw.Expanded(
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                children: colLeft
+                children: col2
                     .map((item) => pw.Padding(
                           padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-                          child: _renderInlineMathText(item, ttf, fontSize: 10),
+                          child: _renderInlineMathText(item, ttf, fontSize: 10, textAlign: chosenAlign, isAr: isAr),
                         ))
                     .toList(),
               ),
@@ -859,14 +945,17 @@ class PdfExportService {
     bool isBold = false,
     PdfColor textColor = PdfColors.black,
     double lineSpacing = 1.5,
+    pw.TextAlign? textAlign,
+    bool isAr = true,
   }) {
+    final effectiveTextAlign = textAlign ?? (isAr ? pw.TextAlign.right : pw.TextAlign.left);
     final regExp = RegExp(r'(\[(?:كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):.*?\]|✔|✘|✓|✗)');
     final matches = regExp.allMatches(text);
 
     if (matches.isEmpty) {
       return pw.Text(
         text,
-        textAlign: pw.TextAlign.right,
+        textAlign: effectiveTextAlign,
         style: pw.TextStyle(
           font: ttf,
           fontSize: fontSize,
@@ -935,7 +1024,7 @@ class PdfExportService {
             ),
           );
         } else if (type == 'جذر' || type == 'sqrt') {
-          final bool isRtl = type == 'جذر';
+          final bool isRtl = (type == 'جذر') && isAr;
           final String degree = parts.length > 1 ? parts[0] : '';
           final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
 
@@ -957,9 +1046,10 @@ class PdfExportService {
             ),
           );
         } else if (type == 'نها') {
-          final v = parts.isNotEmpty ? parts[0] : 'س';
-          final t = parts.length > 1 ? parts[1] : '٠';
+          final v = parts.isNotEmpty ? parts[0] : (isAr ? 'س' : 'x');
+          final t = parts.length > 1 ? parts[1] : (isAr ? '٠' : '0');
           final fn = parts.length > 2 ? parts[2] : '';
+          final label = isAr ? 'نهـا' : 'lim';
 
           spans.add(
             pw.WidgetSpan(
@@ -974,7 +1064,7 @@ class PdfExportService {
                       crossAxisAlignment: pw.CrossAxisAlignment.center,
                       children: [
                         pw.Text(
-                          'نهـا',
+                          label,
                           style: pw.TextStyle(
                             font: ttf,
                             fontSize: fontSize * 1.05,
@@ -1045,9 +1135,11 @@ class PdfExportService {
             ),
           );
         } else if (type == 'تباديل' || type == 'توافيق') {
-          final n = parts.isNotEmpty ? parts[0] : 'ن';
-          final r = parts.length > 1 ? parts[1] : 'ر';
-          final sym = type == 'تباديل' ? 'ل' : 'ق';
+          final n = parts.isNotEmpty ? parts[0] : (isAr ? 'ن' : 'n');
+          final r = parts.length > 1 ? parts[1] : (isAr ? 'ر' : 'r');
+          final sym = type == 'تباديل'
+              ? (isAr ? 'ل' : 'P')
+              : (isAr ? 'ق' : 'C');
 
           spans.add(
             pw.WidgetSpan(
@@ -1074,7 +1166,7 @@ class PdfExportService {
           final from = parts.isNotEmpty ? parts[0] : '';
           final to = parts.length > 1 ? parts[1] : '';
           final body = parts.length > 2 ? parts[2] : '';
-          final sym = type == 'مجموع' ? 'مجـ' : '∫';
+          final sym = type == 'مجموع' ? (isAr ? 'مجـ' : '∑') : '∫';
 
           spans.add(
             pw.WidgetSpan(
@@ -1101,7 +1193,7 @@ class PdfExportService {
             ),
           );
         } else if (type == 'متجه') {
-          final s = parts.isNotEmpty ? parts[0] : 'ق';
+          final s = parts.isNotEmpty ? parts[0] : (isAr ? 'ق' : 'v');
           spans.add(
             pw.WidgetSpan(
               child: pw.Column(
@@ -1114,7 +1206,7 @@ class PdfExportService {
             ),
           );
         } else if (type == 'بار') {
-          final s = parts.isNotEmpty ? parts[0] : 'س';
+          final s = parts.isNotEmpty ? parts[0] : (isAr ? 'س' : 'x');
           spans.add(
             pw.WidgetSpan(
               child: pw.Column(
@@ -1171,13 +1263,14 @@ class PdfExportService {
             if (num.length > maxDigits) maxDigits = num.length;
           }
           final double lineWidth = (maxDigits * 8.0) + 20.0;
+          final bool isRtlVert = isAr;
 
           spans.add(
             pw.WidgetSpan(
               child: pw.Padding(
                 padding: const pw.EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
                 child: pw.Directionality(
-                  textDirection: pw.TextDirection.rtl,
+                  textDirection: isRtlVert ? pw.TextDirection.rtl : pw.TextDirection.ltr,
                   child: pw.Column(
                     mainAxisSize: pw.MainAxisSize.min,
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -1231,7 +1324,7 @@ class PdfExportService {
             ),
           );
         } else if (type == 'قسمة' || type == 'div') {
-          final bool isRtl = type == 'قسمة';
+          final bool isRtl = (type == 'قسمة') && isAr;
           final String dividend = parts.isNotEmpty ? parts[0] : '';
           final String divisor = parts.length > 1 ? parts[1] : '';
           final String quotient = parts.length > 2 ? parts[2] : '';
@@ -1314,7 +1407,7 @@ class PdfExportService {
     }
 
     return pw.RichText(
-      textAlign: pw.TextAlign.right,
+      textAlign: effectiveTextAlign,
       text: pw.TextSpan(
         children: spans,
         style: pw.TextStyle(
@@ -1328,7 +1421,7 @@ class PdfExportService {
     );
   }
 
-  static pw.Widget _buildPdfElement(InsertableElement el, pw.Font ttf) {
+  static pw.Widget _buildPdfElement(InsertableElement el, pw.Font ttf, bool isAr) {
     switch (el.type) {
       case ElementType.image:
         if (File(el.content).existsSync()) {
@@ -1362,7 +1455,7 @@ class PdfExportService {
         );
 
       case ElementType.table:
-        return _buildPdfCustomTable(el.content, ttf);
+        return _buildPdfCustomTable(el.content, ttf, isAr);
 
       case ElementType.shape:
         return _buildPdfCustomShape(el.content, ttf);
@@ -1375,14 +1468,14 @@ class PdfExportService {
           if (kind == 'vertical') {
             final List<dynamic> rows = data['rows'] ?? [];
             final String op = data['operator'] ?? '+';
-            final bool opOnRight = data['opOnRight'] ?? true;
+            final bool opOnRight = data['opOnRight'] ?? isAr;
 
             return pw.Center(
               child: pw.Container(
                 margin: const pw.EdgeInsets.symmetric(vertical: 4),
                 padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     ...rows.asMap().entries.map((entry) {
                       final idx = entry.key;
@@ -1462,7 +1555,7 @@ class PdfExportService {
     }
   }
 
-  static pw.Widget _buildPdfCustomTable(String jsonStr, pw.Font ttf) {
+  static pw.Widget _buildPdfCustomTable(String jsonStr, pw.Font ttf, bool isAr) {
     try {
       final Map<String, dynamic> data = jsonDecode(jsonStr);
       final int rows = data['rows'] ?? 2;
@@ -1481,7 +1574,8 @@ class PdfExportService {
                 color: isHeaderRow ? PdfColors.grey200 : PdfColors.white,
               ),
               children: List.generate(cols, (colIndex) {
-                final c = cols - 1 - colIndex;
+                // إذا كان عربي يُعكس الترتيب ليتوافق مع اتجاه اليمين لليسار
+                final c = isAr ? (cols - 1 - colIndex) : colIndex;
                 String text = '';
                 if (r < rawGrid.length && c < (rawGrid[r] as List).length) {
                   text = rawGrid[r][c]?.toString() ?? '';
