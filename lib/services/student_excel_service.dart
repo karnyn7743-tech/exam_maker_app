@@ -38,7 +38,6 @@ class StudentExcelService {
 
     String text;
     if (val is TextCellValue) {
-      // حزمة excel ترجع TextSpan داخل val.value فنستخرج text مع معالجة null
       text = val.value.text ?? '';
     } else if (val is IntCellValue) {
       text = val.value.toString();
@@ -48,29 +47,21 @@ class StudentExcelService {
       text = val.toString();
     }
 
-    // إزالة غلاف الكائن إن وجد مثل TextCellValue(...)
     if (text.startsWith('TextCellValue(') && text.endsWith(')')) {
       text = text.substring(14, text.length - 1);
     }
 
-    // إزالة المحارف المخفية (Zero-width spaces) والمسافات غير المرئية
     return text.replaceAll(RegExp(r'[\u200B-\u200D\uFEFF\u00A0]'), '').trim();
   }
 
   /// تطبيع موحد للحروف والكلمات العربية لضمان المقارنة الصادقة والمجردة
   static String _normalizeArabic(String text) {
     var s = _extractCleanText(text).toLowerCase();
-    // توحيد الألف والهمزات
     s = s.replaceAll(RegExp(r'[أإآ]'), 'ا');
-    // توحيد التاء المربوطة والهاء
     s = s.replaceAll('ة', 'ه');
-    // توحيد الياء والألف المقصورة
     s = s.replaceAll('ى', 'ي');
-    // إزالة الحركات وعلامات التشكيل
     s = s.replaceAll(RegExp(r'[\u064B-\u0652]'), '');
-    // إزالة الكلمات الزائدة العامة
     s = s.replaceAll('الصف', '').replaceAll('اساسي', '').replaceAll('الاساسي', '').trim();
-    // إزالة جميع المسافات لإجراء مقارنة مجردة تماماً
     s = s.replaceAll(RegExp(r'\s+'), '');
     return s;
   }
@@ -81,7 +72,7 @@ class StudentExcelService {
     final normTarget = _normalizeArabic(targetGrade);
 
     if (normTarget.isEmpty) return true; // إذا لم يُحدد صف يتم استيراد الجميع
-    if (normCell.isEmpty) return false;  // إذا طُلب صف محدد وخانة الطالب فارغة يُستبعد
+    if (normCell.isEmpty) return false;  // إذا خانة الطالب فارغة يُستبعد
 
     // التطابق المباشر التام بعد التجريد
     if (normCell == normTarget) {
@@ -118,8 +109,6 @@ class StudentExcelService {
 
   /// فحص ما إذا كان ملف الإكسيل يعتمد نظام 8 أشهر أم 6 أشهر تلقائياً من خلايا الصف الثاني
   static int detectTotalMonths(Sheet sheet) {
-    // في نظام 8 أشهر: الشهر الرابع يقع في العمود 19 (E=4, J=9, O=14, T=19)
-    // في نظام 6 أشهر: العمود 19 يكون مخصصاً لـ [م١]
     final cellFourthMonth = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 19, rowIndex: 1));
     final rawText = _extractCleanText(cellFourthMonth);
     final text = _normalizeArabic(rawText);
@@ -143,7 +132,6 @@ class StudentExcelService {
       final sheet = excel.tables.values.first;
       if (sheet.maxRows < 4) return false;
 
-      // فحص عناوين رأس الأعمدة في الصف الثالث (index = 2) مع استخراج النص النقي أولاً
       final seatCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 2));
       final nameCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 2));
 
@@ -153,7 +141,6 @@ class StudentExcelService {
       bool hasExpectedHeaders = (seatHeader.contains('جلوس') || seatHeader.contains('رقم')) ||
           (nameHeader.contains('اسم') || nameHeader.contains('طالب'));
 
-      // فحص وجود سجلات طلاب فعلية في الصف الرابع (index = 3)
       final testSeat = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 3)));
       final testName = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 3)));
       bool hasStudentRow = testSeat.isNotEmpty || testName.isNotEmpty;
@@ -168,7 +155,7 @@ class StudentExcelService {
   static List<String> extractMonthsFromSheet(Sheet sheet, {int? totalMonths}) {
     final int resolvedTotal = totalMonths ?? detectTotalMonths(sheet);
     List<String> months = [];
-    int currentCol = 4; // عمود E
+    int currentCol = 4;
     final int monthsInTerm1 = (resolvedTotal == 6) ? 3 : 4;
 
     for (int m = 1; m <= resolvedTotal; m++) {
@@ -182,7 +169,7 @@ class StudentExcelService {
 
       currentCol += 5;
       if (m == monthsInTerm1) {
-        currentCol += 2; // تخطي عمودي [م١ ، ف١]
+        currentCol += 2;
       }
     }
     return months;
@@ -192,71 +179,38 @@ class StudentExcelService {
   static int _extractMonthOrderFromTitle(String examTitle, Sheet sheet, int totalMonths) {
     final title = _normalizeArabic(examTitle);
 
-    // 1. البحث في أسماء الشهور الفعلية المقروءة من الصف الثاني بورقة العمل
     final dynamicMonths = extractMonthsFromSheet(sheet, totalMonths: totalMonths);
     for (int i = 0; i < dynamicMonths.length; i++) {
       final cleanMonthName = _normalizeArabic(dynamicMonths[i]);
       if (cleanMonthName.isNotEmpty && (title.contains(cleanMonthName) || cleanMonthName.contains(title))) {
-        return i + 1; // ترتيب الشهر ديناميكياً (1, 2, 3...)
+        return i + 1;
       }
     }
 
-    // 2. فحص الأشهر الهجرية المعروفة
     const hijriMonths = {
-      'محرم': 1,
-      'صفر': 2,
-      'ربيعالاول': 3,
-      'ربيعاول': 3,
-      'ربيعثاني': 4,
-      'ربيعالثاني': 4,
-      'جماديالاولي': 5,
-      'جماديالاول': 5,
-      'جماديالاخره': 6,
-      'جماديالثانيه': 6,
-      'رجب': 7,
-      'شعبان': 8,
-      'رمضان': 9,
-      'شوال': 10,
-      'ذوالقعده': 11,
-      'ذوالحجه': 12,
+      'محرم': 1, 'صفر': 2, 'ربيعالاول': 3, 'ربيعاول': 3, 'ربيعثاني': 4, 'ربيعالثاني': 4,
+      'جماديالاولي': 5, 'جماديالاول': 5, 'جماديالاخره': 6, 'جماديالثانيه': 6,
+      'رجب': 7, 'شعبان': 8, 'رمضان': 9, 'شوال': 10, 'ذوالقعده': 11, 'ذوالحجه': 12,
     };
     for (final entry in hijriMonths.entries) {
-      if (title.contains(entry.key)) {
-        return entry.value;
-      }
+      if (title.contains(entry.key)) return entry.value;
     }
 
-    // 3. فحص الأشهر الميلادية الدراسية
     const gregorianMonths = {
-      'سبتمبر': 1,
-      'اكتوبر': 2,
-      'نوفمبر': 3,
-      'ديسمبر': 4,
-      'يناير': 5,
-      'فبراير': 6,
-      'مارس': 7,
-      'ابريل': 8,
-      'مايو': 9,
+      'سبتمبر': 1, 'اكتوبر': 2, 'نوفمبر': 3, 'ديسمبر': 4, 'يناير': 5,
+      'فبراير': 6, 'مارس': 7, 'ابريل': 8, 'مايو': 9,
     };
     for (final entry in gregorianMonths.entries) {
-      if (title.contains(entry.key)) {
-        return entry.value;
-      }
+      if (title.contains(entry.key)) return entry.value;
     }
 
-    // 4. مطابقة الأرقام المباشرة بعد كلمة شهر (شهر 1، شهر 2...)
     final match = RegExp(r'شهر\s*([1-8١-٨])').firstMatch(title);
     if (match != null) {
       final d = match.group(1)!;
       return int.tryParse(d
-          .replaceAll('١', '1')
-          .replaceAll('٢', '2')
-          .replaceAll('٣', '3')
-          .replaceAll('٤', '4')
-          .replaceAll('٥', '5')
-          .replaceAll('٦', '6')
-          .replaceAll('٧', '7')
-          .replaceAll('٨', '8')) ?? 1;
+          .replaceAll('١', '1').replaceAll('٢', '2').replaceAll('٣', '3')
+          .replaceAll('٤', '4').replaceAll('٥', '5').replaceAll('٦', '6')
+          .replaceAll('٧', '7').replaceAll('٨', '8')) ?? 1;
     }
 
     return 1;
@@ -273,7 +227,6 @@ class StudentExcelService {
     final sheet = excel.tables.values.first;
     final int resolvedTotal = totalMonths ?? detectTotalMonths(sheet);
 
-    // حساب رقم ترتيب ورقة العمل التي تحمل اسم المادة (1-based index)
     int subjectSheetOrder = 1;
     final sheets = excel.tables.keys.toList();
     final cleanSubject = _normalizeArabic(subjectName);
@@ -286,12 +239,10 @@ class StudentExcelService {
       }
     }
 
-    // 1. اختبارات نهاية الشهور: إذا كان بعد عبارة (اختبار نهاية) كلمة شهر -> ترتيب اسم الشهر
     if (title.contains('شهر')) {
       return _extractMonthOrderFromTitle(examTitle, sheet, resolvedTotal);
     }
 
-    // 2. اختبار نهاية الفصل الدراسي: إذا كان بعد (اختبار نهاية) إما الفصل الأول أو الفصل الثاني -> رقم ترتيب ورقة المادة
     if (title.contains('فصل1') ||
         title.contains('فصلالاول') ||
         title.contains('فصل2') ||
@@ -299,7 +250,6 @@ class StudentExcelService {
       return subjectSheetOrder;
     }
 
-    // في حال عدم التطابق مع الشرطين نعتمد رقم ترتيب ورقة المادة كخيار قياسي
     return subjectSheetOrder;
   }
 
@@ -310,10 +260,8 @@ class StudentExcelService {
   }) {
     final int term1Months = (totalMonths == 6) ? 3 : 4;
     if (monthNumber <= term1Months) {
-      // عمود تحريري كل شهر هو الخانة الرابعة في كتلته (Index = 4 + (m-1)*5 + 3 = 2 + m*5)
       return 2 + (monthNumber * 5);
     } else {
-      // قفز عمودي م١ وف١
       return 2 + (monthNumber * 5) + 2;
     }
   }
@@ -326,21 +274,14 @@ class StudentExcelService {
     final clean = _normalizeArabic(selectedPeriod);
     final int term1Months = (totalMonths == 6) ? 3 : 4;
 
-    // 1. حساب موقع عمود نهاية الفصل الأول (ف١)
     if (clean == 'ف1' || clean == 'ف١' || clean.contains('فصل1') || clean.contains('فصل اول')) {
-      // في نظام 8 أشهر: 4 + (4 * 5) + 1 = 25
-      // في نظام 6 أشهر: 4 + (3 * 5) + 1 = 20 (تراجع 5 أعمدة)
       return 4 + (term1Months * 5) + 1;
     }
 
-    // 2. حساب موقع عمود نهاية الفصل الثاني (ف٢)
     if (clean == 'ف2' || clean == 'ف٢' || clean.contains('فصل2') || clean.contains('فصل ثاني')) {
-      // في نظام 8 أشهر: 4 + (8 * 5) + 2 + 1 = 47
-      // في نظام 6 أشهر: 4 + (6 * 5) + 2 + 1 = 37 (تراجع 10 أعمدة)
       return 4 + (totalMonths * 5) + 2 + 1;
     }
 
-    // 3. حساب عمود اختبار الشهور العادية
     final match = RegExp(r'\d+').firstMatch(clean);
     int monthIndex = 1;
     if (match != null) {
@@ -353,8 +294,7 @@ class StudentExcelService {
     );
   }
 
-  /// قراءة ملف الإكسيل واستخراج بيانات طلاب الصف المحدد من ورقة المادة المطابقة
-  /// بناءً على مقارنة اسم الصف بالعمود C من أول طالب حتى آخر طالب في الصف
+  /// قراءة ملف الإكسيل واستخراج بيانات طلاب الصف التاسع أو الصف المختار حصراً
   static Future<StudentExcelResult> parseExcelFile(
     String filePath, {
     String? expectedSubject,
@@ -383,17 +323,11 @@ class StudentExcelService {
     }
 
     final sheet = excel.tables[targetSheetName]!;
-    final rows = sheet.rows;
-
-    if (rows.length < 4) {
-      throw Exception('ورقة العمل لا تحتوي على بيانات كافية (الطلاب يبدأون من الصف الرابع).');
-    }
-
     final int detectedMonths = detectTotalMonths(sheet);
     final String requiredGrade = targetGrade?.trim() ?? '';
     final List<StudentData> students = [];
 
-    // 2. احتساب الكود الذكي يمين الـ QR ديناميكياً بحسب عنوان الاختبار وترتيب ورقة المادة
+    // 2. احتساب الكود الذكي يمين الـ QR ديناميكياً
     final int calculatedCode = resolveSmartQrCodeNumberDynamic(
       examTitle: examTitle ?? '',
       subjectName: expectedSubject ?? targetSheetName,
@@ -401,36 +335,53 @@ class StudentExcelService {
       totalMonths: detectedMonths,
     );
 
-    // 3. مسح كافة الصفوف ابتداءً من الصف الرابع (index = 3) وتصفية الصف الحصري
-    const int startRowIndex = 3;
+    // 3. قراءة الأعمدة الثابتة حصراً كما هي بالملف:
+    // العمود A (0) = رقم الجلوس
+    // العمود B (1) = اسم الطالب
+    // العمود C (2) = الصف
+    // العمود D (3) = الرقم السري
+    const int colSeat = 0;
+    const int colName = 1;
+    const int colGrade = 2;
+    const int colSecret = 3;
 
-    for (int r = startRowIndex; r < rows.length; r++) {
-      final row = rows[r];
-      if (row.isEmpty) continue;
+    // لتجاوز مشكلة توقف sheet.rows عند مئات السطور، نحدد الحد الأقصى الفعلي للأسطر
+    final int limitRows = sheet.maxRows > 400 ? sheet.maxRows : 1500;
+    int consecutiveEmptyCount = 0;
 
-      // عمود A (رقم الجلوس - index 0)
-      final rawSeat = row.isNotEmpty ? _extractCleanText(row[0]) : '';
-      // عمود B (اسم الطالب - index 1)
-      final rawName = row.length > 1 ? _extractCleanText(row[1]) : '';
-      // عمود C (الصف الدراسي - index 2)
-      final rawGrade = row.length > 2 ? _extractCleanText(row[2]) : '';
-      // عمود D (الرقم السري - index 3)
-      final rawSecret = row.length > 3 ? _extractCleanText(row[3]) : '';
+    for (int r = 3; r < limitRows; r++) {
+      // قراءة الخلايا الأربع بشكل مباشر ومستقل
+      final cellSeat = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSeat, rowIndex: r));
+      final cellName = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colName, rowIndex: r));
+      final cellGrade = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colGrade, rowIndex: r));
+      final cellSecret = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSecret, rowIndex: r));
 
-      // تجاهل الأسطر الفارغة تماماً
+      final rawSeat = _extractCleanText(cellSeat);
+      final rawName = _extractCleanText(cellName);
+      final rawGrade = _extractCleanText(cellGrade);
+      final rawSecret = _extractCleanText(cellSecret);
+
+      // إذا مر 35 سطراً متتالياً خالية من الأسماء وأرقام الجلوس نكون قد وصلنا لنهاية الملف
       if (rawSeat.isEmpty && rawName.isEmpty) {
+        consecutiveEmptyCount++;
+        if (consecutiveEmptyCount > 35) {
+          break;
+        }
         continue;
       }
+      consecutiveEmptyCount = 0;
 
-      // فحص مطابقة الصف بالعمود C حصرياً
+      // تجاوز أي سطر ترويسة
+      if (rawSeat.contains('جلوس') || rawName.contains('اسم')) continue;
+
+      // فحص مطابقة الصف بالعمود C حصراً
       if (requiredGrade.isNotEmpty) {
         final bool isMatch = _isGradeMatch(rawGrade, requiredGrade);
         if (!isMatch) {
-          continue; // تخطي طلاب أي صف دراسي آخر لا يطابق الصف المطلوب
+          continue; // تخطي طلاب الصف السابع والثامن حتى نصل لطلاب الصف التاسع
         }
       }
 
-      // الرقم السري المعتمد لرمز الـ QR
       final finalSecretCode = rawSecret.isNotEmpty ? rawSecret : '$rawSeat-$calculatedCode';
 
       students.add(StudentData(
@@ -441,7 +392,7 @@ class StudentExcelService {
       ));
     }
 
-    // 4. فرز طلاب الصف المستورد تصاعدياً برقم الجلوس
+    // 4. فرز طلاب الصف المستورد تصاعدياً برقم الجلوس لضمان تسلسل الأوراق
     students.sort((a, b) {
       final intA = int.tryParse(a.seatNo.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
       final intB = int.tryParse(b.seatNo.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
