@@ -92,6 +92,31 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     _isNew = widget.isNewExam;
   }
 
+  bool get _isArabicExam => _exam.isArabic;
+
+  void _toggleExamLanguage() {
+    setState(() {
+      _exam.isArabic = !_exam.isArabic;
+      if (!_exam.isArabic && _exam.header.examTitle == 'اختبار نهائي') {
+        _exam.header.examTitle = 'Final Examination';
+      } else if (_exam.isArabic && _exam.header.examTitle == 'Final Examination') {
+        _exam.header.examTitle = 'اختبار نهائي';
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _exam.isArabic
+              ? 'تم تحويل اتجاه ولغة الاختبار إلى العربية (RTL)'
+              : 'Exam layout and language switched to English (LTR)',
+        ),
+        backgroundColor: const Color(0xFF1E3A8A),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   void _insertTatweel(TextEditingController controller) {
     final pos = controller.selection.start;
     const tatweel = '\u0640';
@@ -117,7 +142,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     final gradeName = _exam.header.grade.trim().isNotEmpty ? _exam.header.grade.trim() : 'عام';
     final subjectName = _exam.header.subject.trim().isNotEmpty ? _exam.header.subject.trim() : 'مادة';
     final typeName = _exam.examType == ExamType.automated ? 'مؤتمت' : 'شامل';
-    final generatedName = '$gradeName _ $subjectName _ $typeName';
+    final langSuffix = _isArabicExam ? 'عربي' : 'En';
+    final generatedName = '$gradeName _ $subjectName _ $typeName _ $langSuffix';
 
     if (_isNew || _exam.fileName.isEmpty || _exam.fileName.startsWith('اختبار_') || _exam.fileName == 'اختبار جديد') {
       _exam.fileName = generatedName;
@@ -250,18 +276,27 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
   ExamModel _buildAnswerKeyExam() {
     final keyExam = _exam.copyWith();
-    keyExam.header.examTitle = '${_exam.header.examTitle} (نموذج الإجابة وتوزيع الدرجات)';
-    keyExam.header.singlePageFooterText = 'تم إعداد ومراجعة نموذج الإجابة من قبل لجنة الكنترول والتصحيح';
-    keyExam.header.teacherSignature = 'المصحح / المراجع: ......................';
+    final isAr = _isArabicExam;
+    keyExam.header.examTitle = isAr
+        ? '${_exam.header.examTitle} (نموذج الإجابة وتوزيع الدرجات)'
+        : '${_exam.header.examTitle} (Model Answer Key)';
+    keyExam.header.singlePageFooterText = isAr
+        ? 'تم إعداد ومراجعة نموذج الإجابة من قبل لجنة الكنترول والتصحيح'
+        : 'Exam Answer Key prepared and audited by Examination Control Committee';
+    keyExam.header.teacherSignature = isAr
+        ? 'المصحح / المراجع: ......................'
+        : 'Examiner / Auditor: ......................';
 
     keyExam.questions = _exam.questions.map((q) {
       final newQ = QuestionModel.fromMap(q.toMap());
       if (newQ.answerKey.trim().isNotEmpty) {
         newQ.spans.add(TextSpanModel(
-          text: '\n[ الإجابة النموذجية: ${newQ.answerKey} ]',
+          text: isAr
+              ? '\n[ الإجابة النموذجية: ${newQ.answerKey} ]'
+              : '\n[ Model Answer: ${newQ.answerKey} ]',
           fontSize: 13.0,
           isBold: true,
-          fontFamily: 'Amiri',
+          fontFamily: isAr ? 'Amiri' : 'Arial',
         ));
       }
       return newQ;
@@ -274,7 +309,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     final gradeName = _exam.header.grade.trim().isNotEmpty ? _exam.header.grade.trim() : 'عام';
     final subjectName = _exam.header.subject.trim().isNotEmpty ? _exam.header.subject.trim() : 'مادة';
     final typeName = _exam.examType == ExamType.automated ? 'مؤتمت' : 'شامل';
-    final defaultAltName = '$gradeName _ $subjectName _ $typeName (نموذج ب)';
+    final suffix = _isArabicExam ? '(نموذج ب)' : '(Form B)';
+    final defaultAltName = '$gradeName _ $subjectName _ $typeName $suffix';
 
     final ctrl = TextEditingController(text: defaultAltName);
     showDialog(
@@ -314,7 +350,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 newId: const Uuid().v4(),
                 newFileName: ctrl.text.trim(),
               );
-              newExam.header.examTitle = '${_exam.header.examTitle} - (ب)';
+              newExam.header.examTitle = '${_exam.header.examTitle} - ' + (_isArabicExam ? '(ب)' : '(B)');
 
               newExam.questions = _exam.questions.map((q) {
                 final copiedQ = QuestionModel.fromMap(q.toMap());
@@ -326,7 +362,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   copiedQ.spans = [
                     TextSpanModel(
                       text: '$headerLine\n${bodyLines.join('\n')}',
-                      fontFamily: copiedQ.spans.isNotEmpty ? copiedQ.spans.first.fontFamily : 'Amiri',
+                      fontFamily: copiedQ.spans.isNotEmpty ? copiedQ.spans.first.fontFamily : (_isArabicExam ? 'Amiri' : 'Arial'),
                       fontSize: copiedQ.spans.isNotEmpty ? copiedQ.spans.first.fontSize : 14.0,
                     )
                   ];
@@ -493,7 +529,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         ),
                         onTap: () {
                           final imported = QuestionModel.fromMap(item.question.toMap());
-                          imported.title = 'السؤال ${_exam.questions.length + 1}';
+                          imported.title = _isArabicExam
+                              ? 'السؤال ${_exam.questions.length + 1}'
+                              : 'Question ${_exam.questions.length + 1}';
                           setState(() => _exam.questions.add(imported));
                           Navigator.pop(bCtx);
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -512,11 +550,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // نافذة إدخال مفتاح الإجابة السريع والشامل للاختبارات المؤتمتة
   void _openAutomatedAnswerKeyDialog() {
     final int tfCount = _exam.automatedConfig.trueFalseCount;
     final int mcqCount = _exam.automatedConfig.mcqCount;
     final int totalItems = tfCount + mcqCount;
+    final bool isAr = _isArabicExam;
 
     if (totalItems <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -525,15 +563,22 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       return;
     }
 
-    final bool isLetters = _exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.arabicLetters;
-    final List<String> mcqOptions = isLetters ? ['أ', 'ب', 'جـ', 'د'] : ['١', '٢', '٣', '٤'];
+    final List<String> mcqOptions = isAr
+        ? (_exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.arabicLetters
+            ? ['أ', 'ب', 'جـ', 'د']
+            : ['١', '٢', '٣', '٤'])
+        : ['A', 'B', 'C', 'D'];
+
+    final List<String> tfOptions = isAr ? ['ص', 'خ'] : ['T', 'F'];
 
     while (_exam.questions.length < totalItems) {
       final int idx = _exam.questions.length + 1;
       final bool isTf = idx <= tfCount;
       _exam.questions.add(QuestionModel(
         id: const Uuid().v4(),
-        title: isTf ? 'صح/خطأ $idx' : 'اختيار $idx',
+        title: isTf
+            ? (isAr ? 'صح/خطأ $idx' : 'T/F $idx')
+            : (isAr ? 'اختيار $idx' : 'MCQ $idx'),
         mark: 1.0,
         spans: [TextSpanModel(text: '')],
         answerKey: '',
@@ -545,10 +590,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDlgState) => AlertDialog(
           title: Row(
-            children: const [
-              Icon(Icons.key, color: Color(0xFF1B5E20)),
-              SizedBox(width: 8),
-              Text('مفتاح إجابة الاختبار المؤتمت', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            children: [
+              const Icon(Icons.key, color: Color(0xFF1B5E20)),
+              const SizedBox(width: 8),
+              Text(
+                isAr ? 'مفتاح إجابة الاختبار المؤتمت' : 'Automated Exam Answer Key',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
             ],
           ),
           content: SizedBox(
@@ -564,7 +612,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      'أولاً: فقرات الصح والخطأ (إجمالي $tfCount فقرة)',
+                      isAr
+                          ? 'أولاً: فقرات الصح والخطأ (إجمالي $tfCount فقرة)'
+                          : 'Part 1: True / False Items (Total: $tfCount)',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Colors.black87),
                     ),
                   ),
@@ -575,15 +625,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       child: Row(
                         children: [
                           SizedBox(
-                            width: 60,
+                            width: 70,
                             child: Text(
-                              'فقرة ${i + 1}:',
+                              isAr ? 'فقرة ${i + 1}:' : 'Item ${i + 1}:',
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                             ),
                           ),
                           Wrap(
                             spacing: 8,
-                            children: ['ص', 'خ'].map((opt) {
+                            children: tfOptions.map((opt) {
                               final isSelected = _exam.questions[i].answerKey.trim() == opt;
                               return ChoiceChip(
                                 label: Text(
@@ -620,7 +670,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      'ثانياً: فقرات الاختيار من متعدد (إجمالي $mcqCount فقرة)',
+                      isAr
+                          ? 'ثانياً: فقرات الاختيار من متعدد (إجمالي $mcqCount فقرة)'
+                          : 'Part 2: Multiple Choice Items (Total: $mcqCount)',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Colors.black87),
                     ),
                   ),
@@ -635,9 +687,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           child: Row(
                             children: [
                               SizedBox(
-                                width: 60,
+                                width: 70,
                                 child: Text(
-                                  'فقرة ${itemIndex + 1}:',
+                                  isAr ? 'فقرة ${itemIndex + 1}:' : 'Item ${itemIndex + 1}:',
                                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                                 ),
                               ),
@@ -681,13 +733,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               onPressed: () {
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('تم حفظ مفاتيح إجابات الاختبار المؤتمت بنجاح.'),
-                    backgroundColor: Color(0xFF1B5E20),
+                  SnackBar(
+                    content: Text(isAr ? 'تم حفظ مفاتيح إجابات الاختبار بنجاح.' : 'Answer keys saved successfully.'),
+                    backgroundColor: const Color(0xFF1B5E20),
                   ),
                 );
               },
-              child: const Text('تم الحفظ', style: TextStyle(color: Colors.white)),
+              child: Text(isAr ? 'تم الحفظ' : 'Done', style: const TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -699,6 +751,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     final bool isAutomated = _exam.examType == ExamType.automated;
     final double diff = _exam.totalMarks - _exam.targetTotalMarks;
     final bool isBalanced = diff.abs() < 0.05;
+    final bool isAr = _isArabicExam;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -728,7 +781,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                   icon: const Icon(Icons.add_circle_outline, size: 20),
                   label: Text(
-                    isAutomated ? 'إضافة فقرة مؤتمتة' : 'إضافة سؤال جديد',
+                    isAutomated
+                        ? (isAr ? 'إضافة فقرة مؤتمتة' : 'Add MCQ Item')
+                        : (isAr ? 'إضافة سؤال جديد' : 'Add Question'),
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                   onPressed: () => _openQuestionDialog(),
@@ -745,7 +800,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                   icon: Icon(isAutomated ? Icons.key : Icons.account_balance, size: 18),
                   label: Text(
-                    isAutomated ? 'مفتاح الإجابة' : 'بنك الأسئلة',
+                    isAutomated
+                        ? (isAr ? 'مفتاح الإجابة' : 'Answer Key')
+                        : (isAr ? 'بنك الأسئلة' : 'Question Bank'),
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                   onPressed: isAutomated ? _openAutomatedAnswerKeyDialog : _showQuestionBankImportDialog,
@@ -766,7 +823,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                   icon: Icon(isAutomated ? Icons.fact_check_outlined : Icons.auto_awesome, size: 18),
                   label: Text(
-                    isAutomated ? 'ورقة التظليل (OMR)' : 'قوالب جاهزة',
+                    isAutomated
+                        ? (isAr ? 'ورقة التظليل (OMR)' : 'OMR Sheet')
+                        : (isAr ? 'قوالب جاهزة' : 'Templates'),
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                   onPressed: isAutomated ? _exportOmrSheetToDownloads : _showQuestionTemplatesDialog,
@@ -790,7 +849,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        '${_exam.totalMarks.toStringAsFixed(1)} / ${_exam.targetTotalMarks.toStringAsFixed(0)} د',
+                        '${_exam.totalMarks.toStringAsFixed(1)} / ${_exam.targetTotalMarks.toStringAsFixed(0)} ${isAr ? 'د' : 'M'}',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
@@ -799,8 +858,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ),
                       Text(
                         isAutomated
-                            ? '${_exam.questions.length} فقرة مضافة'
-                            : (isBalanced ? 'الميزان مضبوط ✓' : (diff > 0 ? '+${diff.toStringAsFixed(1)} زيادة' : '${diff.toStringAsFixed(1)} عجز')),
+                            ? (isAr ? '${_exam.questions.length} فقرة مضافة' : '${_exam.questions.length} items')
+                            : (isBalanced ? (isAr ? 'الميزان مضبوط ✓' : 'Balanced ✓') : (diff > 0 ? '+${diff.toStringAsFixed(1)}' : '${diff.toStringAsFixed(1)}')),
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
@@ -820,6 +879,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final TextDirection examDir = _isArabicExam ? TextDirection.rtl : TextDirection.ltr;
+
     return GestureDetector(
       onTap: () {
         if (_selectedElementId != null) {
@@ -831,13 +892,32 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         appBar: AppBar(
           title: Text(
             _showAnswerKeyMode
-                ? 'نموذج الإجابة: ${_exam.fileName}'
-                : (_isNew ? 'اختبار جديد' : _exam.fileName),
+                ? (_isArabicExam ? 'نموذج الإجابة: ${_exam.fileName}' : 'Answer Key: ${_exam.fileName}')
+                : (_isNew ? (_isArabicExam ? 'اختبار جديد' : 'New Exam') : _exam.fileName),
             style: const TextStyle(color: Colors.white, fontSize: 15),
           ),
           backgroundColor: _showAnswerKeyMode ? const Color(0xFF0F766E) : const Color(0xFF1E3A8A),
           iconTheme: const IconThemeData(color: Colors.white),
           actions: [
+            // زر التبديل الرئيسي بين الاختبار العربي والإنجليزي (يغير اتجاه الورقة بالكامل)
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _isArabicExam ? const Color(0xFFD97706) : const Color(0xFF0D9488),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                icon: const Icon(Icons.language, size: 16),
+                label: Text(
+                  _isArabicExam ? 'عربي (RTL)' : 'English (LTR)',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                onPressed: _toggleExamLanguage,
+              ),
+            ),
             IconButton(
               icon: const Icon(Icons.print_outlined, color: Colors.white),
               tooltip: 'طباعة مباشرة عبر الشبكة (Wi-Fi)',
@@ -878,14 +958,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 setState(() {
                   _showAnswerKeyMode = !_showAnswerKeyMode;
                 });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(_showAnswerKeyMode
-                        ? 'تم تفعيل وضع معاينة نموذج الإجابة'
-                        : 'تم تفعيل وضع معاينة ورقة الطالب'),
-                    duration: const Duration(seconds: 1),
-                  ),
-                );
               },
             ),
             IconButton(
@@ -924,105 +996,108 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         body: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  constraints: const BoxConstraints(maxWidth: 820),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(2),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 8,
-                        offset: Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  padding: EdgeInsets.only(
-                    top: _exam.header.topMargin1cm ? 8.5 : 12.0,
-                    left: 12.0,
-                    right: 12.0,
-                    bottom: 12.0,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (_exam.header.topMargin1cm) ...[
-                        InkWell(
-                          onTap: _openFooterSettingsDialog,
-                          borderRadius: BorderRadius.circular(4),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
-                            margin: const EdgeInsets.only(bottom: 6.0),
-                            decoration: BoxDecoration(
-                              color: _exam.header.studentDataMode != 'none'
-                                  ? Colors.green.shade50
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(4),
-                              border: _exam.header.studentDataMode != 'none'
-                                  ? Border.all(color: Colors.green.shade200, width: 0.8)
-                                  : null,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    if (_exam.header.studentDataMode != 'none')
-                                      const Icon(Icons.how_to_reg, size: 14, color: Colors.green),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      _exam.header.studentDataMode != 'none'
-                                          ? 'اسم الطالب: [ كشف إكسيل مفعّل ]'
-                                          : 'اسم الطالب: .................................................',
-                                      style: TextStyle(
-                                        fontFamily: _exam.header.adminFont,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 11,
-                                        color: _exam.header.studentDataMode != 'none'
-                                          ? Colors.green.shade900
-                                          : Colors.black87,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Row(
-                                  children: [
-                                    Text(
-                                      _exam.header.studentDataMode != 'none'
-                                          ? 'رقم الجلوس: [ آلي ]'
-                                          : 'رقم الجلوس: [ ........... ]',
-                                      style: TextStyle(
-                                        fontFamily: _exam.header.detailsFont,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 11,
-                                        color: _exam.header.studentDataMode != 'none'
-                                          ? Colors.green.shade900
-                                          : Colors.black87,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    const Icon(Icons.settings, size: 13, color: Colors.grey),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
+            child: Directionality(
+              textDirection: examDir,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    constraints: const BoxConstraints(maxWidth: 820),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(2),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 8,
+                          offset: Offset(0, 3),
                         ),
                       ],
-                      _buildExamHeader(),
-                      const SizedBox(height: 8),
-                      _buildQuestionsTable(),
-                      const SizedBox(height: 10),
-                      _buildFooterPreview(),
-                    ],
+                    ),
+                    padding: EdgeInsets.only(
+                      top: _exam.header.topMargin1cm ? 8.5 : 12.0,
+                      left: 12.0,
+                      right: 12.0,
+                      bottom: 12.0,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_exam.header.topMargin1cm) ...[
+                          InkWell(
+                            onTap: _openFooterSettingsDialog,
+                            borderRadius: BorderRadius.circular(4),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
+                              margin: const EdgeInsets.only(bottom: 6.0),
+                              decoration: BoxDecoration(
+                                color: _exam.header.studentDataMode != 'none'
+                                    ? Colors.green.shade50
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(4),
+                                border: _exam.header.studentDataMode != 'none'
+                                    ? Border.all(color: Colors.green.shade200, width: 0.8)
+                                    : null,
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      if (_exam.header.studentDataMode != 'none')
+                                        const Icon(Icons.how_to_reg, size: 14, color: Colors.green),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _exam.header.studentDataMode != 'none'
+                                            ? (_isArabicExam ? 'اسم الطالب: [ كشف إكسيل مفعّل ]' : 'Student Name: [ Excel Enabled ]')
+                                            : (_isArabicExam ? 'اسم الطالب: .................................................' : 'Student Name: .................................................'),
+                                        style: TextStyle(
+                                          fontFamily: _exam.header.adminFont,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                          color: _exam.header.studentDataMode != 'none'
+                                              ? Colors.green.shade900
+                                              : Colors.black87,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Row(
+                                    children: [
+                                      Text(
+                                        _exam.header.studentDataMode != 'none'
+                                            ? (_isArabicExam ? 'رقم الجلوس: [ آلي ]' : 'Seat No: [ Auto ]')
+                                            : (_isArabicExam ? 'رقم الجلوس: [ ........... ]' : 'Seat No: [ ........... ]'),
+                                        style: TextStyle(
+                                          fontFamily: _exam.header.detailsFont,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                          color: _exam.header.studentDataMode != 'none'
+                                              ? Colors.green.shade900
+                                              : Colors.black87,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      const Icon(Icons.settings, size: 13, color: Colors.grey),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                        _buildExamHeader(),
+                        const SizedBox(height: 8),
+                        _buildQuestionsTable(),
+                        const SizedBox(height: 10),
+                        _buildFooterPreview(),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 40),
-              ],
+                  const SizedBox(height: 40),
+                ],
+              ),
             ),
           ),
         ),
@@ -1033,7 +1108,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
   Widget _buildExamHeader() {
     final titleText = _showAnswerKeyMode
-        ? '${_exam.header.examTitle} (نموذج الإجابة)'
+        ? '${_exam.header.examTitle} (${_isArabicExam ? "نموذج الإجابة" : "Answer Key"})'
         : _exam.header.examTitle;
 
     return Container(
@@ -1143,10 +1218,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 child: InkWell(
                   onTap: _editExamDetailsDialog,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: _isArabicExam ? CrossAxisAlignment.start : CrossAxisAlignment.end,
                     children: [
                       Text(
-                        'الصف : ${_exam.header.grade}',
+                        _isArabicExam ? 'الصف : ${_exam.header.grade}' : 'Grade: ${_exam.header.grade}',
                         style: TextStyle(
                           fontFamily: _exam.header.detailsFont,
                           fontWeight: _exam.header.detailsBold ? FontWeight.bold : FontWeight.normal,
@@ -1154,7 +1229,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         ),
                       ),
                       Text(
-                        'الماده : ${_exam.header.subject}',
+                        _isArabicExam ? 'الماده : ${_exam.header.subject}' : 'Subject: ${_exam.header.subject}',
                         style: TextStyle(
                           fontFamily: _exam.header.detailsFont,
                           fontWeight: _exam.header.detailsBold ? FontWeight.bold : FontWeight.normal,
@@ -1162,7 +1237,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         ),
                       ),
                       Text(
-                        'التاريخ: ${_exam.header.examDate}',
+                        _isArabicExam ? 'التاريخ: ${_exam.header.examDate}' : 'Date: ${_exam.header.examDate}',
                         style: TextStyle(
                           fontFamily: _exam.header.detailsFont,
                           fontWeight: _exam.header.detailsBold ? FontWeight.bold : FontWeight.normal,
@@ -1170,7 +1245,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         ),
                       ),
                       Text(
-                        'الزمن: ${_exam.header.examTime}',
+                        _isArabicExam ? 'الزمن: ${_exam.header.examTime}' : 'Time: ${_exam.header.examTime}',
                         style: TextStyle(
                           fontFamily: _exam.header.detailsFont,
                           fontWeight: _exam.header.detailsBold ? FontWeight.bold : FontWeight.normal,
@@ -1178,7 +1253,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         ),
                       ),
                       Text(
-                        'الفتره: ${_exam.header.period}',
+                        _isArabicExam ? 'الفتره: ${_exam.header.period}' : 'Period: ${_exam.header.period}',
                         style: TextStyle(
                           fontFamily: _exam.header.detailsFont,
                           fontWeight: _exam.header.detailsBold ? FontWeight.bold : FontWeight.normal,
@@ -1216,6 +1291,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _buildQuestionsTable() {
+    final isAr = _isArabicExam;
+
     return Table(
       border: TableBorder.all(color: Colors.black, width: 1),
       columnWidths: {
@@ -1231,10 +1308,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               verticalAlignment: TableCellVerticalAlignment.middle,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 5),
-                child: const Text(
-                  'السؤال',
+                child: Text(
+                  isAr ? 'السؤال' : 'Q',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5),
                 ),
               ),
             ),
@@ -1245,7 +1322,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
                   child: Text(
-                    _exam.header.instructionText,
+                    _exam.header.instructionText.isNotEmpty
+                        ? _exam.header.instructionText
+                        : (isAr ? 'أجب عن جميع الأسئلة الآتية' : 'Answer all the following questions'),
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.red,
@@ -1260,10 +1339,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               verticalAlignment: TableCellVerticalAlignment.middle,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 5),
-                child: const Text(
-                  'الدرجة',
+                child: Text(
+                  isAr ? 'الدرجة' : 'Mark',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5),
                 ),
               ),
             ),
@@ -1285,8 +1364,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             titleWidget = RotatedBox(quarterTurns: 1, child: titleWidget);
           }
 
+          final markUnit = isAr ? 'د' : 'm';
           final markText = q.mark > 0
-              ? (q.mark % 1 == 0 ? '${q.mark.toInt()} د' : '${q.mark} د')
+              ? (q.mark % 1 == 0 ? '${q.mark.toInt()} $markUnit' : '${q.mark} $markUnit')
               : '-';
 
           Widget markWidget = Text(
@@ -1341,12 +1421,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
-                                    'الإجابة النموذجية: ${q.answerKey}',
+                                    isAr
+                                        ? 'الإجابة النموذجية: ${q.answerKey}'
+                                        : 'Model Answer: ${q.answerKey}',
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,
                                       color: Colors.blue.shade900,
-                                      fontFamily: 'Amiri',
+                                      fontFamily: isAr ? 'Amiri' : 'Arial',
                                     ),
                                   ),
                                 ),
@@ -1411,12 +1493,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.insert_page_break_outlined, size: 16, color: Color(0xFF1E3A8A)),
-                  SizedBox(width: 6),
+                children: [
+                  const Icon(Icons.insert_page_break_outlined, size: 16, color: Color(0xFF1E3A8A)),
+                  const SizedBox(width: 6),
                   Text(
-                    '--- فاصل صفحة جديدة (يبدأ ما بعده في صفحة جديدة) ---',
-                    style: TextStyle(
+                    _isArabicExam
+                        ? '--- فاصل صفحة جديدة (يبدأ ما بعده في صفحة جديدة) ---'
+                        : '--- Page Break (Content follows on next page) ---',
+                    style: const TextStyle(
                       fontSize: 10.5,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF1E3A8A),
@@ -1474,15 +1558,16 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               ),
             ),
           );
-        } else if (type == 'جذر') {
+        } else if (type == 'جذر' || type == 'sqrt') {
           final String degree = parts.length > 1 ? parts[0] : '';
           final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
+          final bool isArRadical = (type == 'جذر') && _isArabicExam;
 
           children.add(
             WidgetSpan(
               alignment: PlaceholderAlignment.middle,
               child: Directionality(
-                textDirection: TextDirection.rtl,
+                textDirection: isArRadical ? TextDirection.rtl : TextDirection.ltr,
                 child: IntrinsicWidth(
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1490,7 +1575,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     children: [
                       if (degree.isNotEmpty)
                         Padding(
-                          padding: const EdgeInsets.only(top: 0.0, left: 1.5),
+                          padding: EdgeInsets.only(
+                            top: 0.0,
+                            left: isArRadical ? 1.5 : 0.0,
+                            right: !isArRadical ? 1.5 : 0.0,
+                          ),
                           child: Text(
                             degree,
                             style: baseStyle.copyWith(
@@ -1501,9 +1590,16 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           ),
                         ),
                       CustomPaint(
-                        painter: _ArabicRadicalPainter(color: baseStyle.color ?? Colors.black87),
+                        painter: isArRadical
+                            ? _ArabicRadicalPainter(color: baseStyle.color ?? Colors.black87)
+                            : _EnglishRadicalPainter(color: baseStyle.color ?? Colors.black87),
                         child: Padding(
-                          padding: const EdgeInsets.only(top: 4.0, right: 10.0, left: 4.0, bottom: 2.0),
+                          padding: EdgeInsets.only(
+                            top: 4.0,
+                            right: isArRadical ? 10.0 : 4.0,
+                            left: isArRadical ? 4.0 : 10.0,
+                            bottom: 2.0,
+                          ),
                           child: Text(
                             radicand,
                             style: baseStyle.copyWith(
@@ -1520,9 +1616,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           );
         } else if (type == 'نها') {
-          final v = parts.isNotEmpty ? parts[0] : 'س';
-          final t = parts.length > 1 ? parts[1] : '٠';
+          final v = parts.isNotEmpty ? parts[0] : (_isArabicExam ? 'س' : 'x');
+          final t = parts.length > 1 ? parts[1] : (_isArabicExam ? '٠' : '0');
           final fn = parts.length > 2 ? parts[2] : '';
+          final label = _isArabicExam ? 'نهـا' : 'lim';
 
           children.add(
             WidgetSpan(
@@ -1538,7 +1635,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Text(
-                          'نهـا',
+                          label,
                           style: baseStyle.copyWith(
                             fontWeight: FontWeight.bold,
                             fontSize: (baseStyle.fontSize ?? 14) * 1.05,
@@ -1585,9 +1682,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           );
         } else if (type == 'تباديل' || type == 'توافيق') {
-          final n = parts.isNotEmpty ? parts[0] : 'ن';
-          final r = parts.length > 1 ? parts[1] : 'ر';
-          final sym = type == 'تباديل' ? 'ل' : 'ق';
+          final n = parts.isNotEmpty ? parts[0] : (_isArabicExam ? 'ن' : 'n');
+          final r = parts.length > 1 ? parts[1] : (_isArabicExam ? 'ر' : 'r');
+          final sym = type == 'تباديل'
+              ? (_isArabicExam ? 'ل' : 'P')
+              : (_isArabicExam ? 'ق' : 'C');
 
           children.add(
             WidgetSpan(
@@ -1615,7 +1714,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           final from = parts.isNotEmpty ? parts[0] : '';
           final to = parts.length > 1 ? parts[1] : '';
           final body = parts.length > 2 ? parts[2] : '';
-          final sym = type == 'مجموع' ? 'مجـ' : '∫';
+          final sym = type == 'مجموع' ? (_isArabicExam ? 'مجـ' : '∑') : '∫';
 
           children.add(
             WidgetSpan(
@@ -1644,7 +1743,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           );
         } else if (type == 'متجه') {
-          final symbol = parts.isNotEmpty ? parts[0] : 'ق';
+          final symbol = parts.isNotEmpty ? parts[0] : (_isArabicExam ? 'ق' : 'v');
           children.add(
             WidgetSpan(
               alignment: PlaceholderAlignment.middle,
@@ -1658,7 +1757,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           );
         } else if (type == 'بار') {
-          final symbol = parts.isNotEmpty ? parts[0] : 'س';
+          final symbol = parts.isNotEmpty ? parts[0] : (_isArabicExam ? 'س' : 'x');
           children.add(
             WidgetSpan(
               alignment: PlaceholderAlignment.middle,
@@ -1714,6 +1813,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             if (num.length > maxDigits) maxDigits = num.length;
           }
           final double lineWidth = (maxDigits * 8.0) + 20.0;
+          final bool isRtlVert = _isArabicExam;
 
           children.add(
             WidgetSpan(
@@ -1721,7 +1821,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 3.0),
                 child: Directionality(
-                  textDirection: TextDirection.rtl,
+                  textDirection: isRtlVert ? TextDirection.rtl : TextDirection.ltr,
                   child: IntrinsicWidth(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -1753,12 +1853,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               Expanded(
                                 child: Text(
                                   val,
-                                  textAlign: TextAlign.right,
+                                  textAlign: isRtlVert ? TextAlign.right : TextAlign.left,
                                   style: baseStyle.copyWith(
                                     fontWeight: FontWeight.bold,
                                     fontSize: (baseStyle.fontSize ?? 14) * 1.1,
                                     letterSpacing: 2.0,
-                                    fontFamily: 'Amiri',
+                                    fontFamily: isRtlVert ? 'Amiri' : 'Arial',
                                   ),
                                 ),
                               ),
@@ -1779,7 +1879,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           );
         } else if (type == 'قسمة' || type == 'div') {
-          final bool isRtl = type == 'قسمة';
+          final bool isRtl = (type == 'قسمة') && _isArabicExam;
           final String dividend = parts.isNotEmpty ? parts[0] : '';
           final String divisor = parts.length > 1 ? parts[1] : '';
           final String quotient = parts.length > 2 ? parts[2] : '';
@@ -1866,11 +1966,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   Widget _buildQuestionContent(QuestionModel q) {
     final fullText = q.spans.map((s) => s.text).join('');
     final bool isAutomatedMcq = _exam.examType == ExamType.automated &&
-        (fullText.contains('[') && (fullText.contains('أ-') || fullText.contains('١-') || fullText.contains('1-')));
+        (fullText.contains('[') && (fullText.contains('أ-') || fullText.contains('١-') || fullText.contains('1-') || fullText.contains('A-') || fullText.contains('a-')));
 
     if (isAutomatedMcq) {
       return _buildAutomatedEditorMcqGrid(q);
     }
+
+    // المحاذاة المحددة للسؤال (افتراضياً تبدأ حسب لغة الورقة إذا لم تحدد)
+    final TextAlign chosenAlign = q.alignment ?? (_isArabicExam ? TextAlign.right : TextAlign.left);
 
     if (!q.isTwoColumns) {
       return Text.rich(
@@ -1892,7 +1995,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             return _buildInlineSpanWithFractions(s.text, style);
           }).toList(),
         ),
-        textAlign: TextAlign.right,
+        textAlign: chosenAlign,
       );
     }
 
@@ -1918,25 +2021,26 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             return _buildInlineSpanWithFractions(s.text, style);
           }).toList(),
         ),
-        textAlign: TextAlign.right,
+        textAlign: chosenAlign,
       );
     }
 
     final intro = lines.first;
     final items = lines.sublist(1);
     final int half = (items.length / 2).ceil();
-    final colRight = items.sublist(0, half);
-    final colLeft = items.sublist(half);
+    final col1 = items.sublist(0, half);
+    final col2 = items.sublist(half);
 
+    final defaultFont = _isArabicExam ? 'Amiri' : 'Arial';
     final introStyle = TextStyle(
-      fontFamily: q.spans.isNotEmpty ? q.spans.first.fontFamily : 'Amiri',
+      fontFamily: q.spans.isNotEmpty ? q.spans.first.fontFamily : defaultFont,
       fontWeight: FontWeight.bold,
       fontSize: q.spans.isNotEmpty ? q.spans.first.fontSize : 14.0,
       height: 1.5,
     );
 
     final itemStyle = TextStyle(
-      fontFamily: q.spans.isNotEmpty ? q.spans.first.fontFamily : 'Amiri',
+      fontFamily: q.spans.isNotEmpty ? q.spans.first.fontFamily : defaultFont,
       fontSize: q.spans.isNotEmpty ? q.spans.first.fontSize : 13.0,
       height: 1.4,
     );
@@ -1946,7 +2050,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       children: [
         Text.rich(
           _buildInlineSpanWithFractions(intro, introStyle),
-          textAlign: TextAlign.right,
+          textAlign: chosenAlign,
         ),
         const SizedBox(height: 4),
         Row(
@@ -1955,11 +2059,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: colRight.map((item) => Padding(
+                children: col1.map((item) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
                   child: Text.rich(
                     _buildInlineSpanWithFractions(item, itemStyle),
-                    textAlign: TextAlign.right,
+                    textAlign: chosenAlign,
                   ),
                 )).toList(),
               ),
@@ -1968,11 +2072,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: colLeft.map((item) => Padding(
+                children: col2.map((item) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
                   child: Text.rich(
                     _buildInlineSpanWithFractions(item, itemStyle),
-                    textAlign: TextAlign.right,
+                    textAlign: chosenAlign,
                   ),
                 )).toList(),
               ),
@@ -1990,8 +2094,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     final String intro = lines.isNotEmpty ? lines.first : '';
     final List<String> itemLines = lines.length > 1 ? lines.sublist(1) : [];
 
-    final bool isLetters = _exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.arabicLetters;
-    final List<String> defaultSymbols = isLetters ? ['أ', 'ب', 'جـ', 'د'] : ['١', '٢', '٣', '٤'];
+    final bool isAr = _isArabicExam;
+    final List<String> defaultSymbols = isAr
+        ? (_exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.arabicLetters ? ['أ', 'ب', 'جـ', 'د'] : ['١', '٢', '٣', '٤'])
+        : ['A', 'B', 'C', 'D'];
+
+    final TextAlign align = q.alignment ?? (isAr ? TextAlign.right : TextAlign.left);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2002,7 +2110,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             child: Text(
               intro,
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
-              textAlign: TextAlign.right,
+              textAlign: align,
             ),
           ),
         ...itemLines.map((line) {
@@ -2024,7 +2132,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
             final rawParts = bracketContent.split(RegExp(r'[|،,]'));
             for (int i = 0; i < rawParts.length && i < 4; i++) {
-              parsedChoices[i] = rawParts[i].replaceAll(RegExp(r'^[أ-ي0-9١-٩]\s*[-–]\s*'), '').trim();
+              parsedChoices[i] = rawParts[i].replaceAll(RegExp(r'^[A-Za-zأ-ي0-9١-٩]\s*[-–]\s*'), '').trim();
             }
           }
 
@@ -2038,9 +2146,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  width: 32,
-                  decoration: const BoxDecoration(
-                    border: Border(left: BorderSide(color: Colors.black87, width: 1.0)),
+                  width: 34,
+                  decoration: BoxDecoration(
+                    border: Border(
+                      left: isAr ? const BorderSide(color: Colors.black87, width: 1.0) : BorderSide.none,
+                      right: !isAr ? const BorderSide(color: Colors.black87, width: 1.0) : BorderSide.none,
+                    ),
                   ),
                   child: Center(
                     child: Text(
@@ -2061,7 +2172,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         child: Text(
                           qBody.isNotEmpty ? qBody : '....................................................................',
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                          textAlign: TextAlign.right,
+                          textAlign: align,
                         ),
                       ),
                       SizedBox(
@@ -2075,7 +2186,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               child: Container(
                                 decoration: BoxDecoration(
                                   border: Border(
-                                    left: idx > 0
+                                    left: (isAr && idx > 0)
+                                        ? const BorderSide(color: Colors.black87, width: 0.8)
+                                        : BorderSide.none,
+                                    right: (!isAr && idx > 0)
                                         ? const BorderSide(color: Colors.black87, width: 0.8)
                                         : BorderSide.none,
                                   ),
@@ -2084,10 +2198,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                   children: [
                                     Container(
                                       width: 22,
-                                      decoration: const BoxDecoration(
+                                      decoration: BoxDecoration(
                                         color: Colors.white,
                                         border: Border(
-                                          left: BorderSide(color: Colors.black87, width: 0.8),
+                                          left: isAr ? const BorderSide(color: Colors.black87, width: 0.8) : BorderSide.none,
+                                          right: !isAr ? const BorderSide(color: Colors.black87, width: 0.8) : BorderSide.none,
                                         ),
                                       ),
                                       child: Center(
@@ -2343,7 +2458,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       style: TextStyle(
                         fontWeight: isHeaderRow ? FontWeight.bold : FontWeight.normal,
                         fontSize: isHeaderRow ? 12 : 11,
-                        fontFamily: 'Amiri',
+                        fontFamily: _isArabicExam ? 'Amiri' : 'Arial',
                       ),
                     ),
                   ),
@@ -2385,7 +2500,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ? Text(
                     label,
                     style: TextStyle(
-                      fontFamily: 'Amiri',
+                      fontFamily: _isArabicExam ? 'Amiri' : 'Arial',
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                       color: strokeColor,
@@ -2409,7 +2524,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       if (kind == 'vertical') {
         final List<dynamic> rows = data['rows'] ?? [];
         final String op = data['operator'] ?? '+';
-        final bool opOnRight = data['opOnRight'] ?? true;
+        final bool opOnRight = data['opOnRight'] ?? _isArabicExam;
 
         return Center(
           child: Container(
@@ -2438,11 +2553,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         ),
                       Text(
                         val,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 2.0,
-                          fontFamily: 'Amiri',
+                          fontFamily: _isArabicExam ? 'Amiri' : 'Arial',
                         ),
                         textAlign: TextAlign.left,
                       ),
@@ -2505,25 +2620,27 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _buildFooterPreview() {
+    final isAr = _isArabicExam;
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
         children: [
           Text(
             _showAnswerKeyMode
-                ? 'نموذج الإجابة الرسمي - لجنة الكنترول والتصحيح'
+                ? (isAr ? 'نموذج الإجابة الرسمي - لجنة الكنترول والتصحيح' : 'Official Answer Key - Exam Control Committee')
                 : (_exam.header.isMultiPage
-                    ? _exam.header.continuationText
-                    : _exam.header.singlePageFooterText),
+                    ? (_exam.header.continuationText.isNotEmpty ? _exam.header.continuationText : (isAr ? 'يتبع في الصفحة التالية...' : 'To be continued on next page...'))
+                    : (_exam.header.singlePageFooterText.isNotEmpty ? _exam.header.singlePageFooterText : (isAr ? 'انتهت الأسئلة مع تمنياتنا بالتوفيق' : 'End of Questions - Good Luck'))),
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 3),
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: isAr ? Alignment.centerLeft : Alignment.centerRight,
             child: Text(
               _showAnswerKeyMode
-                  ? 'المصحح / المراجع: ......................'
+                  ? (isAr ? 'المصحح / المراجع: ......................' : 'Examiner: ......................')
                   : _exam.header.teacherSignature,
               style: const TextStyle(fontSize: 11),
             ),
@@ -2590,63 +2707,123 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   void _showQuestionTemplatesDialog() {
-    final templates = [
-      {
-        'title': 'ضع علامة (✔) أو (✘)',
-        'subtitle': 'توجيه صح وخطأ مع ٤ فقرات وأقواس في البداية',
-        'qTitle': 'السؤال ${_exam.questions.length + 1}',
-        'content':
-            'ضع علامة (✔) أمام العبارة الصحيحة وعلامة (✘) أمام العبارة الخطأ فيما يأتي:\n'
-            '١ - (   ) .\n'
-            '٢ - (   ) .\n'
-            '٣ - (   ) .\n'
-            '٤ - (   ) .',
-        'mark': 8.0,
-        'answer': '١- (✔)   ٢- (✘)   ٣- (✔)   ٤- (✔)',
-        'twoCols': false,
-      },
-      {
-        'title': 'اختر الإجابة الصحيحة (عمودان)',
-        'subtitle': 'توجيه اختيارات في عمودين متجاورين لتوفير الورق',
-        'qTitle': 'السؤال ${_exam.questions.length + 1}',
-        'content':
-            'اختر الإجابة الصحيحة من بين الأقواس لما يأتي:\n'
-            '١ - ............ [ أ- .. ، ب- .. ]\n'
-            '٢ - ............ [ أ- .. ، ب- .. ]\n'
-            '٣ - ............ [ أ- .. ]\n'
-            '٤ - ............ [ أ- .. ، ب- .. ]',
-        'mark': 8.0,
-        'answer': '١- أ   ٢- ب   ٣- أ   ٤- ب',
-        'twoCols': true,
-      },
-      {
-        'title': 'علل لما يأتي / اذكر السبب',
-        'subtitle': 'فقرات تعليل مع أسطر إجابة',
-        'qTitle': 'السؤال ${_exam.questions.length + 1}',
-        'content':
-            'علل لما يأتي (اذكر السبب):\n'
-            '١ - ....\n'
-            'جـ/ ....\n'
-            '٢ - ....\n'
-            'جـ/ ....',
-        'mark': 6.0,
-        'answer': '١- بسبب ...................   ٢- نتيجة لـ ...................',
-        'twoCols': false,
-      },
-      {
-        'title': 'أكمل الفراغات الآتية',
-        'subtitle': 'جمل بكلمات ناقصة وأسطر منقطة',
-        'qTitle': 'السؤال ${_exam.questions.length + 1}',
-        'content':
-            'أكمل الفراغات الآتية بما يناسبها:\n'
-            '١ - ....\n'
-            '٢ - ....\n'
-            '٣ - ....',
-        'mark': 6.0,
-        'answer': '١- ...........   ٢- ...........   ٣- ...........',
-        'twoCols': false,
-      },
-    ];
+    final isAr = _isArabicExam;
+
+    final templates = isAr
+        ? [
+            {
+              'title': 'ضع علامة (✔) أو (✘)',
+              'subtitle': 'توجيه صح وخطأ مع ٤ فقرات وأقواس في البداية',
+              'qTitle': 'السؤال ${_exam.questions.length + 1}',
+              'content':
+                  'ضع علامة (✔) أمام العبارة الصحيحة وعلامة (✘) أمام العبارة الخطأ فيما يأتي:\n'
+                  '١ - (   ) .\n'
+                  '٢ - (   ) .\n'
+                  '٣ - (   ) .\n'
+                  '٤ - (   ) .',
+              'mark': 8.0,
+              'answer': '١- (✔)   ٢- (✘)   ٣- (✔)   ٤- (✔)',
+              'twoCols': false,
+            },
+            {
+              'title': 'اختر الإجابة الصحيحة (عمودان)',
+              'subtitle': 'توجيه اختيارات في عمودين متجاورين لتوفير الورق',
+              'qTitle': 'السؤال ${_exam.questions.length + 1}',
+              'content':
+                  'اختر الإجابة الصحيحة من بين الأقواس لما يأتي:\n'
+                  '١ - ............ [ أ- .. ، ب- .. ]\n'
+                  '٢ - ............ [ أ- .. ، ب- .. ]\n'
+                  '٣ - ............ [ أ- .. ]\n'
+                  '٤ - ............ [ أ- .. ، ب- .. ]',
+              'mark': 8.0,
+              'answer': '١- أ   ٢- ب   ٣- أ   ٤- ب',
+              'twoCols': true,
+            },
+            {
+              'title': 'علل لما يأتي / اذكر السبب',
+              'subtitle': 'فقرات تعليل مع أسطر إجابة',
+              'qTitle': 'السؤال ${_exam.questions.length + 1}',
+              'content':
+                  'علل لما يأتي (اذكر السبب):\n'
+                  '١ - ....\n'
+                  'جـ/ ....\n'
+                  '٢ - ....\n'
+                  'جـ/ ....',
+              'mark': 6.0,
+              'answer': '١- بسبب ...................   ٢- نتيجة لـ ...................',
+              'twoCols': false,
+            },
+            {
+              'title': 'أكمل الفراغات الآتية',
+              'subtitle': 'جمل بكلمات ناقصة وأسطر منقطة',
+              'qTitle': 'السؤال ${_exam.questions.length + 1}',
+              'content':
+                  'أكمل الفراغات الآتية بما يناسبها:\n'
+                  '١ - ....\n'
+                  '٢ - ....\n'
+                  '٣ - ....',
+              'mark': 6.0,
+              'answer': '١- ...........   ٢- ...........   ٣- ...........',
+              'twoCols': false,
+            },
+          ]
+        : [
+            {
+              'title': 'Mark True (✔) or False (✘)',
+              'subtitle': 'True/False items with leading brackets',
+              'qTitle': 'Question ${_exam.questions.length + 1}',
+              'content':
+                  'Write (✔) for true statements and (✘) for false statements:\n'
+                  '1 - (   ) .\n'
+                  '2 - (   ) .\n'
+                  '3 - (   ) .\n'
+                  '4 - (   ) .',
+              'mark': 8.0,
+              'answer': '1- (✔)   2- (✘)   3- (✔)   4- (✔)',
+              'twoCols': false,
+            },
+            {
+              'title': 'Choose the Correct Answer (Two Columns)',
+              'subtitle': 'Multiple choices formatted into 2 columns',
+              'qTitle': 'Question ${_exam.questions.length + 1}',
+              'content':
+                  'Choose the correct answer between brackets:\n'
+                  '1 - ............ [ A- .. , B- .. ]\n'
+                  '2 - ............ [ A- .. , B- .. ]\n'
+                  '3 - ............ [ A- .. , B- .. ]\n'
+                  '4 - ............ [ A- .. , B- .. ]',
+              'mark': 8.0,
+              'answer': '1- A   2- B   3- A   4- B',
+              'twoCols': true,
+            },
+            {
+              'title': 'Give reasons for the following',
+              'subtitle': 'Reasoning questions with response lines',
+              'qTitle': 'Question ${_exam.questions.length + 1}',
+              'content':
+                  'Give clear reasons for each of the following:\n'
+                  '1 - ....\n'
+                  'Ans/ ....\n'
+                  '2 - ....\n'
+                  'Ans/ ....',
+              'mark': 6.0,
+              'answer': '1- Because ...................   2- Due to ...................',
+              'twoCols': false,
+            },
+            {
+              'title': 'Complete the sentences',
+              'subtitle': 'Fill-in-the-blank sentences',
+              'qTitle': 'Question ${_exam.questions.length + 1}',
+              'content':
+                  'Complete each sentence with the suitable word:\n'
+                  '1 - ....\n'
+                  '2 - ....\n'
+                  '3 - ....',
+              'mark': 6.0,
+              'answer': '1- ...........   2- ...........   3- ...........',
+              'twoCols': false,
+            },
+          ];
 
     showModalBottomSheet(
       context: context,
@@ -2660,11 +2837,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
-              children: const [
-                Icon(Icons.auto_awesome, color: Color(0xFF1E3A8A)),
-                SizedBox(width: 8),
-                Text('قوالب الأسئلة الجاهزة',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              children: [
+                const Icon(Icons.auto_awesome, color: Color(0xFF1E3A8A)),
+                const SizedBox(width: 8),
+                Text(
+                  isAr ? 'قوالب الأسئلة الجاهزة' : 'Question Templates',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
               ],
             ),
             const SizedBox(height: 10),
@@ -2693,11 +2872,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           TextSpanModel(
                             text: t['content'] as String,
                             fontSize: 14.0,
-                            fontFamily: 'Amiri',
+                            fontFamily: isAr ? 'Amiri' : 'Arial',
                           )
                         ],
                         answerKey: t['answer'] as String,
                         isTwoColumns: t['twoCols'] as bool,
+                        alignment: isAr ? TextAlign.right : TextAlign.left,
                       );
                       setState(() {
                         _exam.questions.add(newQ);
@@ -2723,32 +2903,41 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
   void _openQuestionDialog({int? questionIndex}) {
     final bool isEdit = questionIndex != null;
+    final bool isAr = _isArabicExam;
+
     final q = isEdit
         ? _exam.questions[questionIndex]
         : QuestionModel(
             id: const Uuid().v4(),
-            title: 'السؤال ${_exam.questions.length + 1}',
+            title: isAr ? 'السؤال ${_exam.questions.length + 1}' : 'Question ${_exam.questions.length + 1}',
             spans: [],
             elements: [],
             answerKey: '',
             isTwoColumns: false,
+            alignment: isAr ? TextAlign.right : TextAlign.left,
           );
 
     final titleCtrl = TextEditingController(text: q.title);
-    final textCtrl =
-        TextEditingController(text: q.spans.map((e) => e.text).join(''));
-    final markCtrl =
-        TextEditingController(text: q.mark > 0 ? (q.mark % 1 == 0 ? q.mark.toInt().toString() : q.mark.toString()) : '5');
+    final textCtrl = TextEditingController(text: q.spans.map((e) => e.text).join(''));
+    final markCtrl = TextEditingController(text: q.mark > 0 ? (q.mark % 1 == 0 ? q.mark.toInt().toString() : q.mark.toString()) : '5');
     final answerCtrl = TextEditingController(text: q.answerKey);
+
     QuestionTitleOrientation orientation = q.titleOrientation;
     GradeTextOrientation gradeOrient = q.gradeOrientation;
     bool isTwoCols = q.isTwoColumns;
     List<InsertableElement> currentElements = List.from(q.elements);
 
+    // حالة محاذاة النص المستقلة لهذا السؤال: [ يمين ، وسط ، يسار ]
+    TextAlign selectedAlignment = q.alignment ?? (isAr ? TextAlign.right : TextAlign.left);
+
+    // حالة لغة الكتابة داخل حقل التحرير الحالي (مستقلة عن اتجاه ورقة الاختبار)
+    bool isInputArabic = isAr;
+
     bool showCustomKeyboard = true;
     bool useSystemKeyboard = false;
     TextEditingController activeFieldController = textCtrl;
 
+    final defaultFont = isAr ? 'Amiri' : 'Arial';
     List<TextSpanModel> workingSpans = q.spans.isNotEmpty
         ? q.spans.map((s) => TextSpanModel(
               text: s.text,
@@ -2762,12 +2951,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             TextSpanModel(
               text: textCtrl.text,
               fontSize: 14.0,
-              fontFamily: 'Amiri',
+              fontFamily: defaultFont,
               colorHex: '#000000',
             )
           ];
 
-    String currentFont = q.spans.isNotEmpty ? q.spans.first.fontFamily : 'Amiri';
+    String currentFont = q.spans.isNotEmpty ? q.spans.first.fontFamily : defaultFont;
     double currentFontSize = 14.0;
     bool isBoldActive = false;
     bool isUnderlineActive = false;
@@ -2959,10 +3148,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showAdvancedEquationDialog(void Function(void Function()) setParentState) {
-      String eqType = 'نها';
-      final f1Ctrl = TextEditingController(text: 'س');
-      final f2Ctrl = TextEditingController(text: '٠');
-      final f3Ctrl = TextEditingController(text: '٢س');
+      String eqType = isAr ? 'نها' : 'نها';
+      final f1Ctrl = TextEditingController(text: isAr ? 'س' : 'x');
+      final f2Ctrl = TextEditingController(text: isAr ? '٠' : '0');
+      final f3Ctrl = TextEditingController(text: isAr ? '٢س' : '2x');
       final f4Ctrl = TextEditingController(text: '');
 
       showDialog(
@@ -2984,9 +3173,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     value: eqType,
                     decoration: const InputDecoration(labelText: 'نوع الصيغة أو العملية', border: OutlineInputBorder()),
                     items: const [
-                      DropdownMenuItem(value: 'نها', child: Text('نهاية دالة (نهـا)')),
-                      DropdownMenuItem(value: 'تباديل', child: Text('تباديل (ن ل ر)')),
-                      DropdownMenuItem(value: 'توافيق', child: Text('توافيق (ن ق ر)')),
+                      DropdownMenuItem(value: 'نها', child: Text('نهاية دالة (نهـا / lim)')),
+                      DropdownMenuItem(value: 'تباديل', child: Text('تباديل (ن ل ر / nPr)')),
+                      DropdownMenuItem(value: 'توافيق', child: Text('توافيق (ن ق ر / nCr)')),
                       DropdownMenuItem(value: 'مجموع', child: Text('رمز المجموع (مجـ / Σ)')),
                       DropdownMenuItem(value: 'تكامل', child: Text('تكامل محدود (∫)')),
                       DropdownMenuItem(value: 'متجه', child: Text('متجه فيزيائي (← علوي)')),
@@ -2998,23 +3187,23 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       if (v != null) {
                         setDState(() {
                           eqType = v;
-                          if (v == 'نها') { f1Ctrl.text = 'س'; f2Ctrl.text = '٠'; f3Ctrl.text = '٢س'; }
-                          if (v == 'تباديل') { f1Ctrl.text = '٧'; f2Ctrl.text = '٣'; }
-                          if (v == 'توافيق') { f1Ctrl.text = '١٠'; f2Ctrl.text = '٤'; }
-                          if (v == 'مجموع') { f1Ctrl.text = 'ر=١'; f2Ctrl.text = '٥'; f3Ctrl.text = 'ر²'; }
-                          if (v == 'تكامل') { f1Ctrl.text = '٠'; f2Ctrl.text = '٣'; f3Ctrl.text = 'س² د(س)'; }
-                          if (v == 'متجه') { f1Ctrl.text = 'ق'; }
-                          if (v == 'بار') { f1Ctrl.text = 'س'; }
-                          if (v == 'محدد' || v == 'مصفوفة') { f1Ctrl.text = '٢'; f2Ctrl.text = '٣'; f3Ctrl.text = '١'; f4Ctrl.text = '٤'; }
+                          if (v == 'نها') { f1Ctrl.text = isAr ? 'س' : 'x'; f2Ctrl.text = isAr ? '٠' : '0'; f3Ctrl.text = isAr ? '٢س' : '2x'; }
+                          if (v == 'تباديل') { f1Ctrl.text = isAr ? '٧' : '7'; f2Ctrl.text = isAr ? '٣' : '3'; }
+                          if (v == 'توافيق') { f1Ctrl.text = isAr ? '١٠' : '10'; f2Ctrl.text = isAr ? '٤' : '4'; }
+                          if (v == 'مجموع') { f1Ctrl.text = isAr ? 'ر=١' : 'r=1'; f2Ctrl.text = isAr ? '٥' : '5'; f3Ctrl.text = isAr ? 'ر²' : 'r²'; }
+                          if (v == 'تكامل') { f1Ctrl.text = isAr ? '٠' : '0'; f2Ctrl.text = isAr ? '٣' : '3'; f3Ctrl.text = isAr ? 'س² د(س)' : 'x² dx'; }
+                          if (v == 'متجه') { f1Ctrl.text = isAr ? 'ق' : 'v'; }
+                          if (v == 'بار') { f1Ctrl.text = isAr ? 'س' : 'x'; }
+                          if (v == 'محدد' || v == 'مصفوفة') { f1Ctrl.text = '2'; f2Ctrl.text = '3'; f3Ctrl.text = '1'; f4Ctrl.text = '4'; }
                         });
                       }
                     },
                   ),
                   const Divider(height: 20),
                   if (eqType == 'نها') ...[
-                    TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'المتغير (مثال: س)')),
+                    TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'المتغير')),
                     const SizedBox(height: 6),
-                    TextField(controller: f2Ctrl, decoration: const InputDecoration(labelText: 'يؤول إلى (مثال: ٠ أو ∞)')),
+                    TextField(controller: f2Ctrl, decoration: const InputDecoration(labelText: 'يؤول إلى')),
                     const SizedBox(height: 6),
                     TextField(controller: f3Ctrl, decoration: const InputDecoration(labelText: 'الدالة')),
                   ] else if (eqType == 'تباديل' || eqType == 'توافيق') ...[
@@ -3028,7 +3217,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     const SizedBox(height: 6),
                     TextField(controller: f3Ctrl, decoration: const InputDecoration(labelText: 'المقدار المراد حسابه')),
                   ] else if (eqType == 'متجه' || eqType == 'بار') ...[
-                    TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'اسم الرمز أو الكمية الفيزيائية')),
+                    TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'اسم الرمز أو الكمية')),
                   ] else if (eqType == 'محدد' || eqType == 'مصفوفة') ...[
                     Row(children: [
                       Expanded(child: TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'صف١ عمود١'))),
@@ -3073,8 +3262,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     void showVerticalMathDialog(void Function(void Function()) setParentState) {
       int rowCount = 2;
       String op = '×';
-      final r1Ctrl = TextEditingController(text: '٥٣٤');
-      final r2Ctrl = TextEditingController(text: '٢٦');
+      final r1Ctrl = TextEditingController(text: isAr ? '٥٣٤' : '534');
+      final r2Ctrl = TextEditingController(text: isAr ? '٢٦' : '26');
       final r3Ctrl = TextEditingController(text: '');
       final r4Ctrl = TextEditingController(text: '');
 
@@ -3141,10 +3330,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showLongDivisionDialog(void Function(void Function()) setParentState) {
-      final dividendCtrl = TextEditingController(text: '٨٤٦');
-      final divisorCtrl = TextEditingController(text: '٢');
+      final dividendCtrl = TextEditingController(text: isAr ? '٨٤٦' : '846');
+      final divisorCtrl = TextEditingController(text: isAr ? '٢' : '2');
       final quotientCtrl = TextEditingController(text: '');
-      bool isArabic = true;
+      bool divIsArabic = isAr;
 
       showDialog(
         context: context,
@@ -3160,14 +3349,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     const Text('الاتجاه: '),
                     ChoiceChip(
                       label: const Text('عربي (يمين)'),
-                      selected: isArabic,
-                      onSelected: (v) => setDState(() => isArabic = true),
+                      selected: divIsArabic,
+                      onSelected: (v) => setDState(() => divIsArabic = true),
                     ),
                     const SizedBox(width: 6),
                     ChoiceChip(
                       label: const Text('إنجليزي (يسار)'),
-                      selected: !isArabic,
-                      onSelected: (v) => setDState(() => isArabic = false),
+                      selected: !divIsArabic,
+                      onSelected: (v) => setDState(() => divIsArabic = false),
                     ),
                   ],
                 ),
@@ -3195,7 +3384,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   final dividend = dividendCtrl.text.trim();
                   final divisor = divisorCtrl.text.trim();
                   final quotient = quotientCtrl.text.trim();
-                  final type = isArabic ? 'قسمة' : 'div';
+                  final type = divIsArabic ? 'قسمة' : 'div';
                   final tag = quotient.isNotEmpty
                       ? '[$type:$dividend:$divisor:$quotient]'
                       : '[$type:$dividend:$divisor]';
@@ -3417,7 +3606,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     controller: labelCtrl,
                     decoration: const InputDecoration(
                       labelText: 'نص أو رمز داخل الشكل (اختياري)',
-                      hintText: 'مثال: 5 سم أو أ ب جـ',
+                      hintText: 'مثال: 5 cm أو ٥ سم',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -3540,13 +3729,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showArabicMathTemplates(void Function(void Function()) setParentState) {
-      final numCtrl = TextEditingController(text: '١');
-      final denCtrl = TextEditingController(text: '٣');
+      final numCtrl = TextEditingController(text: isAr ? '١' : '1');
+      final denCtrl = TextEditingController(text: isAr ? '٣' : '3');
 
       showDialog(
         context: context,
         builder: (dCtx) => AlertDialog(
-          title: const Text('إدراج كسر عربي في موضع المؤشر'),
+          title: const Text('إدراج كسر اعتيادي في موضع المؤشر'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -3575,28 +3764,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     void showSymbolsModal(void Function(void Function()) setParentState) {
       final categories = <String, Iterable<String>>{
         'زخارف وفواصل': const [
-          '﴾   ﴿',
-          '«   »',
-          '۞',
-          '۩',
-          '۝',
-          '✦ ✦ ✦',
-          '❖ ❖ ❖',
-          '~*~*~*~*~',
-          '— — ❖ — —',
-          '•┈┈┈┈•✿•┈┈┈┈•',
-          '━━━ ❀ ━━━',
-          '■ □ ■',
-          '● ○ ●',
-          '※ ※ ※',
+          '﴾   ﴿', '«   »', '۞', '۩', '۝', '✦ ✦ ✦', '❖ ❖ ❖', '~*~*~*~*~',
+          '— — ❖ — —', '•┈┈┈┈•✿•┈┈┈┈•', '━━━ ❀ ━━━', '■ □ ■', '● ○ ●', '※ ※ ※',
         ],
         'رياضيات عربية RTL': const ['[جذر:س]', '[جذر:٢٥]', '[جذر:٣:٢٧]', 'نهـا', 'مجـ', 'تـ', 'ط', 'هـ', '∆', 'س', 'ص', 'ع', 'د', 'ل', 'ك', 'ن', 'ق'],
-        'إحصاء وفيزياء': const ['س̄', 'ع', 'ر', 'ف', 'كجم', 'نيوتن', 'جول', 'م/ث', 'أوم', 'فولت', 'أمبير', 'سم³', 'م²'],
+        'Mathematics & Physics LTR': const ['[sqrt:x]', '[sqrt:25]', '[sqrt:3:27]', 'lim', '∑', '∫', 'dx', 'dy', 'f(x)', 'kg', 'N', 'J', 'm/s', 'Ω', 'V', 'A', 'cm³', 'm²'],
         'تقييم وأقواس': const ['✔', '✘', '✓', '✗', '(   )', '[   ]', '○', '●', '□', '■', '« »'],
-        'أسس علوية (س²)': const ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹', '⁺', '⁻', 'ⁿ', 'ˣ', 'ʸ'],
-        'صيغ كيميائية (H₂O)': const ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉', '₊', '₋', 'ₐ', 'ₑ', 'ₒ', 'ₓ'],
+        'أسس علوية': const ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹', '⁺', '⁻', 'ⁿ', 'ˣ', 'ʸ'],
+        'صيغ كيميائية': const ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉', '₊', '₋', 'ₐ', 'ₑ', 'ₒ', 'ₓ'],
         'عمليات ومقارنات': const ['×', '÷', '+', '-', '=', '≠', '≈', '<', '>', '≤', '≥', '±'],
-        'دوال وجذور': const ['[sqrt:x]', '[sqrt:25]', '[sqrt:3:27]', 'π', '∞', '%', '°', '½', '¼', '¾', '∑', '∫'],
         'أسهم وتوجيه': const ['←', '→', '↑', '↓', '↔', '⇐', '⇒', '⇔'],
       };
 
@@ -3738,7 +3914,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
             IconButton(
               icon: const Icon(Icons.copy_outlined, size: 17, color: Color(0xFF1E3A8A)),
-              tooltip: 'نسخ للحافظة (للصق في سؤال آخر أو ورقة أخرى)',
+              tooltip: 'نسخ للحافظة',
               onPressed: copyElementToClipboard,
             ),
             IconButton(
@@ -3806,7 +3982,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               initialValue: cellVal,
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                fontFamily: 'Amiri',
+                                fontFamily: isAr ? 'Amiri' : 'Arial',
                                 fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
                                 fontSize: isHeader ? 12.5 : 11.5,
                               ),
@@ -3915,7 +4091,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             flex: 2,
                             child: TextField(
                               controller: titleCtrl,
-                              decoration: const InputDecoration(labelText: 'اسم السؤال (س١)'),
+                              decoration: InputDecoration(
+                                labelText: isAr ? 'اسم السؤال (س١)' : 'Question Title (Q1)',
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -3924,7 +4102,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             child: TextField(
                               controller: markCtrl,
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(labelText: 'الدرجة'),
+                              decoration: InputDecoration(labelText: isAr ? 'الدرجة' : 'Mark'),
                             ),
                           ),
                         ],
@@ -3935,8 +4113,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         crossAxisAlignment: WrapCrossAlignment.center,
                         spacing: 4,
                         children: [
-                          const Text('عنوان السؤال: ',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          Text(isAr ? 'عنوان السؤال: ' : 'Title Orient: ',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                           ChoiceChip(
                             label: const Text('أفقي', style: TextStyle(fontSize: 11)),
                             selected: orientation == QuestionTitleOrientation.horizontal,
@@ -3956,8 +4134,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 orientation = QuestionTitleOrientation.verticalTopToBottom),
                           ),
                           const SizedBox(width: 8),
-                          const Text('عمود الدرجة: ',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          Text(isAr ? 'عمود الدرجة: ' : 'Mark Col: ',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                           ChoiceChip(
                             label: const Text('أفقي', style: TextStyle(fontSize: 11)),
                             selected: gradeOrient == GradeTextOrientation.horizontal,
@@ -3979,7 +4157,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           const SizedBox(width: 6),
                           FilterChip(
                             avatar: Icon(Icons.view_column, size: 14, color: isTwoCols ? Colors.white : Colors.black87),
-                            label: Text('عمودان (توفير مساحة)', style: TextStyle(fontSize: 11, color: isTwoCols ? Colors.white : Colors.black87)),
+                            label: Text(isAr ? 'عمودان' : '2 Columns', style: TextStyle(fontSize: 11, color: isTwoCols ? Colors.white : Colors.black87)),
                             selected: isTwoCols,
                             selectedColor: const Color(0xFF0F766E),
                             onSelected: (v) => setModalState(() => isTwoCols = v),
@@ -3988,6 +4166,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ),
                       const SizedBox(height: 8),
 
+                      // شريط الأدوات الكامل (مع أزرار المحاذاة المستقلة ولغة الإدخال)
                       Container(
                         height: 48,
                         decoration: BoxDecoration(
@@ -3999,6 +4178,42 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Row(
                             children: [
+                              // أدوات محاذاة النص المستقلة داخل السؤال [ يمين ، وسط ، يسار ]
+                              _buildBarBtn(
+                                icon: Icons.format_align_right,
+                                color: selectedAlignment == TextAlign.right ? const Color(0xFF3B82F6) : Colors.blueGrey.shade800,
+                                tooltip: 'محاذاة النص لليمين',
+                                onTap: () => setModalState(() => selectedAlignment = TextAlign.right),
+                              ),
+                              _buildBarBtn(
+                                icon: Icons.format_align_center,
+                                color: selectedAlignment == TextAlign.center ? const Color(0xFF3B82F6) : Colors.blueGrey.shade800,
+                                tooltip: 'محاذاة النص للوسط',
+                                onTap: () => setModalState(() => selectedAlignment = TextAlign.center),
+                              ),
+                              _buildBarBtn(
+                                icon: Icons.format_align_left,
+                                color: selectedAlignment == TextAlign.left ? const Color(0xFF3B82F6) : Colors.blueGrey.shade800,
+                                tooltip: 'محاذاة النص لليسار',
+                                onTap: () => setModalState(() => selectedAlignment = TextAlign.left),
+                              ),
+
+                              // زر تغيير لغة الكتابة داخل السؤال (عربي / إنجليزي)
+                              _buildBarBtn(
+                                text: isInputArabic ? 'كتابة: ع' : 'Input: En',
+                                color: isInputArabic ? const Color(0xFF059669) : const Color(0xFFD97706),
+                                tooltip: 'تغيير لغة اتجاه مؤشر الكتابة داخل هذا السؤال',
+                                onTap: () {
+                                  setModalState(() {
+                                    isInputArabic = !isInputArabic;
+                                    selectedAlignment = isInputArabic ? TextAlign.right : TextAlign.left;
+                                    currentFont = isInputArabic ? 'Amiri' : 'Arial';
+                                  });
+                                },
+                              ),
+
+                              const VerticalDivider(color: Colors.white24, indent: 8, endIndent: 8),
+
                               if (_copiedElement != null)
                                 _buildBarBtn(
                                   icon: Icons.paste,
@@ -4065,14 +4280,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               _buildBarBtn(
                                 text: 'بسط/مقام',
                                 color: const Color(0xFF7C3AED),
-                                tooltip: 'كسر عربي اعتيادي في موضع المؤشر',
+                                tooltip: 'كسر اعتيادي في موضع المؤشر',
                                 onTap: () => showArabicMathTemplates(setModalState),
                               ),
                               _buildBarBtn(
                                 text: '⎷ـ',
                                 color: const Color(0xFF0284C7),
-                                tooltip: 'إدراج جذر عربي ممتد',
-                                onTap: () => setModalState(() => insertAtCursor('[جذر:٢٥]')),
+                                tooltip: 'إدراج جذر',
+                                onTap: () => setModalState(() => insertAtCursor(isInputArabic ? '[جذر:٢٥]' : '[sqrt:25]')),
                               ),
                               _buildBarBtn(
                                 icon: Icons.image_outlined,
@@ -4216,12 +4431,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 tooltip: 'صيغة كيميائية',
                                 onTap: () => setModalState(() => insertAtCursor('₂')),
                               ),
-                              _buildBarBtn(
-                                text: 'ـ',
-                                color: Colors.blueGrey.shade800,
-                                tooltip: 'كشيدة تمديد',
-                                onTap: () => _insertTatweel(activeFieldController),
-                              ),
+                              if (isInputArabic)
+                                _buildBarBtn(
+                                  text: 'ـ',
+                                  color: Colors.blueGrey.shade800,
+                                  tooltip: 'كشيدة تمديد',
+                                  onTap: () => _insertTatweel(activeFieldController),
+                                ),
                               PopupMenuButton<String>(
                                 tooltip: 'نوع الخط للمحدد أو للبدء بالكتابة',
                                 child: Container(
@@ -4280,7 +4496,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 },
                                 itemBuilder: (ctx) => [12.0, 14.0, 16.0, 18.0, 20.0, 22.0]
                                     .map((s) => PopupMenuItem(
-                                        value: s, child: Text('${s.toInt()} نقطة')))
+                                        value: s, child: Text('${s.toInt()} pt')))
                                     .toList(),
                               ),
                               _buildBarBtn(
@@ -4308,28 +4524,35 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ),
                       const SizedBox(height: 8),
 
-                      TextField(
-                        controller: textCtrl,
-                        readOnly: false,
-                        showCursor: true,
-                        enableInteractiveSelection: true,
-                        keyboardType: useSystemKeyboard ? TextInputType.multiline : TextInputType.none,
-                        maxLines: 4,
-                        onTap: () {
-                          setModalState(() {
-                            activeFieldController = textCtrl;
-                            if (!useSystemKeyboard) {
-                              showCustomKeyboard = true;
-                            }
-                          });
-                        },
-                        decoration: InputDecoration(
-                          labelText: 'محتوى نص السؤال (حدد النص لتنسيقه أو اختر اللون واكتب مباشرة)',
-                          border: const OutlineInputBorder(),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: activeFieldController == textCtrl ? const Color(0xFF1E3A8A) : Colors.grey,
-                              width: 2,
+                      // حقل إدخال السؤال مع اتجاه ومحاذاة مستقلة
+                      Directionality(
+                        textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
+                        child: TextField(
+                          controller: textCtrl,
+                          textAlign: selectedAlignment,
+                          readOnly: false,
+                          showCursor: true,
+                          enableInteractiveSelection: true,
+                          keyboardType: useSystemKeyboard ? TextInputType.multiline : TextInputType.none,
+                          maxLines: 4,
+                          onTap: () {
+                            setModalState(() {
+                              activeFieldController = textCtrl;
+                              if (!useSystemKeyboard) {
+                                showCustomKeyboard = true;
+                              }
+                            });
+                          },
+                          decoration: InputDecoration(
+                            labelText: isInputArabic
+                                ? 'محتوى نص السؤال (مكان الإدخال محدد: ${selectedAlignment == TextAlign.right ? "يمين" : (selectedAlignment == TextAlign.center ? "وسط" : "يسار")})'
+                                : 'Question Text (Alignment: ${selectedAlignment == TextAlign.left ? "Left" : (selectedAlignment == TextAlign.center ? "Center" : "Right")})',
+                            border: const OutlineInputBorder(),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: activeFieldController == textCtrl ? const Color(0xFF1E3A8A) : Colors.grey,
+                                width: 2,
+                              ),
                             ),
                           ),
                         ),
@@ -4348,32 +4571,36 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         const SizedBox(height: 8),
                       ],
 
-                      TextField(
-                        controller: answerCtrl,
-                        readOnly: false,
-                        showCursor: true,
-                        enableInteractiveSelection: true,
-                        keyboardType: useSystemKeyboard ? TextInputType.multiline : TextInputType.none,
-                        maxLines: 2,
-                        onTap: () {
-                          setModalState(() {
-                            activeFieldController = answerCtrl;
-                            if (!useSystemKeyboard) {
-                              showCustomKeyboard = true;
-                            }
-                          });
-                        },
-                        decoration: InputDecoration(
-                          labelText: 'الإجابة النموذجية / مفتاح التصحيح (اختياري)',
-                          hintText: 'اضغط هنا للكتابة...',
-                          prefixIcon: const Icon(Icons.verified, color: Color(0xFF0F766E)),
-                          filled: true,
-                          fillColor: Colors.teal.shade50.withOpacity(0.5),
-                          border: const OutlineInputBorder(),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: activeFieldController == answerCtrl ? const Color(0xFF0F766E) : Colors.grey,
-                              width: 2,
+                      Directionality(
+                        textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
+                        child: TextField(
+                          controller: answerCtrl,
+                          textAlign: selectedAlignment,
+                          readOnly: false,
+                          showCursor: true,
+                          enableInteractiveSelection: true,
+                          keyboardType: useSystemKeyboard ? TextInputType.multiline : TextInputType.none,
+                          maxLines: 2,
+                          onTap: () {
+                            setModalState(() {
+                              activeFieldController = answerCtrl;
+                              if (!useSystemKeyboard) {
+                                showCustomKeyboard = true;
+                              }
+                            });
+                          },
+                          decoration: InputDecoration(
+                            labelText: isInputArabic ? 'الإجابة النموذجية / مفتاح التصحيح (اختياري)' : 'Model Answer Key (Optional)',
+                            hintText: isInputArabic ? 'اضغط هنا للكتابة...' : 'Type answer key here...',
+                            prefixIcon: const Icon(Icons.verified, color: Color(0xFF0F766E)),
+                            filled: true,
+                            fillColor: Colors.teal.shade50.withOpacity(0.5),
+                            border: const OutlineInputBorder(),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: activeFieldController == answerCtrl ? const Color(0xFF0F766E) : Colors.grey,
+                                width: 2,
+                              ),
                             ),
                           ),
                         ),
@@ -4396,6 +4623,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 spans: [TextSpanModel(text: textCtrl.text)],
                                 elements: currentElements,
                                 answerKey: answerCtrl.text.trim(),
+                                alignment: selectedAlignment,
                               );
                               await QuestionBankService.saveQuestion(
                                 question: qToSave,
@@ -4489,6 +4717,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                   elements: currentElements,
                                   answerKey: answerCtrl.text.trim(),
                                   isTwoColumns: isTwoCols,
+                                  alignment: selectedAlignment,
                                 );
 
                                 setState(() {
@@ -4500,9 +4729,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 });
                                 Navigator.pop(ctx);
                               },
-                              child: const Text(
-                                'تأكيد وحفظ السؤال',
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                              child: Text(
+                                isAr ? 'تأكيد وحفظ السؤال' : 'Save Question',
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                               ),
                             ),
                           ),
@@ -4853,7 +5082,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDlgState) => AlertDialog(
-          title: const Text('تعديل الحقول الإدارية (اليمين)'),
+          title: const Text('تعديل الحقول الإدارية'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -4933,7 +5162,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDlgState) => AlertDialog(
-          title: const Text('تعديل بيانات الامتحان (اليسار)'),
+          title: const Text('تعديل بيانات الامتحان'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -5078,7 +5307,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDlgState) => AlertDialog(
-          title: const Text('تنسيق وتحرير البسملة'),
+          title: const Text('تنسيق وتحرير البسملة / الترويسة'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -5090,7 +5319,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   fontWeight: bold ? FontWeight.bold : FontWeight.normal,
                 ),
                 decoration: const InputDecoration(
-                  labelText: 'نص البسملة / العبارة الافتتاحية',
+                  labelText: 'نص البسملة أو العبارة الافتتاحية',
                   border: OutlineInputBorder(),
                 ),
               ),
