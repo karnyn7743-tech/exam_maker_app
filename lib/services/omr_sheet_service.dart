@@ -88,7 +88,7 @@ class OmrSheetService {
             return pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
-                // أ. ترويسة ورقة الإجابة المصغرة
+                // أ. ترويسة ورقة الإجابة المصغرة (ثابتة الاتجاه RTL دائماً لسلامة اسم ورقم جلوس الطالب)
                 _buildOmrHeader(exam, student, isAr, ttf),
                 pw.SizedBox(height: 5),
 
@@ -96,7 +96,7 @@ class OmrSheetService {
                 _buildOmrInstructions(isAr, ttf),
                 pw.SizedBox(height: 5),
 
-                // ج. شبكة دوائر التظليل
+                // ج. شبكة دوائر التظليل (تتبع اتجاه لغة الاختبار المحددة)
                 pw.Expanded(
                   child: pw.Row(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -134,7 +134,7 @@ class OmrSheetService {
 
                 pw.SizedBox(height: 4),
 
-                // د. التذييل
+                // د. التذييل (ثابت الاتجاه RTL دائماً لضمان بقاء الـ QR والباركود في الإحداثيات الهندسية المعتمدة)
                 _buildOmrFooter(exam, student, showQr, currentSubjectCode, isAr, ttf),
               ],
             );
@@ -187,7 +187,7 @@ class OmrSheetService {
     }
   }
 
-  // ترويسة ورقة التظليل
+  // ترويسة ورقة التظليل (مغلفة بـ Directionality RTL دائماً لثبات بيانات الطالب)
   static pw.Widget _buildOmrHeader(
       ExamModel exam, StudentData student, bool isAr, pw.Font ttf) {
     final bool hasStudent = student.name.trim().isNotEmpty;
@@ -204,57 +204,57 @@ class OmrSheetService {
         ? 'المادة: ${exam.header.subject} | الصف: ${exam.header.grade}'
         : 'Subject: ${exam.header.subject} | Grade: ${exam.header.grade}';
 
-    final nameLabel = isAr ? 'اسم الطالب: ' : 'Student Name: ';
-    final seatLabel = isAr ? 'رقم الجلوس: ' : 'Seat No: ';
-
-    return pw.Container(
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.black, width: 1.2),
-        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-      ),
-      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: pw.Column(
-        children: [
-          pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-            children: [
-              pw.Text(
-                schoolLabel,
-                style: pw.TextStyle(
-                    font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
-              ),
-              pw.Text(
-                sheetTitle,
-                style: pw.TextStyle(
-                    font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold),
-              ),
-              pw.Text(
-                infoLabel,
-                style: pw.TextStyle(
-                    font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
-              ),
-            ],
-          ),
-          if (hasStudent) ...[
-            pw.Divider(thickness: 0.8, color: PdfColors.black, height: 5),
+    return pw.Directionality(
+      textDirection: pw.TextDirection.rtl,
+      child: pw.Container(
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: PdfColors.black, width: 1.2),
+          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+        ),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: pw.Column(
+          children: [
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
                 pw.Text(
-                  '$nameLabel${student.name}',
+                  schoolLabel,
                   style: pw.TextStyle(
-                      font: ttf, fontSize: 10, fontWeight: pw.FontWeight.bold),
+                      font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
                 ),
-                if (student.seatNo.isNotEmpty)
+                pw.Text(
+                  sheetTitle,
+                  style: pw.TextStyle(
+                      font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                ),
+                pw.Text(
+                  infoLabel,
+                  style: pw.TextStyle(
+                      font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
+                ),
+              ],
+            ),
+            if (hasStudent) ...[
+              pw.Divider(thickness: 0.8, color: PdfColors.black, height: 5),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
                   pw.Text(
-                    '$seatLabel[ ${student.seatNo} ]',
+                    'اسم الطالب: ${student.name}',
                     style: pw.TextStyle(
                         font: ttf, fontSize: 10, fontWeight: pw.FontWeight.bold),
                   ),
-              ],
-            ),
+                  if (student.seatNo.isNotEmpty)
+                    pw.Text(
+                      'رقم الجلوس: [ ${student.seatNo} ]',
+                      style: pw.TextStyle(
+                          font: ttf, fontSize: 10, fontWeight: pw.FontWeight.bold),
+                    ),
+                ],
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -505,7 +505,7 @@ class OmrSheetService {
     );
   }
 
-  // تذييل ورقة التظليل
+  // تذييل ورقة التظليل (مغلف بـ Directionality RTL دائماً للحفاظ على إحداثيات QR وكود المادة للماسح)
   static pw.Widget _buildOmrFooter(
     ExamModel exam,
     StudentData student,
@@ -518,59 +518,62 @@ class OmrSheetService {
         ? 'لجنة الكنترول والتصحيح الآلي | ملاحظ القاعة: ......................'
         : 'Automated Scoring Committee | Hall Proctor: ......................';
 
-    return pw.Container(
-      height: 62,
-      padding: const pw.EdgeInsets.symmetric(horizontal: 4),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: pw.CrossAxisAlignment.end,
-        children: [
-          pw.Column(
-            mainAxisAlignment: pw.MainAxisAlignment.end,
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                footerNotice,
-                style: pw.TextStyle(font: ttf, fontSize: 8.5),
-              ),
-            ],
-          ),
-          pw.Row(
-            mainAxisSize: pw.MainAxisSize.min,
-            crossAxisAlignment: pw.CrossAxisAlignment.center,
-            children: [
-              pw.Text(
-                '$subjectCode',
-                style: pw.TextStyle(
-                  font: ttf,
-                  fontSize: 22,
-                  fontWeight: pw.FontWeight.bold,
+    return pw.Directionality(
+      textDirection: pw.TextDirection.rtl,
+      child: pw.Container(
+        height: 62,
+        padding: const pw.EdgeInsets.symmetric(horizontal: 4),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
+          children: [
+            pw.Column(
+              mainAxisAlignment: pw.MainAxisAlignment.end,
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  footerNotice,
+                  style: pw.TextStyle(font: ttf, fontSize: 8.5),
                 ),
-              ),
-              pw.SizedBox(width: 8),
-              if (showQr && student.secretCode.isNotEmpty)
-                pw.Container(
-                  width: 40,
-                  height: 40,
-                  child: pw.BarcodeWidget(
-                    barcode: Barcode.qrCode(),
-                    data: student.secretCode,
-                    drawText: false,
+              ],
+            ),
+            pw.Row(
+              mainAxisSize: pw.MainAxisSize.min,
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                pw.Text(
+                  '$subjectCode',
+                  style: pw.TextStyle(
+                    font: ttf,
+                    fontSize: 22,
+                    fontWeight: pw.FontWeight.bold,
                   ),
-                )
-              else
-                pw.SizedBox(width: 40, height: 40),
-              pw.SizedBox(width: 10),
-              pw.Container(
-                width: 50,
-                height: 40,
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.black, width: 1.2),
                 ),
-              ),
-            ],
-          ),
-        ],
+                pw.SizedBox(width: 8),
+                if (showQr && student.secretCode.isNotEmpty)
+                  pw.Container(
+                    width: 40,
+                    height: 40,
+                    child: pw.BarcodeWidget(
+                      barcode: Barcode.qrCode(),
+                      data: student.secretCode,
+                      drawText: false,
+                    ),
+                  )
+                else
+                  pw.SizedBox(width: 40, height: 40),
+                pw.SizedBox(width: 10),
+                pw.Container(
+                  width: 50,
+                  height: 40,
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.black, width: 1.2),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
