@@ -12,7 +12,6 @@ enum RibbonTab {
 }
 
 class ExamRibbonToolbar extends StatefulWidget {
-  // الحالات النشطة حالياً لتحديث ألوان الأزرار
   final bool isBold;
   final bool isUnderline;
   final TextAlign currentAlignment;
@@ -21,7 +20,6 @@ class ExamRibbonToolbar extends StatefulWidget {
   final double currentFontSize;
   final bool isArabicInput;
 
-  // callbacks لربط الأحداث مع المحرر
   final VoidCallback onToggleBold;
   final VoidCallback onToggleUnderline;
   final Function(TextAlign) onAlignmentChanged;
@@ -30,7 +28,6 @@ class ExamRibbonToolbar extends StatefulWidget {
   final Function(double) onFontSizeChanged;
   final VoidCallback onToggleInputLanguage;
 
-  // أدوات الحافظة والتحرير السريع
   final VoidCallback onCopy;
   final VoidCallback onPaste;
   final VoidCallback onCut;
@@ -38,13 +35,11 @@ class ExamRibbonToolbar extends StatefulWidget {
   final VoidCallback onDeleteSelected;
   final VoidCallback onOpenQuestionBank;
 
-  // أدوات الإدراج
   final VoidCallback onInsertImage;
   final VoidCallback onInsertDottedLine;
   final VoidCallback onInsertPageBreak;
   final VoidCallback onInsertTextBox;
 
-  // أدوات الرياضيات والمعادلات
   final VoidCallback onInsertFraction;
   final VoidCallback onInsertRadical;
   final VoidCallback onInsertEquation;
@@ -52,12 +47,8 @@ class ExamRibbonToolbar extends StatefulWidget {
   final VoidCallback onInsertLongDivision;
   final VoidCallback onOpenSymbolsModal;
 
-  // أدوات الجداول والأشكال
   final VoidCallback onOpenTableDesigner;
   final Function(String kind) onInsertShape;
-
-  // إجراءات السطر السريع السفلي
-  final Function(String action) onQuickAction;
 
   const ExamRibbonToolbar({
     super.key,
@@ -93,7 +84,6 @@ class ExamRibbonToolbar extends StatefulWidget {
     required this.onOpenSymbolsModal,
     required this.onOpenTableDesigner,
     required this.onInsertShape,
-    required this.onQuickAction,
   });
 
   @override
@@ -160,7 +150,7 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
           // 2. محتوى أدوات التبويب النشط
           if (_isExpanded)
             Container(
-              height: 110,
+              height: 108,
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
               color: Colors.white,
               child: ListView(
@@ -170,25 +160,6 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
                 ],
               ),
             ),
-
-          // 3. شريط الإجراءات السريعة بالأسفل (ترقيم، نقاط، نهاية الفقرة...)
-          Container(
-            height: 30,
-            decoration: const BoxDecoration(
-              color: Color(0xFFF1F5F9),
-              border: Border(top: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildQuickActionBtn('ترقيم', () => widget.onQuickAction('numbering')),
-                _buildQuickActionBtn('نقاط', () => widget.onQuickAction('bullets')),
-                _buildQuickActionBtn('نهاية الفقرة', () => widget.onQuickAction('end_paragraph')),
-                _buildQuickActionBtn('نهاية السؤال', () => widget.onQuickAction('end_question')),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -245,7 +216,6 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
     }
   }
 
-  // بطاقة المجموعة مع تسمية في الأسفل
   Widget _buildRibbonGroup({required String title, required Widget child}) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
@@ -269,7 +239,6 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
     );
   }
 
-  // أيقونة أداة عادية
   Widget _buildToolItem({
     required IconData icon,
     required String label,
@@ -306,7 +275,6 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
     );
   }
 
-  // ================= تبويب: الرئيسية =================
   Widget _buildHomeTab() {
     return Row(
       children: [
@@ -346,7 +314,6 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
     );
   }
 
-  // ================= تبويب: تنسيق =================
   Widget _buildFormatTab() {
     return Row(
       children: [
@@ -371,7 +338,6 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
                 label: 'لون النص',
                 color: Color(int.parse(widget.currentColor.replaceFirst('#', '0xFF'))),
                 onTap: () {
-                  // حلقة تبديل الألوان الأساسية
                   const colors = ['#000000', '#1D4ED8', '#B91C1C', '#047857'];
                   final nextIdx = (colors.indexOf(widget.currentColor) + 1) % colors.length;
                   widget.onColorChanged(colors[nextIdx]);
@@ -416,7 +382,6 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
     );
   }
 
-  // ================= تبويب: إدراج =================
   Widget _buildInsertTab() {
     return Row(
       children: [
@@ -436,7 +401,6 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
     );
   }
 
-  // ================= تبويب: رياضيات =================
   Widget _buildMathTab() {
     return Row(
       children: [
@@ -457,7 +421,6 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
     );
   }
 
-  // ================= تبويب: جدول =================
   Widget _buildTableTab() {
     return Row(
       children: [
@@ -474,7 +437,6 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
     );
   }
 
-  // ================= تبويب: تخطيط =================
   Widget _buildLayoutTab() {
     return Row(
       children: [
@@ -491,7 +453,6 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
     );
   }
 
-  // ================= تبويب: رسم / أشكال =================
   Widget _buildShapesTab() {
     return Row(
       children: [
@@ -512,7 +473,6 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
     );
   }
 
-  // ================= تبويب: عرض =================
   Widget _buildViewTab() {
     return Row(
       children: [
@@ -527,20 +487,6 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildQuickActionBtn(String title, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-        child: Text(
-          title,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
-        ),
-      ),
     );
   }
 }
