@@ -1,4 +1,3 @@
-
 name: Extract Flutter ZIP Project
 
 on:
@@ -39,8 +38,12 @@ jobs:
             fi
           fi
 
-          cp -a "$SOURCE_DIR"/. .
+          # Copy everything except GitHub workflows
+          rsync -a \
+            --exclude='.github/workflows/' \
+            "$SOURCE_DIR"/ .
 
+          # Remove uploaded ZIP
           rm -f "$ZIP_FILE"
 
       - name: Commit Extracted Project
@@ -51,6 +54,6 @@ jobs:
           git add -A
 
           if ! git diff --cached --quiet; then
-            git commit -m "Extract complete Flutter project"
+            git commit -m "Extract Flutter project excluding workflows"
             git push
           fi
