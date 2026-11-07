@@ -1915,22 +1915,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 3.0),
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: Text(n, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.75, fontWeight: FontWeight.bold)),
-                    ),
-                    Text(sym, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 1.25, fontWeight: FontWeight.bold)),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Text(r, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.75, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
+                  mainAxisSize:扩大_buildMinRowChildren(n, sym, r, baseStyle),
                 ),
               ),
-            ),
-          );
+            );
         } else if (type == 'مجموع' || type == 'تكامل') {
           final from = parts.isNotEmpty ? parts[0] : '';
           final to = parts.length > 1 ? parts[1] : '';
@@ -2182,6 +2170,20 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     return TextSpan(children: children);
+  }
+
+  List<Widget> _buildMinRowChildren(String n, String sym, String r, TextStyle baseStyle) {
+    return [
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8.0),
+        child: Text(n, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.75, fontWeight: FontWeight.bold)),
+      ),
+      Text(sym, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 1.25, fontWeight: FontWeight.bold)),
+      Padding(
+        padding: const EdgeInsets.only(top: 8.0),
+        child: Text(r, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.75, fontWeight: FontWeight.bold)),
+      ),
+    ];
   }
 
   Widget _buildQuestionContent(QuestionModel q) {
@@ -4396,7 +4398,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ),
                       const SizedBox(height: 8),
 
-                      // شريط الأدوات الكامل (مع أزرار المحاذاة المستقلة ولغة الإدخال)
+                      // شريط الأدوات الكامل (مع أزرار المحاذاة ولغة الإدخال المستقلة)
                       Container(
                         height: 48,
                         decoration: BoxDecoration(
