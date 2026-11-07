@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 
 /// نمط الاختبار العام في التطبيق
 enum ExamType {
@@ -8,8 +9,9 @@ enum ExamType {
 
 /// نمط رموز خيارات أسئلة الاختيار من متعدد
 enum ChoiceSymbolType {
-  arabicLetters, // أ ، ب ، جـ ، د
-  numbers,       // ١ ، ٢ ، ٣ ، ٤
+  arabicLetters,  // أ ، ب ، جـ ، د
+  numbers,        // ١ ، ٢ ، ٣ ، ٤
+  englishLetters, // A , B , C , D
 }
 
 enum QuestionTitleOrientation {
@@ -137,6 +139,7 @@ class QuestionModel {
   List<InsertableElement> elements;
   String answerKey;
   bool isTwoColumns;
+  TextAlign? alignment; // المحاذاة المستقلة للسؤال [يمين ، وسط ، يسار]
 
   QuestionModel({
     required this.id,
@@ -148,6 +151,7 @@ class QuestionModel {
     List<InsertableElement>? elements,
     this.answerKey = '',
     this.isTwoColumns = false,
+    this.alignment,
   }) : elements = elements ?? [];
 
   Map<String, dynamic> toMap() => {
@@ -160,6 +164,7 @@ class QuestionModel {
         'elements': elements.map((e) => e.toMap()).toList(),
         'answerKey': answerKey,
         'isTwoColumns': isTwoColumns,
+        'alignment': alignment?.name,
       };
 
   factory QuestionModel.fromMap(Map<String, dynamic> map) {
@@ -174,6 +179,14 @@ class QuestionModel {
       (e) => e.name == rawGradeOrient,
       orElse: () => GradeTextOrientation.horizontal,
     );
+
+    final rawAlign = map['alignment']?.toString();
+    final parsedAlign = rawAlign != null
+        ? TextAlign.values.firstWhere(
+            (e) => e.name == rawAlign,
+            orElse: () => TextAlign.start,
+          )
+        : null;
 
     return QuestionModel(
       id: map['id'] ?? '',
@@ -191,6 +204,7 @@ class QuestionModel {
           [],
       answerKey: map['answerKey'] ?? '',
       isTwoColumns: map['isTwoColumns'] ?? false,
+      alignment: parsedAlign,
     );
   }
 }
@@ -387,6 +401,7 @@ class ExamModel {
   final String id;
   String fileName;
   ExamType examType;
+  bool isArabic; // هل الاختبار عربي (RTL) أم إنجليزي (LTR) بالكامل
   AutomatedExamConfig automatedConfig;
   DateTime createdAt;
   DateTime updatedAt;
@@ -398,6 +413,7 @@ class ExamModel {
     required this.id,
     required this.fileName,
     this.examType = ExamType.traditional,
+    this.isArabic = true,
     AutomatedExamConfig? automatedConfig,
     required this.createdAt,
     required this.updatedAt,
@@ -413,6 +429,7 @@ class ExamModel {
     String? newId,
     String? newFileName,
     ExamType? newExamType,
+    bool? newIsArabic,
     AutomatedExamConfig? newAutomatedConfig,
     HeaderModel? newHeader,
     List<QuestionModel>? newQuestions,
@@ -422,6 +439,7 @@ class ExamModel {
       id: newId ?? id,
       fileName: newFileName ?? fileName,
       examType: newExamType ?? examType,
+      isArabic: newIsArabic ?? isArabic,
       automatedConfig: newAutomatedConfig ??
           AutomatedExamConfig.fromMap(automatedConfig.toMap()),
       createdAt: createdAt,
@@ -437,6 +455,7 @@ class ExamModel {
         'id': id,
         'fileName': fileName,
         'examType': examType.name,
+        'isArabic': isArabic,
         'automatedConfig': automatedConfig.toMap(),
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
@@ -456,6 +475,7 @@ class ExamModel {
       id: map['id'] ?? '',
       fileName: map['fileName'] ?? '',
       examType: parsedType,
+      isArabic: map['isArabic'] ?? true,
       automatedConfig: AutomatedExamConfig.fromMap(
         map['automatedConfig'] ?? {},
       ),
