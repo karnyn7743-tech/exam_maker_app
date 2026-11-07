@@ -107,30 +107,32 @@ class PdfExportService {
           textDirection: pageDir,
           header: (pw.Context context) {
             if (exam.header.topMargin1cm && hasStudent) {
-              final nameLabel = isAr ? 'اسم الطالب: ' : 'Student Name: ';
-              final seatLabel = isAr ? 'رقم الجلوس: ' : 'Seat No: ';
-              return pw.Padding(
-                padding: const pw.EdgeInsets.only(bottom: 4.0),
-                child: pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      '$nameLabel${student.name}',
-                      style: pw.TextStyle(
-                        font: ttf,
-                        fontSize: 10.5,
-                        fontWeight: pw.FontWeight.bold,
+              // ترويسة بيانات الطالب ثابتة دائماً باتجاه RTL لمنع انعكاس الاسم ورقم الجلوس
+              return pw.Directionality(
+                textDirection: pw.TextDirection.rtl,
+                child: pw.Padding(
+                  padding: const pw.EdgeInsets.only(bottom: 4.0),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        'اسم الطالب: ${student.name}',
+                        style: pw.TextStyle(
+                          font: ttf,
+                          fontSize: 10.5,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    pw.Text(
-                      '$seatLabel[ ${student.seatNo} ]',
-                      style: pw.TextStyle(
-                        font: ttf,
-                        fontSize: 10.5,
-                        fontWeight: pw.FontWeight.bold,
+                      pw.Text(
+                        'رقم الجلوس: [ ${student.seatNo} ]',
+                        style: pw.TextStyle(
+                          font: ttf,
+                          fontSize: 10.5,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               );
             }
@@ -151,71 +153,74 @@ class PdfExportService {
                 ? exam.header.teacherSignature
                 : defaultSign;
 
-            return pw.Container(
-              padding: const pw.EdgeInsets.only(top: 2),
-              child: pw.Column(
-                mainAxisSize: pw.MainAxisSize.min,
-                children: [
-                  pw.Center(
-                    child: pw.Text(
-                      footerText,
-                      style: pw.TextStyle(
-                        font: ttf,
-                        fontSize: 9.5,
-                        fontWeight: pw.FontWeight.bold,
+            return pw.Directionality(
+              textDirection: pw.TextDirection.rtl,
+              child: pw.Container(
+                padding: const pw.EdgeInsets.only(top: 2),
+                child: pw.Column(
+                  mainAxisSize: pw.MainAxisSize.min,
+                  children: [
+                    pw.Center(
+                      child: pw.Text(
+                        footerText,
+                        style: pw.TextStyle(
+                          font: ttf,
+                          fontSize: 9.5,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ),
-                  pw.SizedBox(height: 2),
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    children: [
-                      pw.Text(
-                        signText,
-                        style: pw.TextStyle(font: ttf, fontSize: 9.0),
-                      ),
-                      if (showQrMode)
-                        pw.Row(
-                          mainAxisSize: pw.MainAxisSize.min,
-                          crossAxisAlignment: pw.CrossAxisAlignment.center,
-                          children: [
-                            pw.Text(
-                              '$currentSubjectCode',
-                              style: pw.TextStyle(
-                                font: ttf,
-                                fontSize: 22,
-                                fontWeight: pw.FontWeight.bold,
-                              ),
-                            ),
-                            pw.SizedBox(width: 8),
-                            if (student.secretCode.isNotEmpty)
-                              pw.Container(
-                                width: 40,
-                                height: 40,
-                                child: pw.BarcodeWidget(
-                                  barcode: Barcode.qrCode(),
-                                  data: student.secretCode,
-                                  drawText: false,
+                    pw.SizedBox(height: 2),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                      children: [
+                        pw.Text(
+                          signText,
+                          style: pw.TextStyle(font: ttf, fontSize: 9.0),
+                        ),
+                        if (showQrMode)
+                          pw.Row(
+                            mainAxisSize: pw.MainAxisSize.min,
+                            crossAxisAlignment: pw.CrossAxisAlignment.center,
+                            children: [
+                              pw.Text(
+                                '$currentSubjectCode',
+                                style: pw.TextStyle(
+                                  font: ttf,
+                                  fontSize: 22,
+                                  fontWeight: pw.FontWeight.bold,
                                 ),
-                              )
-                            else
-                              pw.SizedBox(width: 40, height: 40),
-                            pw.SizedBox(width: 10),
-                            pw.Container(
-                              width: 60,
-                              height: 50,
-                              decoration: pw.BoxDecoration(
-                                border: pw.Border.all(color: PdfColors.black, width: 1.2),
                               ),
-                            ),
-                          ],
-                        )
-                      else
-                        pw.SizedBox(height: 10),
-                    ],
-                  ),
-                ],
+                              pw.SizedBox(width: 8),
+                              if (student.secretCode.isNotEmpty)
+                                pw.Container(
+                                  width: 40,
+                                  height: 40,
+                                  child: pw.BarcodeWidget(
+                                    barcode: Barcode.qrCode(),
+                                    data: student.secretCode,
+                                    drawText: false,
+                                  ),
+                                )
+                              else
+                                pw.SizedBox(width: 40, height: 40),
+                              pw.SizedBox(width: 10),
+                              pw.Container(
+                                width: 60,
+                                height: 50,
+                                decoration: pw.BoxDecoration(
+                                  border: pw.Border.all(color: PdfColors.black, width: 1.2),
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          pw.SizedBox(height: 10),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -649,8 +654,6 @@ class PdfExportService {
     final String colQuestionTitle = isAr ? 'السؤال' : 'Question';
     final String colMarkTitle = isAr ? 'الدرجة' : 'Mark';
 
-    // في الجدول: إذا كان عربي، العمود 0 هو السؤال والعمود 2 هو الدرجة
-    // وإذا كان إنجليزي مع اتجاه ltr، يُعرض بالترتيب الطبيعي المتوافق
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
       columnWidths: {
@@ -761,48 +764,57 @@ class PdfExportService {
 
   static pw.Widget _buildPdfQuestionContent(QuestionModel q, pw.Font ttf, bool isAr) {
     final pw.TextAlign chosenAlign = _convertTextAlign(q.alignment, isAr);
+    final pw.TextDirection itemDir = (chosenAlign == pw.TextAlign.left || !isAr)
+        ? pw.TextDirection.ltr
+        : pw.TextDirection.rtl;
 
     if (!q.isTwoColumns) {
-      return pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-        children: q.spans.map((s) {
-          final spanColor = _parsePdfColor(s.colorHex);
-          final cleanText = s.text.replaceAll('[فاصل_صفحة]', '').trim();
-          if (cleanText.isEmpty) return pw.SizedBox.shrink();
-          return _renderInlineMathText(
-            cleanText,
-            ttf,
-            fontSize: s.fontSize,
-            isBold: s.isBold,
-            textColor: spanColor,
-            lineSpacing: 2,
-            textAlign: chosenAlign,
-            isAr: isAr,
-          );
-        }).toList(),
+      return pw.Directionality(
+        textDirection: itemDir,
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: q.spans.map((s) {
+            final spanColor = _parsePdfColor(s.colorHex);
+            final cleanText = s.text.replaceAll('[فاصل_صفحة]', '').trim();
+            if (cleanText.isEmpty) return pw.SizedBox.shrink();
+            return _renderInlineMathText(
+              cleanText,
+              ttf,
+              fontSize: s.fontSize,
+              isBold: s.isBold,
+              textColor: spanColor,
+              lineSpacing: 2,
+              textAlign: chosenAlign,
+              isAr: isAr,
+            );
+          }).toList(),
+        ),
       );
     }
 
     final fullText = q.spans.map((s) => s.text).join('').replaceAll('[فاصل_صفحة]', '').trim();
     final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
     if (lines.length <= 1) {
-      return pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-        children: q.spans.map((s) {
-          final spanColor = _parsePdfColor(s.colorHex);
-          final cleanText = s.text.replaceAll('[فاصل_صفحة]', '').trim();
-          if (cleanText.isEmpty) return pw.SizedBox.shrink();
-          return _renderInlineMathText(
-            cleanText,
-            ttf,
-            fontSize: s.fontSize,
-            isBold: s.isBold,
-            textColor: spanColor,
-            lineSpacing: 2,
-            textAlign: chosenAlign,
-            isAr: isAr,
-          );
-        }).toList(),
+      return pw.Directionality(
+        textDirection: itemDir,
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: q.spans.map((s) {
+            final spanColor = _parsePdfColor(s.colorHex);
+            final cleanText = s.text.replaceAll('[فاصل_صفحة]', '').trim();
+            if (cleanText.isEmpty) return pw.SizedBox.shrink();
+            return _renderInlineMathText(
+              cleanText,
+              ttf,
+              fontSize: s.fontSize,
+              isBold: s.isBold,
+              textColor: spanColor,
+              lineSpacing: 2,
+              textAlign: chosenAlign,
+              isAr: isAr,
+            );
+          }).toList(),
+        ),
       );
     }
 
@@ -812,40 +824,43 @@ class PdfExportService {
     final col1 = items.sublist(0, half);
     final col2 = items.sublist(half);
 
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-      children: [
-        _renderInlineMathText(intro, ttf, fontSize: 11, isBold: true, textAlign: chosenAlign, isAr: isAr),
-        pw.SizedBox(height: 3),
-        pw.Row(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Expanded(
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                children: col1
-                    .map((item) => pw.Padding(
-                          padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-                          child: _renderInlineMathText(item, ttf, fontSize: 10, textAlign: chosenAlign, isAr: isAr),
-                        ))
-                    .toList(),
+    return pw.Directionality(
+      textDirection: itemDir,
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          _renderInlineMathText(intro, ttf, fontSize: 11, isBold: true, textAlign: chosenAlign, isAr: isAr),
+          pw.SizedBox(height: 3),
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                  children: col1
+                      .map((item) => pw.Padding(
+                            padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+                            child: _renderInlineMathText(item, ttf, fontSize: 10, textAlign: chosenAlign, isAr: isAr),
+                          ))
+                      .toList(),
+                ),
               ),
-            ),
-            pw.SizedBox(width: 8),
-            pw.Expanded(
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                children: col2
-                    .map((item) => pw.Padding(
-                          padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-                          child: _renderInlineMathText(item, ttf, fontSize: 10, textAlign: chosenAlign, isAr: isAr),
-                        ))
-                    .toList(),
+              pw.SizedBox(width: 8),
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                  children: col2
+                      .map((item) => pw.Padding(
+                            padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+                            child: _renderInlineMathText(item, ttf, fontSize: 10, textAlign: chosenAlign, isAr: isAr),
+                          ))
+                      .toList(),
+                ),
               ),
-            ),
-          ],
-        ),
-      ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -1574,7 +1589,7 @@ class PdfExportService {
                 color: isHeaderRow ? PdfColors.grey200 : PdfColors.white,
               ),
               children: List.generate(cols, (colIndex) {
-                // إذا كان عربي يُعكس الترتيب ليتوافق مع اتجاه اليمين لليسار
+                // في العربي يُعكس ترتيب قراءة الأعمدة ليطابق اتجاه RTL
                 final c = isAr ? (cols - 1 - colIndex) : colIndex;
                 String text = '';
                 if (r < rawGrid.length && c < (rawGrid[r] as List).length) {
