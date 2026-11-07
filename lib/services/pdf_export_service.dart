@@ -1475,7 +1475,7 @@ class PdfExportService {
                 margin: const pw.EdgeInsets.symmetric(vertical: 4),
                 padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 child: pw.Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
                     ...rows.asMap().entries.map((entry) {
                       final idx = entry.key;
