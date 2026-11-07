@@ -25,6 +25,10 @@ class OmrSheetService {
     }
     final ttf = pw.Font.ttf(fontData);
 
+    final bool isAr = exam.isArabic;
+    final pw.TextDirection pageDirection =
+        isAr ? pw.TextDirection.rtl : pw.TextDirection.ltr;
+
     // 1. استخراج بيانات الطلاب وتحديد الرقم الذكي المطبوع يمين الـ QR ديناميكياً
     List<StudentData> studentList = [];
     int currentSubjectCode = 1;
@@ -37,8 +41,8 @@ class OmrSheetService {
         final excelRes = await StudentExcelService.parseExcelFile(
           exam.header.excelFilePath!,
           expectedSubject: exam.header.subject,
-          targetGrade: exam.header.grade, // تصفية حصرية حسب صف الاختبار
-          examTitle: exam.header.examTitle, // تمرير العنوان لاحتساب رقم الشهر أو ورقة المادة ديناميكياً
+          targetGrade: exam.header.grade,
+          examTitle: exam.header.examTitle,
         );
         studentList = excelRes.students;
         currentSubjectCode = excelRes.subjectCode;
@@ -53,10 +57,17 @@ class OmrSheetService {
 
     final int tfCount = exam.automatedConfig.trueFalseCount;
     final int mcqCount = exam.automatedConfig.mcqCount;
-    final bool isLetters =
-        exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.arabicLetters;
-    final List<String> mcqSymbols =
-        isLetters ? ['أ', 'ب', 'جـ', 'د'] : ['١', '٢', '٣', '٤'];
+
+    // تحديد رموز خيارات الاختيار من متعدد بدقة بناءً على اللغة ونمط الرموز
+    final List<String> mcqSymbols;
+    if (exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.numbers) {
+      mcqSymbols = isAr ? ['١', '٢', '٣', '٤'] : ['1', '2', '3', '4'];
+    } else {
+      mcqSymbols = isAr ? ['أ', 'ب', 'جـ', 'د'] : ['A', 'B', 'C', 'D'];
+    }
+
+    // تحديد رموز الصح والخطأ
+    final List<String> tfSymbols = isAr ? ['ص', 'خ'] : ['T', 'F'];
 
     // 2. توليد ورقة تظليل لكل طالب
     for (final student in studentsToIterate) {
@@ -66,10 +77,10 @@ class OmrSheetService {
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
-          textDirection: pw.TextDirection.rtl,
+          textDirection: pageDirection,
           margin: const pw.EdgeInsets.only(
-            top: 3.0 * mm,     // 3 مم حتى بيانات رأس الورقة
-            bottom: 4.0 * mm,  // 4 مم حتى كود المادة والـ QR
+            top: 3.0 * mm,
+            bottom: 4.0 * mm,
             left: 1.2 * cm,
             right: 1.2 * cm,
           ),
@@ -78,11 +89,11 @@ class OmrSheetService {
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
                 // أ. ترويسة ورقة الإجابة المصغرة
-                _buildOmrHeader(exam, student, ttf),
+                _buildOmrHeader(exam, student, isAr, ttf),
                 pw.SizedBox(height: 5),
 
                 // ب. منطقة إرشادات التظليل
-                _buildOmrInstructions(ttf),
+                _buildOmrInstructions(isAr, ttf),
                 pw.SizedBox(height: 5),
 
                 // ج. شبكة دوائر التظليل
@@ -95,9 +106,11 @@ class OmrSheetService {
                         pw.Expanded(
                           flex: 4,
                           child: _buildSectionBox(
-                            title: 'أولاً: إجابات الصح والخطأ ($tfCount فقرة)',
+                            title: isAr
+                                ? 'أولاً: إجابات الصح والخطأ ($tfCount فقرة)'
+                                : 'Part 1: True / False ($tfCount Items)',
                             ttf: ttf,
-                            child: _buildTrueFalseGrid(tfCount, ttf),
+                            child: _buildTrueFalseGrid(tfCount, tfSymbols, isAr, ttf),
                           ),
                         ),
                         if (mcqCount > 0) pw.SizedBox(width: 10),
@@ -108,9 +121,11 @@ class OmrSheetService {
                         pw.Expanded(
                           flex: 6,
                           child: _buildSectionBox(
-                            title: 'ثانياً: إجابات الاختيار من متعدد ($mcqCount فقرة)',
+                            title: isAr
+                                ? 'ثانياً: إجابات الاختيار من متعدد ($mcqCount فقرة)'
+                                : 'Part 2: Multiple Choice ($mcqCount Items)',
                             ttf: ttf,
-                            child: _buildMcqGrid(mcqCount, mcqSymbols, ttf),
+                            child: _buildMcqGrid(mcqCount, mcqSymbols, isAr, ttf),
                           ),
                         ),
                     ],
@@ -120,7 +135,7 @@ class OmrSheetService {
                 pw.SizedBox(height: 4),
 
                 // د. التذييل
-                _buildOmrFooter(exam, student, showQr, currentSubjectCode, ttf),
+                _buildOmrFooter(exam, student, showQr, currentSubjectCode, isAr, ttf),
               ],
             );
           },
@@ -134,8 +149,9 @@ class OmrSheetService {
     final gradeName = exam.header.grade.trim().isNotEmpty ? exam.header.grade.trim() : 'عام';
     final subjectName = exam.header.subject.trim().isNotEmpty ? exam.header.subject.trim() : 'مادة';
 
-    // التسمية الرسمية: [الصف _ المادة _ ورقة_تظليل]
-    final omrBaseName = '$gradeName _ $subjectName _ ورقة_تظليل';
+    final omrBaseName = isAr
+        ? '$gradeName _ $subjectName _ ورقة_تظليل'
+        : '$gradeName _ $subjectName _ OMR_Sheet';
     final safeName = omrBaseName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final fileName = '$safeName.pdf';
 
@@ -149,11 +165,9 @@ class OmrSheetService {
       if (savedPath != null && savedPath.isNotEmpty) {
         return savedPath;
       }
-    } catch (_) {
-      // نمر إلى الخطة البديلة
-    }
+    } catch (_) {}
 
-    // الخطة البديلة: الحفظ في مجلد التطبيق المخصص لضمان عدم ضياع الملف
+    // الخطة البديلة: الحفظ في مجلد التطبيق المخصص
     try {
       Directory fallbackDir;
       if (Platform.isAndroid) {
@@ -175,8 +189,23 @@ class OmrSheetService {
 
   // ترويسة ورقة التظليل
   static pw.Widget _buildOmrHeader(
-      ExamModel exam, StudentData student, pw.Font ttf) {
+      ExamModel exam, StudentData student, bool isAr, pw.Font ttf) {
     final bool hasStudent = student.name.trim().isNotEmpty;
+
+    final schoolLabel = exam.header.school.isNotEmpty
+        ? '${exam.header.country} - ${exam.header.school}'
+        : exam.header.country;
+
+    final sheetTitle = isAr
+        ? 'ورقة الإجابة والتظليل الآلي (OMR Sheet)'
+        : 'Automated Answer Sheet (OMR Sheet)';
+
+    final infoLabel = isAr
+        ? 'المادة: ${exam.header.subject} | الصف: ${exam.header.grade}'
+        : 'Subject: ${exam.header.subject} | Grade: ${exam.header.grade}';
+
+    final nameLabel = isAr ? 'اسم الطالب: ' : 'Student Name: ';
+    final seatLabel = isAr ? 'رقم الجلوس: ' : 'Seat No: ';
 
     return pw.Container(
       decoration: pw.BoxDecoration(
@@ -190,17 +219,17 @@ class OmrSheetService {
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
               pw.Text(
-                '${exam.header.country} - ${exam.header.school}',
+                schoolLabel,
                 style: pw.TextStyle(
                     font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
               ),
               pw.Text(
-                'ورقة الإجابة والتظليل الآلي (OMR Sheet)',
+                sheetTitle,
                 style: pw.TextStyle(
                     font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold),
               ),
               pw.Text(
-                'المادة: ${exam.header.subject} | الصف: ${exam.header.grade}',
+                infoLabel,
                 style: pw.TextStyle(
                     font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
               ),
@@ -212,13 +241,13 @@ class OmrSheetService {
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
                 pw.Text(
-                  'اسم الطالب: ${student.name}',
+                  '$nameLabel${student.name}',
                   style: pw.TextStyle(
                       font: ttf, fontSize: 10, fontWeight: pw.FontWeight.bold),
                 ),
                 if (student.seatNo.isNotEmpty)
                   pw.Text(
-                    'رقم الجلوس: [ ${student.seatNo} ]',
+                    '$seatLabel[ ${student.seatNo} ]',
                     style: pw.TextStyle(
                         font: ttf, fontSize: 10, fontWeight: pw.FontWeight.bold),
                   ),
@@ -231,7 +260,14 @@ class OmrSheetService {
   }
 
   // صندوق التعليمات للتظليل الصحيح
-  static pw.Widget _buildOmrInstructions(pw.Font ttf) {
+  static pw.Widget _buildOmrInstructions(bool isAr, pw.Font ttf) {
+    final instructText = isAr
+        ? 'تعليمات: ظلل دائرة واحدة فقط بالقلم الأزرق أو الأسود الجاف بشكل كامل.'
+        : 'Instructions: Completely fill only one bubble for each item using a blue or black pen.';
+
+    final correctLabel = isAr ? 'صحيح: ' : 'Correct: ';
+    final wrongLabel = isAr ? 'خطأ: ' : 'Wrong: ';
+
     return pw.Container(
       padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3.0),
       decoration: const pw.BoxDecoration(
@@ -242,15 +278,15 @@ class OmrSheetService {
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
           pw.Text(
-            'تعليمات: ظلل دائرة واحدة فقط بالقلم الأزرق أو الأسود الجاف بشكل كامل.',
+            instructText,
             style: pw.TextStyle(font: ttf, fontSize: 8.5),
           ),
           pw.Row(
             children: [
-              pw.Text('صحيح: ', style: pw.TextStyle(font: ttf, fontSize: 8.5)),
+              pw.Text(correctLabel, style: pw.TextStyle(font: ttf, fontSize: 8.5)),
               _buildCircle(label: '', isFilled: true),
               pw.SizedBox(width: 8),
-              pw.Text('خطأ: ', style: pw.TextStyle(font: ttf, fontSize: 8.5)),
+              pw.Text(wrongLabel, style: pw.TextStyle(font: ttf, fontSize: 8.5)),
               _buildCircle(label: '✔', isSmall: true),
               pw.SizedBox(width: 4),
               _buildCircle(label: '✘', isSmall: true),
@@ -295,7 +331,8 @@ class OmrSheetService {
   }
 
   // بناء شبكة الصح والخطأ
-  static pw.Widget _buildTrueFalseGrid(int count, pw.Font ttf) {
+  static pw.Widget _buildTrueFalseGrid(
+      int count, List<String> tfSymbols, bool isAr, pw.Font ttf) {
     final int half = (count / 2).ceil();
     final bool useTwoCols = count > 12;
 
@@ -303,25 +340,7 @@ class OmrSheetService {
       return pw.Column(
         children: List.generate(count, (i) {
           final qNum = i + 1;
-          return pw.Padding(
-            padding: const pw.EdgeInsets.symmetric(vertical: 2.0),
-            child: pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.center,
-              children: [
-                pw.SizedBox(
-                  width: 20,
-                  child: pw.Text('$qNum',
-                      style: pw.TextStyle(
-                          font: ttf, fontSize: 9, fontWeight: pw.FontWeight.bold),
-                      textAlign: pw.TextAlign.center),
-                ),
-                pw.SizedBox(width: 6),
-                _buildCircle(label: 'ص', ttf: ttf),
-                pw.SizedBox(width: 6),
-                _buildCircle(label: 'خ', ttf: ttf),
-              ],
-            ),
-          );
+          return _buildTfRow(qNum, tfSymbols, isAr, ttf);
         }),
       );
     }
@@ -333,7 +352,7 @@ class OmrSheetService {
           child: pw.Column(
             children: List.generate(half, (i) {
               final qNum = i + 1;
-              return _buildTfRow(qNum, ttf);
+              return _buildTfRow(qNum, tfSymbols, isAr, ttf);
             }),
           ),
         ),
@@ -342,7 +361,7 @@ class OmrSheetService {
           child: pw.Column(
             children: List.generate(count - half, (i) {
               final qNum = half + i + 1;
-              return _buildTfRow(qNum, ttf);
+              return _buildTfRow(qNum, tfSymbols, isAr, ttf);
             }),
           ),
         ),
@@ -350,23 +369,28 @@ class OmrSheetService {
     );
   }
 
-  static pw.Widget _buildTfRow(int qNum, pw.Font ttf) {
+  static pw.Widget _buildTfRow(
+      int qNum, List<String> tfSymbols, bool isAr, pw.Font ttf) {
+    final numStr = isAr ? _toArabicDigits(qNum) : '$qNum';
+
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 1.8),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.center,
         children: [
           pw.SizedBox(
-            width: 16,
-            child: pw.Text('$qNum',
-                style: pw.TextStyle(
-                    font: ttf, fontSize: 8.5, fontWeight: pw.FontWeight.bold),
-                textAlign: pw.TextAlign.center),
+            width: 20,
+            child: pw.Text(
+              numStr,
+              style: pw.TextStyle(
+                  font: ttf, fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+              textAlign: pw.TextAlign.center,
+            ),
           ),
           pw.SizedBox(width: 4),
-          _buildCircle(label: 'ص', ttf: ttf),
+          _buildCircle(label: tfSymbols[0], ttf: ttf),
           pw.SizedBox(width: 4),
-          _buildCircle(label: 'خ', ttf: ttf),
+          _buildCircle(label: tfSymbols[1], ttf: ttf),
         ],
       ),
     );
@@ -374,7 +398,7 @@ class OmrSheetService {
 
   // بناء شبكة الاختيار من متعدد
   static pw.Widget _buildMcqGrid(
-      int count, List<String> symbols, pw.Font ttf) {
+      int count, List<String> symbols, bool isAr, pw.Font ttf) {
     final int half = (count / 2).ceil();
     final bool useTwoCols = count > 10;
 
@@ -382,7 +406,7 @@ class OmrSheetService {
       return pw.Column(
         children: List.generate(count, (i) {
           final qNum = i + 1;
-          return _buildMcqRow(qNum, symbols, ttf);
+          return _buildMcqRow(qNum, symbols, isAr, ttf);
         }),
       );
     }
@@ -394,7 +418,7 @@ class OmrSheetService {
           child: pw.Column(
             children: List.generate(half, (i) {
               final qNum = i + 1;
-              return _buildMcqRow(qNum, symbols, ttf);
+              return _buildMcqRow(qNum, symbols, isAr, ttf);
             }),
           ),
         ),
@@ -403,7 +427,7 @@ class OmrSheetService {
           child: pw.Column(
             children: List.generate(count - half, (i) {
               final qNum = half + i + 1;
-              return _buildMcqRow(qNum, symbols, ttf);
+              return _buildMcqRow(qNum, symbols, isAr, ttf);
             }),
           ),
         ),
@@ -411,18 +435,23 @@ class OmrSheetService {
     );
   }
 
-  static pw.Widget _buildMcqRow(int qNum, List<String> symbols, pw.Font ttf) {
+  static pw.Widget _buildMcqRow(
+      int qNum, List<String> symbols, bool isAr, pw.Font ttf) {
+    final numStr = isAr ? _toArabicDigits(qNum) : '$qNum';
+
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 1.8),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.center,
         children: [
           pw.SizedBox(
-            width: 18,
-            child: pw.Text('$qNum',
-                style: pw.TextStyle(
-                    font: ttf, fontSize: 8.5, fontWeight: pw.FontWeight.bold),
-                textAlign: pw.TextAlign.center),
+            width: 20,
+            child: pw.Text(
+              numStr,
+              style: pw.TextStyle(
+                  font: ttf, fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+              textAlign: pw.TextAlign.center,
+            ),
           ),
           pw.SizedBox(width: 4),
           ...symbols.map((sym) => pw.Padding(
@@ -432,6 +461,16 @@ class OmrSheetService {
         ],
       ),
     );
+  }
+
+  // تحويل الأرقام إلى العربية المشرقية عند اختيار لغة عربية
+  static String _toArabicDigits(int number) {
+    const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+    return number
+        .toString()
+        .split('')
+        .map((d) => arabicDigits[int.parse(d)])
+        .join();
   }
 
   // رسم دائرة التظليل
@@ -472,8 +511,13 @@ class OmrSheetService {
     StudentData student,
     bool showQr,
     int subjectCode,
+    bool isAr,
     pw.Font ttf,
   ) {
+    final footerNotice = isAr
+        ? 'لجنة الكنترول والتصحيح الآلي | ملاحظ القاعة: ......................'
+        : 'Automated Scoring Committee | Hall Proctor: ......................';
+
     return pw.Container(
       height: 62,
       padding: const pw.EdgeInsets.symmetric(horizontal: 4),
@@ -486,7 +530,7 @@ class OmrSheetService {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Text(
-                'لجنة الكنترول والتصحيح الآلي | ملاحظ القاعة: ......................',
+                footerNotice,
                 style: pw.TextStyle(font: ttf, fontSize: 8.5),
               ),
             ],
