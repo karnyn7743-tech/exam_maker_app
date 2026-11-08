@@ -33,6 +33,7 @@ class StudentExcelResult {
 }
 
 class StudentExcelService {
+  /// إصلاح أبعاد ملف الإكسيل المخزنة بشكل خاطئ
   static Uint8List _fixExcelDimensions(Uint8List bytes) {
     try {
       final archive = ZipDecoder().decodeBytes(bytes);
@@ -66,7 +67,7 @@ class StudentExcelService {
     }
   }
 
-  /// ✅ التعديل 1: إزالة كل الحروف الخفية وعلامات الاتجاه التي قد تفسد كلمة "تاسع"
+  /// استخراج النص النقي الخام
   static String _extractCleanText(dynamic cell) {
     if (cell == null) return '';
     final val = (cell is Data) ? cell.value : cell;
@@ -87,23 +88,24 @@ class StudentExcelService {
       text = text.substring(14, text.length - 1);
     }
 
-    // إزالة علامات الاتجاه المخفية (RLM, LRM) والمسافات الخاصة
+    // إزالة المسافات الخفية وعلامات الاتجاه
     return text.replaceAll(RegExp(r'[\u200B-\u200F\u061C\uFEFF\u00A0\u00AD]'), '').trim();
   }
 
+  /// تطبيع الحروف
   static String _normalizeArabic(String text) {
     var s = _extractCleanText(text).toLowerCase();
     s = s.replaceAll(RegExp(r'[أإآ]'), 'ا');
     s = s.replaceAll('ة', 'ه');
     s = s.replaceAll('ى', 'ي');
-    s = s.replaceAll(RegExp(r'[\u064B-\u0652]'), '');
-    s = s.replaceAll('\u0640', '');
+    s = s.replaceAll(RegExp(r'[\u064B-\u0652]'), ''); // إزالة التشكيل
+    s = s.replaceAll('\u0640', ''); // إزالة التطويل (الكشيدة)
     s = s.replaceAll('الصف', '').replaceAll('اساسي', '').replaceAll('الاساسي', '').trim();
-    s = s.replaceAll(RegExp(r'\s+'), '');
+    s = s.replaceAll(RegExp(r'\s+'), ''); // إزالة كل المسافات
     return s;
   }
 
-  /// ✅ التعديل 2: منطق مطابقة أكثر شمولاً ومرونة
+  /// ✅ التعديل الجذري: التطابق التام المباشر فقط
   static bool _isGradeMatch(String studentGradeCell, String targetGrade) {
     final normCell = _normalizeArabic(studentGradeCell);
     final normTarget = _normalizeArabic(targetGrade);
@@ -111,22 +113,36 @@ class StudentExcelService {
     if (normTarget.isEmpty) return true;
     if (normCell.isEmpty) return false;
 
+    // 1. التطابق التام المباشر (تاسع == تاسع)
     if (normCell == normTarget) return true;
 
-    // مطابقة الصف التاسع
-    if (normTarget.contains('تاسع') || normTarget.contains('9') || normTarget.contains('٩') || normTarget.contains('ثالث')) {
-      return normCell.contains('تاسع') || normCell.contains('9') || normCell.contains('٩') || normCell.contains('ثالث');
-    }
-    // مطابقة الصف الثامن
-    if (normTarget.contains('ثامن') || normTarget.contains('8') || normTarget.contains('٨') || normTarget.contains('ثاني')) {
-      return normCell.contains('ثامن') || normCell.contains('8') || normCell.contains('٨') || normCell.contains('ثاني');
-    }
-    // مطابقة الصف السابع
-    if (normTarget.contains('سابع') || normTarget.contains('7') || normTarget.contains('٧') || normTarget.contains('اول')) {
-      return normCell.contains('سابع') || normCell.contains('7') || normCell.contains('٧') || normCell.contains('اول');
+    // 2. التطابق بعد إزالة "ال" التعريف (تاسع == التاسع)
+    final cellClean = normCell.replaceFirst(RegExp(r'^ال'), '');
+    final targetClean = normTarget.replaceFirst(RegExp(r'^ال'), '');
+    if (cellClean == targetClean) return true;
+
+    // 3. مطابقة الأرقام (9 == تاسع)
+    final Map<String, List<String>> map = {
+      'اول': ['1', '١'],
+      'ثاني': ['2', '٢'],
+      'ثالث': ['3', '٣'],
+      'رابع': ['4', '٤'],
+      'خامس': ['5', '٥'],
+      'سادس': ['6', '٦'],
+      'سابع': ['7', '٧'],
+      'ثامن': ['8', '٨'],
+      'تاسع': ['9', '٩'],
+    };
+
+    for (final entry in map.entries) {
+      if (cellClean == entry.key || entry.value.contains(cellClean)) {
+        if (targetClean == entry.key || entry.value.contains(targetClean)) {
+          return true;
+        }
+      }
     }
 
-    return normCell.contains(normTarget) || normTarget.contains(normCell);
+    return false;
   }
 
   static int detectTotalMonths(Sheet sheet) {
@@ -208,9 +224,9 @@ class StudentExcelService {
     }
 
     const hijriMonths = {
-      'محرم': 1, 'صفر': 2, 'ربيع الأول': 3, 'ربيع الاول': 3, 'ربيع ثاني': 4, 'ربيع الثاني': 4,
-      'جمادى الأولي': 5, 'جماد الأول': 5, 'جمادى الآخرة': 6, 'جمادى الثانية': 6,
-      'رجب': 7, 'شعبان': 8, 'رمضان': 9, 'شوال': 10, 'ذو القعدة': 11, 'ذو الحجة': 12,
+      'محرم': 1, 'صفر': 2, 'ربيعالاول': 3, 'ربيعاول': 3, 'ربيعثاني': 4, 'ربيعالثاني': 4,
+      'جماديالاولي': 5, 'جماديالاول': 5, 'جماديالاخره': 6, 'جماديالثانيه': 6,
+      'رجب': 7, 'شعبان': 8, 'رمضان': 9, 'شوال': 10, 'ذوالقعده': 11, 'ذوالحجه': 12,
     };
     for (final entry in hijriMonths.entries) {
       if (title.contains(entry.key)) {
@@ -219,9 +235,8 @@ class StudentExcelService {
     }
 
     const gregorianMonths = {
-      'سبتمبر': 
-      'يوليو': 1, 'أغسطس': 2, 'سبتمبر': 3, 'أكتوبر': 4, 'نوفمبر': 5, 'ديسمبر': 6, 'يناير': 7,
-      'فيراير': 8, 'مارس': 9, 'أبريل': 10, 'مايو': 11, 'يونيو': 12
+      'سبتمبر': 1, 'اكتوبر': 2, 'نوفمبر': 3, 'ديسمبر': 4,
+      'يناير': 5, 'فبراير': 6, 'مارس': 7, 'ابريل': 8, 'مايو': 9,
     };
     for (final entry in gregorianMonths.entries) {
       if (title.contains(entry.key)) {
@@ -365,31 +380,13 @@ class StudentExcelService {
 
     int r = 3;
     int consecutiveEmptyRows = 0;
-    int safeLimit = sheet.rows.length + 50; 
-    if (sheet.maxRows > safeLimit) safeLimit = sheet.maxRows + 50;
-    
+    int safeLimit = sheet.maxRows + 50;
+
     while (r < safeLimit) {
-      // ✅ التعديل 3: القراءة المباشرة من المصفوفة أولاً لتجاوز أي قصور في maxRows
-      List<Data?>? rowData;
-      if (r < sheet.rows.length) {
-        rowData = sheet.rows[r];
-      }
-
-      final rawSeat = rowData != null && rowData.length > colSeat 
-          ? _extractCleanText(rowData[colSeat]) 
-          : _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSeat, rowIndex: r)));
-
-      final rawName = rowData != null && rowData.length > colName 
-          ? _extractCleanText(rowData[colName]) 
-          : _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colName, rowIndex: r)));
-
-      final rawGrade = rowData != null && rowData.length > colGrade 
-          ? _extractCleanText(rowData[colGrade]) 
-          : _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colGrade, rowIndex: r)));
-
-      final rawSecret = rowData != null && rowData.length > colSecret 
-          ? _extractCleanText(rowData[colSecret]) 
-          : _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSecret, rowIndex: r)));
+      final rawSeat = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSeat, rowIndex: r)));
+      final rawName = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colName, rowIndex: r)));
+      final rawGrade = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colGrade, rowIndex: r)));
+      final rawSecret = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSecret, rowIndex: r)));
 
       if (rawSeat.isEmpty && rawName.isEmpty) {
         consecutiveEmptyRows++;
