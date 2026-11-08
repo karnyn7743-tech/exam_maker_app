@@ -33,7 +33,6 @@ class StudentExcelResult {
 }
 
 class StudentExcelService {
-  /// ✅ دالة جديدة: إصلاح أبعاد ملف الإكسيل المخزنة بشكل خاطئ
   static Uint8List _fixExcelDimensions(Uint8List bytes) {
     try {
       final archive = ZipDecoder().decodeBytes(bytes);
@@ -44,7 +43,6 @@ class StudentExcelService {
           final contentBytes = file.content as List<int>;
           String content = utf8.decode(contentBytes);
           
-          // ✅ إصلاح Regex: يتعرف على أي وسم dimension مهما كانت المسافات بداخله
           if (content.contains('<dimension')) {
             content = content.replaceAll(RegExp(r'<dimension[^>]*>'), '<dimension ref="A1:Z10000"/>');
           }
@@ -68,7 +66,7 @@ class StudentExcelService {
     }
   }
 
-  /// استخراج النص النقي الخام من خلية الإكسيل متجاوزاً تغليف الكائنات ومحارف التنسيق المخفية
+  /// ✅ التعديل 1: إزالة كل الحروف الخفية وعلامات الاتجاه التي قد تفسد كلمة "تاسع"
   static String _extractCleanText(dynamic cell) {
     if (cell == null) return '';
     final val = (cell is Data) ? cell.value : cell;
@@ -89,58 +87,48 @@ class StudentExcelService {
       text = text.substring(14, text.length - 1);
     }
 
-    return text.replaceAll(RegExp(r'[\u200B-\u200D\uFEFF\u00A0]'), '').trim();
+    // إزالة علامات الاتجاه المخفية (RLM, LRM) والمسافات الخاصة
+    return text.replaceAll(RegExp(r'[\u200B-\u200F\u061C\uFEFF\u00A0\u00AD]'), '').trim();
   }
 
-  /// تطبيع موحد للحروف والكلمات العربية لضمان المقارنة الصادقة والمجردة
   static String _normalizeArabic(String text) {
     var s = _extractCleanText(text).toLowerCase();
     s = s.replaceAll(RegExp(r'[أإآ]'), 'ا');
     s = s.replaceAll('ة', 'ه');
     s = s.replaceAll('ى', 'ي');
     s = s.replaceAll(RegExp(r'[\u064B-\u0652]'), '');
+    s = s.replaceAll('\u0640', '');
     s = s.replaceAll('الصف', '').replaceAll('اساسي', '').replaceAll('الاساسي', '').trim();
     s = s.replaceAll(RegExp(r'\s+'), '');
     return s;
   }
 
-  /// فحص تطابق الصف بين المدخل وما هو مكتوب في خلية الإكسيل (العمود C) بدقة تامة
+  /// ✅ التعديل 2: منطق مطابقة أكثر شمولاً ومرونة
   static bool _isGradeMatch(String studentGradeCell, String targetGrade) {
     final normCell = _normalizeArabic(studentGradeCell);
     final normTarget = _normalizeArabic(targetGrade);
 
-    if (normTarget.isEmpty) return true; 
-    if (normCell.isEmpty) return false;  
+    if (normTarget.isEmpty) return true;
+    if (normCell.isEmpty) return false;
 
-    if (normCell == normTarget) {
-      return true;
-    }
+    if (normCell == normTarget) return true;
 
-    final bool isTargetGrade9 = normTarget.contains('تاسع') || normTarget.contains('9') || normTarget.contains('٩') || normTarget.contains('ثالث');
-    if (isTargetGrade9) {
+    // مطابقة الصف التاسع
+    if (normTarget.contains('تاسع') || normTarget.contains('9') || normTarget.contains('٩') || normTarget.contains('ثالث')) {
       return normCell.contains('تاسع') || normCell.contains('9') || normCell.contains('٩') || normCell.contains('ثالث');
     }
-
-    final bool isTargetGrade8 = normTarget.contains('ثامن') || normTarget.contains('8') || normTarget.contains('٨') || normTarget.contains('ثاني');
-    if (isTargetGrade8) {
+    // مطابقة الصف الثامن
+    if (normTarget.contains('ثامن') || normTarget.contains('8') || normTarget.contains('٨') || normTarget.contains('ثاني')) {
       return normCell.contains('ثامن') || normCell.contains('8') || normCell.contains('٨') || normCell.contains('ثاني');
     }
-
-    final bool isTargetGrade7 = normTarget.contains('سابع') || normTarget.contains('7') || normTarget.contains('٧') || normTarget.contains('اول');
-    if (isTargetGrade7) {
+    // مطابقة الصف السابع
+    if (normTarget.contains('سابع') || normTarget.contains('7') || normTarget.contains('٧') || normTarget.contains('اول')) {
       return normCell.contains('سابع') || normCell.contains('7') || normCell.contains('٧') || normCell.contains('اول');
-    }
-
-    for (final g in ['سادس', 'خامس', 'رابع', 'ثالث', 'ثاني', 'اول']) {
-      if (normTarget.contains(g)) {
-        return normCell.contains(g);
-      }
     }
 
     return normCell.contains(normTarget) || normTarget.contains(normCell);
   }
 
-  /// فحص ما إذا كان ملف الإكسيل يعتمد نظام 8 أشهر أم 6 أشهر تلقائياً من خلايا الصف الثاني
   static int detectTotalMonths(Sheet sheet) {
     final cellFourthMonth = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 19, rowIndex: 1));
     final rawText = _extractCleanText(cellFourthMonth);
@@ -152,7 +140,6 @@ class StudentExcelService {
     return 8;
   }
 
-  /// التحقق الصارم من بنية ملف الإكسيل ومطابقته للتنسيق المعتمد
   static Future<bool> validateExcelStructure(String filePath) async {
     try {
       final file = File(filePath);
@@ -186,7 +173,6 @@ class StudentExcelService {
     }
   }
 
-  /// استخراج أسماء الشهور ديناميكياً من الصف الثاني (rowIndex = 1) بدءاً من العمود E (columnIndex = 4)
   static List<String> extractMonthsFromSheet(Sheet sheet, {int? totalMonths}) {
     final int resolvedTotal = totalMonths ?? detectTotalMonths(sheet);
     List<String> months = [];
@@ -210,7 +196,6 @@ class StudentExcelService {
     return months;
   }
 
-  /// استخراج ترتيب الشهر عند ورود كلمة شهر في العنوان
   static int _extractMonthOrderFromTitle(String examTitle, Sheet sheet, int totalMonths) {
     final title = _normalizeArabic(examTitle);
 
@@ -255,7 +240,6 @@ class StudentExcelService {
     return 1;
   }
 
-  /// تحديد الرقم الذكي المطبوع يمين الـ QR Code ديناميكياً وفق عنوان الاختبار وملف الإكسيل
   static int resolveSmartQrCodeNumberDynamic({
     required String examTitle,
     required String subjectName,
@@ -290,7 +274,6 @@ class StudentExcelService {
     return subjectSheetOrder;
   }
 
-  /// حساب فهرس عمود التحريري لاختبارات الشهور العادية
   static int calculateWrittenExamColumn({
     required int monthNumber,
     required int totalMonths,
@@ -303,7 +286,6 @@ class StudentExcelService {
     }
   }
 
-  /// حساب موقع عمود الرصد المستهدف (الشهور، أو ف١، أو ف٢) مع مراعاة إزاحة الـ 5 والـ 10 أعمدة بدقة
   static int resolveTargetExamColumnIndex({
     required String selectedPeriod,
     required int totalMonths,
@@ -331,7 +313,6 @@ class StudentExcelService {
     );
   }
 
-  /// قراءة ملف الإكسيل واستخراج بيانات طلاب الصف المحدد من ورقة المادة المطابقة
   static Future<StudentExcelResult> parseExcelFile(
     String filePath, {
     String? expectedSubject,
@@ -381,39 +362,53 @@ class StudentExcelService {
     const int colGrade = 2;
     const int colSecret = 3;
 
-    // ✅ الحل الهجين: نبدأ من 3، ونستمر حتى لو انتهى maxRows بـ 50 صف، ونتوقف إذا مررنا 30 صفاً فارغاً
     int r = 3;
     int consecutiveEmptyRows = 0;
-    int safeLimit = sheet.maxRows + 50; // هامش أمان إذا كانت maxRows خاطئة
-
+    int safeLimit = sheet.rows.length + 50; 
+    if (sheet.maxRows > safeLimit) safeLimit = sheet.maxRows + 50;
+    
     while (r < safeLimit) {
-      final rawSeat = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSeat, rowIndex: r)));
-      final rawName = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colName, rowIndex: r)));
-      final rawGrade = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colGrade, rowIndex: r)));
-      final rawSecret = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSecret, rowIndex: r)));
+      // ✅ التعديل 3: القراءة المباشرة من المصفوفة أولاً لتجاوز أي قصور في maxRows
+      List<Data?>? rowData;
+      if (r < sheet.rows.length) {
+        rowData = sheet.rows[r];
+      }
 
-      // فحص إذا كان الصف فارغاً
+      final rawSeat = rowData != null && rowData.length > colSeat 
+          ? _extractCleanText(rowData[colSeat]) 
+          : _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSeat, rowIndex: r)));
+
+      final rawName = rowData != null && rowData.length > colName 
+          ? _extractCleanText(rowData[colName]) 
+          : _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colName, rowIndex: r)));
+
+      final rawGrade = rowData != null && rowData.length > colGrade 
+          ? _extractCleanText(rowData[colGrade]) 
+          : _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colGrade, rowIndex: r)));
+
+      final rawSecret = rowData != null && rowData.length > colSecret 
+          ? _extractCleanText(rowData[colSecret]) 
+          : _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSecret, rowIndex: r)));
+
       if (rawSeat.isEmpty && rawName.isEmpty) {
         consecutiveEmptyRows++;
-        if (consecutiveEmptyRows > 30) break; // التوقف بعد 30 صف فارغ متتالٍ (نهاية الجدول الفعلية)
+        if (consecutiveEmptyRows > 30) break; 
         r++;
         continue;
       }
       
-      consecutiveEmptyRows = 0; // تصفير العداد لأننا وجدنا بيانات
+      consecutiveEmptyRows = 0; 
 
-      // تجاهل أسطر الترويسة المكررة
       if (rawSeat.contains('جلوس') || rawName.contains('اسم')) {
         r++;
         continue; 
       }
 
-      // فحص مطابقة الصف بالعمود C حصراً
       if (requiredGrade.isNotEmpty) {
         final bool isMatch = _isGradeMatch(rawGrade, requiredGrade);
         if (!isMatch) {
           r++;
-          continue; // تخطي أي صف آخر حتى الوصول للصف المطلوب
+          continue; 
         }
       }
 
@@ -429,7 +424,6 @@ class StudentExcelService {
       r++;
     }
 
-    // 4. فرز طلاب الصف المستورد تصاعدياً برقم الجلوس لضمان تسلسل الأوراق
     students.sort((a, b) {
       final intA = int.tryParse(a.seatNo.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
       final intB = int.tryParse(b.seatNo.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
@@ -445,7 +439,6 @@ class StudentExcelService {
     );
   }
 
-  /// تحديث ورصد الدرجة مباشرة في ملف الإكسيل
   static Future<bool> updateStudentMarkInExcel({
     required String filePath,
     required String secretCode,
