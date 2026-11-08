@@ -980,12 +980,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               tooltip: 'مشاركة ملف المشروع (.exam)',
               onPressed: _exportExamProjectFile,
             ),
-            if (_exam.examType == ExamType.automated)
-              IconButton(
-                icon: const Icon(Icons.fact_check_outlined, color: Colors.white),
-                tooltip: 'تصدير ورقة التظليل (OMR Sheet)',
-                onPressed: _exportOmrSheetToDownloads,
-              ),
             IconButton(
               icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
               tooltip: 'تصدير PDF',
@@ -1010,7 +1004,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         ),
         body: Column(
           children: [
-            // شريط أوفيس Ribbon المبوب أعلى ورقة الاختبار (بدون الكلمات الأربع السفلية)
+            // شريط أوفيس Ribbon المبوب أعلى ورقة الاختبار
             ExamRibbonToolbar(
               isBold: _isBold,
               isUnderline: _isUnderline,
@@ -1019,6 +1013,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               currentFont: _activeFont,
               currentFontSize: _activeFontSize,
               isArabicInput: _isArabicInput,
+              showQuestionSettings: true, // لا يؤثر هنا لأننا نخفي الإعدادات داخل النافذة المنبثقة
+              onToggleQuestionSettings: () {}, // لا يؤثر هنا
               onToggleBold: () => setState(() => _isBold = !_isBold),
               onToggleUnderline: () => setState(() => _isUnderline = !_isUnderline),
               onAlignmentChanged: (align) => setState(() => _activeAlignment = align),
@@ -1129,12 +1125,21 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   });
                 }
               },
+              // ✅ التعديل هنا: إضافة صفحة جديدة بدلاً من كلمة فاصل
               onInsertPageBreak: () {
-                if (_exam.questions.isNotEmpty) {
-                  setState(() {
-                    _exam.questions.last.spans.add(TextSpanModel(text: ' [فاصل_صفحة] '));
-                  });
-                }
+                setState(() {
+                  _exam.questions.add(
+                    QuestionModel(
+                      id: 'page_break_${const Uuid().v4()}',
+                      title: '---',
+                      mark: 0,
+                      spans: [],
+                    ),
+                  );
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('تمت إضافة صفحة جديدة')),
+                );
               },
               onInsertTextBox: () {
                 _showTextBoxEntryDialog(context, (txt) {
@@ -1202,119 +1207,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      constraints: const BoxConstraints(maxWidth: 820),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(2),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 8,
-                            offset: Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      padding: EdgeInsets.only(
-                        top: _exam.header.topMargin1cm ? 8.5 : 12.0,
-                        left: 12.0,
-                        right: 12.0,
-                        bottom: 12.0,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // 1. رأس الطالب: ثابت دائماً RTL لمنع انعكاس الاسم والجلوس
-                          if (_exam.header.topMargin1cm) ...[
-                            Directionality(
-                              textDirection: TextDirection.rtl,
-                              child: InkWell(
-                                onTap: _openFooterSettingsDialog,
-                                borderRadius: BorderRadius.circular(4),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
-                                  margin: const EdgeInsets.only(bottom: 6.0),
-                                  decoration: BoxDecoration(
-                                    color: _exam.header.studentDataMode != 'none'
-                                        ? Colors.green.shade50
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: _exam.header.studentDataMode != 'none'
-                                        ? Border.all(color: Colors.green.shade200, width: 0.8)
-                                        : null,
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          if (_exam.header.studentDataMode != 'none')
-                                            const Icon(Icons.how_to_reg, size: 14, color: Colors.green),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            _exam.header.studentDataMode != 'none'
-                                                ? 'اسم الطالب: [ كشف إكسيل مفعّل ]'
-                                                : 'اسم الطالب: .................................................',
-                                            style: TextStyle(
-                                              fontFamily: _exam.header.adminFont,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 11,
-                                              color: _exam.header.studentDataMode != 'none'
-                                                  ? Colors.green.shade900
-                                                  : Colors.black87,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      Row(
-                                        children: [
-                                          Text(
-                                            _exam.header.studentDataMode != 'none'
-                                                ? 'رقم الجلوس: [ آلي ]'
-                                                : 'رقم الجلوس: [ ........... ]',
-                                            style: TextStyle(
-                                              fontFamily: _exam.header.detailsFont,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 11,
-                                              color: _exam.header.studentDataMode != 'none'
-                                                  ? Colors.green.shade900
-                                                  : Colors.black87,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          const Icon(Icons.settings, size: 13, color: Colors.grey),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-
-                          // 2. ترويسة الامتحان الرسمية: ثابتة دائماً RTL لمنع أي تبعثر للشعار أو البيانات الإدارية
-                          Directionality(
-                            textDirection: TextDirection.rtl,
-                            child: _buildExamHeader(),
-                          ),
-                          const SizedBox(height: 8),
-
-                          // 3. مساحة جدول الأسئلة وعمودا السؤال والدرجة: يتحول اتجاهها حسب لغة الاختبار
-                          Directionality(
-                            textDirection: examDir,
-                            child: _buildQuestionsTable(),
-                          ),
-                          const SizedBox(height: 10),
-
-                          // 4. التذييل: ثابت دائماً RTL لسلامة التوقيع
-                          Directionality(
-                            textDirection: TextDirection.rtl,
-                            child: _buildFooterPreview(),
-                          ),
-                        ],
-                      ),
-                    ),
+                    // ✅ عرض الصفحات المتعددة
+                    ..._buildAllPages(),
                     const SizedBox(height: 40),
                   ],
                 ),
@@ -1324,6 +1218,234 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         ),
         bottomNavigationBar: _buildUnifiedBottomBar(),
       ),
+    );
+  }
+
+  // ✅ دالة بناء الصفحات
+  List<Widget> _buildAllPages() {
+    List<List<QuestionModel>> pages = [[]];
+    for (var q in _exam.questions) {
+      if (q.id.startsWith('page_break_')) {
+        pages.add([]);
+      } else {
+        pages.last.add(q);
+      }
+    }
+
+    final TextDirection examDir = _isArabicExam ? TextDirection.rtl : TextDirection.ltr;
+
+    return pages.asMap().entries.map((entry) {
+      final int pageIndex = entry.key;
+      final List<QuestionModel> pageQuestions = entry.value;
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 24.0),
+        constraints: const BoxConstraints(maxWidth: 820),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(2),
+          boxShadow: const [
+            BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3)),
+          ],
+        ),
+        padding: EdgeInsets.only(
+          top: _exam.header.topMargin1cm ? 8.5 : 12.0,
+          left: 12.0,
+          right: 12.0,
+          bottom: 12.0,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (pageIndex == 0) ...[
+              if (_exam.header.topMargin1cm) ...[
+                Directionality(
+                  textDirection: TextDirection.rtl,
+                  child: InkWell(
+                    onTap: _openFooterSettingsDialog,
+                    borderRadius: BorderRadius.circular(4),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
+                      margin: const EdgeInsets.only(bottom: 6.0),
+                      decoration: BoxDecoration(
+                        color: _exam.header.studentDataMode != 'none' ? Colors.green.shade50 : Colors.transparent,
+                        borderRadius: BorderRadius.circular(4),
+                        border: _exam.header.studentDataMode != 'none' ? Border.all(color: Colors.green.shade200, width: 0.8) : null,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              if (_exam.header.studentDataMode != 'none') const Icon(Icons.how_to_reg, size: 14, color: Colors.green),
+                              const SizedBox(width: 4),
+                              Text(
+                                _exam.header.studentDataMode != 'none' ? 'اسم الطالب: [ كشف إكسيل مفعّل ]' : 'اسم الطالب: .................................................',
+                                style: TextStyle(fontFamily: _exam.header.adminFont, fontWeight: FontWeight.bold, fontSize: 11, color: _exam.header.studentDataMode != 'none' ? Colors.green.shade900 : Colors.black87),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              Text(
+                                _exam.header.studentDataMode != 'none' ? 'رقم الجلوس: [ آلي ]' : 'رقم الجلوس: [ ........... ]',
+                                style: TextStyle(fontFamily: _exam.header.detailsFont, fontWeight: FontWeight.bold, fontSize: 11, color: _exam.header.studentDataMode != 'none' ? Colors.green.shade900 : Colors.black87),
+                              ),
+                              const SizedBox(width: 6),
+                              const Icon(Icons.settings, size: 13, color: Colors.grey),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              Directionality(textDirection: TextDirection.rtl, child: _buildExamHeader()),
+            ] else ...[
+              Directionality(
+                textDirection: TextDirection.rtl,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: const BoxDecoration(
+                    border: Border(bottom: BorderSide(color: Colors.black, width: 1.5)),
+                  ),
+                  child: Text(
+                    'تابع اختبار مادة ${_exam.header.subject} للصف ${_exam.header.grade}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E3A8A)),
+                  ),
+                ),
+              ),
+            ],
+            
+            const SizedBox(height: 8),
+
+            Directionality(
+              textDirection: examDir,
+              child: _buildQuestionsTableForPage(pageQuestions),
+            ),
+            const SizedBox(height: 10),
+
+            Directionality(textDirection: TextDirection.rtl, child: _buildFooterPreview()),
+          ],
+        ),
+      );
+    }).toList();
+  }
+
+  // ✅ دالة بناء الجدول بناءً على الصفحة
+  Widget _buildQuestionsTableForPage(List<QuestionModel> questions) {
+    final isAr = _isArabicExam;
+
+    return Table(
+      border: TableBorder.all(color: Colors.black, width: 1),
+      columnWidths: {
+        0: FixedColumnWidth(_questionColWidth),
+        1: const FlexColumnWidth(),
+        2: FixedColumnWidth(_markColWidth),
+      },
+      children: [
+        TableRow(
+          decoration: BoxDecoration(color: Colors.grey.shade100),
+          children: [
+            TableCell(
+              verticalAlignment: TableCellVerticalAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Text(isAr ? 'السؤال' : 'Q', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5)),
+              ),
+            ),
+            TableCell(
+              verticalAlignment: TableCellVerticalAlignment.middle,
+              child: InkWell(
+                onTap: _editInstructionDialog,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+                  child: Text(
+                    _exam.header.instructionText.isNotEmpty ? _exam.header.instructionText : (isAr ? 'أجب عن جميع الأسئلة الآتية' : 'Answer all the following questions'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 11),
+                  ),
+                ),
+              ),
+            ),
+            TableCell(
+              verticalAlignment: TableCellVerticalAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Text(isAr ? 'الدرجة' : 'Mark', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5)),
+              ),
+            ),
+          ],
+        ),
+        ...questions.map((q) {
+          final indexInMainList = _exam.questions.indexOf(q);
+          
+          Widget titleWidget = Text(q.title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11));
+          if (q.titleOrientation == QuestionTitleOrientation.verticalBottomToTop) titleWidget = RotatedBox(quarterTurns: 3, child: titleWidget);
+          else if (q.titleOrientation == QuestionTitleOrientation.verticalTopToBottom) titleWidget = RotatedBox(quarterTurns: 1, child: titleWidget);
+
+          final markUnit = isAr ? 'د' : 'm';
+          final markText = q.mark > 0 ? (q.mark % 1 == 0 ? '${q.mark.toInt()} $markUnit' : '${q.mark} $markUnit') : '-';
+          Widget markWidget = Text(markText, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11));
+          if (q.gradeOrientation == GradeTextOrientation.verticalBottomToTop) markWidget = RotatedBox(quarterTurns: 3, child: markWidget);
+          else if (q.gradeOrientation == GradeTextOrientation.verticalTopToBottom) markWidget = RotatedBox(quarterTurns: 1, child: markWidget);
+
+          return TableRow(
+            children: [
+              TableCell(
+                verticalAlignment: TableCellVerticalAlignment.middle,
+                child: InkWell(
+                  onTap: () => _openQuestionDialog(questionIndex: indexInMainList),
+                  child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Center(child: titleWidget)),
+                ),
+              ),
+              TableCell(
+                verticalAlignment: TableCellVerticalAlignment.middle,
+                child: InkWell(
+                  onTap: () => _openQuestionDialog(questionIndex: indexInMainList),
+                  child: Padding(
+                    padding: const EdgeInsets.all(6.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildQuestionContent(q),
+                        if (q.elements.isNotEmpty) const SizedBox(height: 6),
+                        ...q.elements.map((el) => _buildRenderedElement(el)),
+                        if (_showAnswerKeyMode && q.answerKey.trim().isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(color: Colors.blue.shade50, border: Border.all(color: Colors.blue.shade300), borderRadius: BorderRadius.circular(4)),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.check_circle_outline, size: 16, color: Colors.blue),
+                                const SizedBox(width: 4),
+                                Expanded(child: Text(isAr ? 'الإجابة النموذجية: ${q.answerKey}' : 'Model Answer: ${q.answerKey}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blue.shade900, fontFamily: isAr ? 'Amiri' : 'Arial'))),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              TableCell(
+                verticalAlignment: TableCellVerticalAlignment.middle,
+                child: InkWell(
+                  onTap: () => _openQuestionDialog(questionIndex: indexInMainList),
+                  child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Center(child: markWidget)),
+                ),
+              ),
+            ],
+          );
+        }),
+      ],
     );
   }
 
@@ -1511,175 +1633,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  Widget _buildQuestionsTable() {
-    final isAr = _isArabicExam;
-
-    return Table(
-      border: TableBorder.all(color: Colors.black, width: 1),
-      columnWidths: {
-        0: FixedColumnWidth(_questionColWidth),
-        1: const FlexColumnWidth(),
-        2: FixedColumnWidth(_markColWidth),
-      },
-      children: [
-        TableRow(
-          decoration: BoxDecoration(color: Colors.grey.shade100),
-          children: [
-            TableCell(
-              verticalAlignment: TableCellVerticalAlignment.middle,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Text(
-                  isAr ? 'السؤال' : 'Q',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5),
-                ),
-              ),
-            ),
-            TableCell(
-              verticalAlignment: TableCellVerticalAlignment.middle,
-              child: InkWell(
-                onTap: _editInstructionDialog,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
-                  child: Text(
-                    _exam.header.instructionText.isNotEmpty
-                        ? _exam.header.instructionText
-                        : (isAr ? 'أجب عن جميع الأسئلة الآتية' : 'Answer all the following questions'),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            TableCell(
-              verticalAlignment: TableCellVerticalAlignment.middle,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Text(
-                  isAr ? 'الدرجة' : 'Mark',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5),
-                ),
-              ),
-            ),
-          ],
-        ),
-        ..._exam.questions.asMap().entries.map((entry) {
-          final index = entry.key;
-          final q = entry.value;
-
-          Widget titleWidget = Text(
-            q.title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
-          );
-
-          if (q.titleOrientation == QuestionTitleOrientation.verticalBottomToTop) {
-            titleWidget = RotatedBox(quarterTurns: 3, child: titleWidget);
-          } else if (q.titleOrientation == QuestionTitleOrientation.verticalTopToBottom) {
-            titleWidget = RotatedBox(quarterTurns: 1, child: titleWidget);
-          }
-
-          final markUnit = isAr ? 'د' : 'm';
-          final markText = q.mark > 0
-              ? (q.mark % 1 == 0 ? '${q.mark.toInt()} $markUnit' : '${q.mark} $markUnit')
-              : '-';
-
-          Widget markWidget = Text(
-            markText,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
-          );
-
-          if (q.gradeOrientation == GradeTextOrientation.verticalBottomToTop) {
-            markWidget = RotatedBox(quarterTurns: 3, child: markWidget);
-          } else if (q.gradeOrientation == GradeTextOrientation.verticalTopToBottom) {
-            markWidget = RotatedBox(quarterTurns: 1, child: markWidget);
-          }
-
-          return TableRow(
-            children: [
-              TableCell(
-                verticalAlignment: TableCellVerticalAlignment.middle,
-                child: InkWell(
-                  onTap: () => _openQuestionDialog(questionIndex: index),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Center(child: titleWidget),
-                  ),
-                ),
-              ),
-              TableCell(
-                verticalAlignment: TableCellVerticalAlignment.middle,
-                child: InkWell(
-                  onTap: () => _openQuestionDialog(questionIndex: index),
-                  child: Padding(
-                    padding: const EdgeInsets.all(6.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildQuestionContent(q),
-                        if (q.elements.isNotEmpty) const SizedBox(height: 6),
-                        ...q.elements.map((el) => _buildRenderedElement(el)),
-                        if (_showAnswerKeyMode && q.answerKey.trim().isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.shade50,
-                              border: Border.all(color: Colors.blue.shade300),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(Icons.check_circle_outline, size: 16, color: Colors.blue),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    isAr
-                                        ? 'الإجابة النموذجية: ${q.answerKey}'
-                                        : 'Model Answer: ${q.answerKey}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                      color: Colors.blue.shade900,
-                                      fontFamily: isAr ? 'Amiri' : 'Arial',
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              TableCell(
-                verticalAlignment: TableCellVerticalAlignment.middle,
-                child: InkWell(
-                  onTap: () => _openQuestionDialog(questionIndex: index),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Center(child: markWidget),
-                  ),
-                ),
-              ),
-            ],
-          );
-        }),
-      ],
-    );
-  }
-
   InlineSpan _buildInlineSpanWithFractions(String text, TextStyle baseStyle) {
+    // ... (نفس الكود السابق بدون تغيير)
     final regExp = RegExp(r'(\[فاصل_صفحة\]|\[(كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):(.*?)\])');
     final matches = regExp.allMatches(text);
 
@@ -1733,6 +1688,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
         );
       } else {
+        // ... (باقي كود الرموز الرياضية)
         final type = match.group(2);
         final rawContent = match.group(3) ?? '';
         final parts = rawContent.split(':');
@@ -1780,6 +1736,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           );
         } else if (type == 'جذر' || type == 'sqrt') {
+          // ... (نفس كود الجذر)
           final String degree = parts.length > 1 ? parts[0] : '';
           final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
           final bool isArRadical = (type == 'جذر') && _isArabicExam;
@@ -1837,6 +1794,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           );
         } else if (type == 'نها') {
+          // ... (نفس كود النهايات)
           final v = parts.isNotEmpty ? parts[0] : (_isArabicExam ? 'س' : 'x');
           final t = parts.length > 1 ? parts[1] : (_isArabicExam ? '٠' : '0');
           final fn = parts.length > 2 ? parts[2] : '';
@@ -2320,6 +2278,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _buildAutomatedEditorMcqGrid(QuestionModel q) {
+    // ... (نفس الكود السابق)
     final fullText = q.spans.map((s) => s.text).join('');
     final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
 
@@ -2477,6 +2436,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _buildRenderedElement(InsertableElement el) {
+    // ... (نفس الكود السابق)
     final bool isSelected = _selectedElementId == el.id;
 
     Widget coreWidget;
@@ -2658,6 +2618,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _renderCustomTable(String jsonStr) {
+    // ... (نفس الكود السابق)
     try {
       final Map<String, dynamic> data = jsonDecode(jsonStr);
       final int rows = (data['rows'] as num?)?.toInt() ?? 2;
@@ -2706,6 +2667,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _renderCustomShape(String jsonStr, [double? customWidth, double? customHeight]) {
+    // ... (نفس الكود السابق)
     try {
       final Map<String, dynamic> data = jsonDecode(jsonStr);
       final String kind = data['kind'] ?? 'rectangle';
@@ -2749,6 +2711,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _renderMathOperation(String jsonStr) {
+    // ... (نفس الكود السابق)
     try {
       final data = jsonDecode(jsonStr);
       final kind = data['kind'] ?? 'vertical';
@@ -2883,6 +2846,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   void _openHeaderFlexSettingsDialog() {
+    // ... (نفس الكود السابق)
     double sideWidth = _sideHeaderWidth;
     double qWidth = _questionColWidth;
 
@@ -2939,6 +2903,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   void _showQuestionTemplatesDialog() {
+    // ... (نفس الكود السابق)
     final isAr = _isArabicExam;
 
     final templates = isAr
@@ -3133,6 +3098,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
+  // ✅ تعديل شامل لنافذة إدخال السؤال
   void _openQuestionDialog({int? questionIndex}) {
     final bool isEdit = questionIndex != null;
     final bool isAr = _isArabicExam;
@@ -3166,6 +3132,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     bool showCustomKeyboard = true;
     bool useSystemKeyboard = false;
     TextEditingController activeFieldController = textCtrl;
+    bool showQuestionSettings = true; // ✅ متغير إظهار/إخفاء الإعدادات
 
     final defaultFont = isAr ? 'Amiri' : 'Arial';
     List<TextSpanModel> workingSpans = q.spans.isNotEmpty
@@ -3378,6 +3345,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showAdvancedEquationDialog(void Function(void Function()) setParentState) {
+      // ... (نفس الكود السابق)
       String eqType = isAr ? 'نها' : 'نها';
       final f1Ctrl = TextEditingController(text: isAr ? 'س' : 'x');
       final f2Ctrl = TextEditingController(text: isAr ? '٠' : '0');
@@ -3490,6 +3458,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showVerticalMathDialog(void Function(void Function()) setParentState) {
+      // ... (نفس الكود السابق)
       int rowCount = 2;
       String op = '×';
       final r1Ctrl = TextEditingController(text: isAr ? '٥٣٤' : '534');
@@ -3560,6 +3529,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showLongDivisionDialog(void Function(void Function()) setParentState) {
+      // ... (نفس الكود السابق)
       final dividendCtrl = TextEditingController(text: isAr ? '٨٤٦' : '846');
       final divisorCtrl = TextEditingController(text: isAr ? '٢' : '2');
       final quotientCtrl = TextEditingController(text: '');
@@ -3633,6 +3603,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showTableDesignerDialog(void Function(void Function()) setParentState, {InsertableElement? existingElement}) {
+      // ... (نفس الكود السابق)
       int rowCount = 3;
       int colCount = 3;
       bool hasHeader = true;
@@ -3776,6 +3747,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showShapeDesignerDialog(void Function(void Function()) setParentState, {InsertableElement? existingElement}) {
+      // ... (نفس الكود السابق)
       String shapeKind = 'rectangle';
       double width = 120.0;
       double height = 70.0;
@@ -3959,6 +3931,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showArabicMathTemplates(void Function(void Function()) setParentState) {
+      // ... (نفس الكود السابق)
       final numCtrl = TextEditingController(text: isAr ? '١' : '1');
       final denCtrl = TextEditingController(text: isAr ? '٣' : '3');
 
@@ -3992,6 +3965,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showSymbolsModal(void Function(void Function()) setParentState) {
+      // ... (نفس الكود السابق)
       final categories = <String, Iterable<String>>{
         'زخارف وفواصل': const [
           '﴾   ﴿', '«   »', '۞', '۩', '۝', '✦ ✦ ✦', '❖ ❖ ❖', '~*~*~*~*~',
@@ -4069,6 +4043,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     Widget buildInteractiveEditorElement(InsertableElement el, int elementIndex, StateSetter setModalState) {
+      // ... (نفس الكود السابق)
       void moveElementUp() {
         if (elementIndex > 0) {
           setModalState(() {
@@ -4315,439 +4290,170 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: TextField(
-                              controller: titleCtrl,
-                              decoration: InputDecoration(
-                                labelText: isAr ? 'اسم السؤال (س١)' : 'Question Title (Q1)',
+                      // ✅ إخفاء وإظهار إعدادات السؤال (العنوان والدرجة والاتجاه)
+                      if (showQuestionSettings) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: TextField(
+                                controller: titleCtrl,
+                                decoration: InputDecoration(
+                                  labelText: isAr ? 'اسم السؤال (س١)' : 'Question Title (Q1)',
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            flex: 1,
-                            child: TextField(
-                              controller: markCtrl,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: InputDecoration(labelText: isAr ? 'الدرجة' : 'Mark'),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              flex: 1,
+                              child: TextField(
+                                controller: markCtrl,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: InputDecoration(labelText: isAr ? 'الدرجة' : 'Mark'),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-
-                      Wrap(
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 4,
-                        children: [
-                          Text(isAr ? 'عنوان السؤال: ' : 'Title Orient: ',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                          ChoiceChip(
-                            label: const Text('أفقي', style: TextStyle(fontSize: 11)),
-                            selected: orientation == QuestionTitleOrientation.horizontal,
-                            onSelected: (val) => setModalState(
-                                () => orientation = QuestionTitleOrientation.horizontal),
-                          ),
-                          ChoiceChip(
-                            label: const Text('رأسي ◄', style: TextStyle(fontSize: 11)),
-                            selected: orientation == QuestionTitleOrientation.verticalBottomToTop,
-                            onSelected: (val) => setModalState(() =>
-                                orientation = QuestionTitleOrientation.verticalBottomToTop),
-                          ),
-                          ChoiceChip(
-                            label: const Text('رأسي ►', style: TextStyle(fontSize: 11)),
-                            selected: orientation == QuestionTitleOrientation.verticalTopToBottom,
-                            onSelected: (val) => setModalState(() =>
-                                orientation = QuestionTitleOrientation.verticalTopToBottom),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(isAr ? 'عمود الدرجة: ' : 'Mark Col: ',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                          ChoiceChip(
-                            label: const Text('أفقي', style: TextStyle(fontSize: 11)),
-                            selected: gradeOrient == GradeTextOrientation.horizontal,
-                            onSelected: (val) => setModalState(
-                                () => gradeOrient = GradeTextOrientation.horizontal),
-                          ),
-                          ChoiceChip(
-                            label: const Text('رأسي ◄', style: TextStyle(fontSize: 11)),
-                            selected: gradeOrient == GradeTextOrientation.verticalBottomToTop,
-                            onSelected: (val) => setModalState(() =>
-                                gradeOrient = GradeTextOrientation.verticalBottomToTop),
-                          ),
-                          ChoiceChip(
-                            label: const Text('رأسي ►', style: TextStyle(fontSize: 11)),
-                            selected: gradeOrient == GradeTextOrientation.verticalTopToBottom,
-                            onSelected: (val) => setModalState(() =>
-                                gradeOrient = GradeTextOrientation.verticalTopToBottom),
-                          ),
-                          const SizedBox(width: 6),
-                          FilterChip(
-                            avatar: Icon(Icons.view_column, size: 14, color: isTwoCols ? Colors.white : Colors.black87),
-                            label: Text(isAr ? 'عمودان' : '2 Columns', style: TextStyle(fontSize: 11, color: isTwoCols ? Colors.white : Colors.black87)),
-                            selected: isTwoCols,
-                            selectedColor: const Color(0xFF0F766E),
-                            onSelected: (v) => setModalState(() => isTwoCols = v),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-
-                      // شريط الأدوات الكامل (مع أزرار المحاذاة ولغة الإدخال المستقلة)
-                      Container(
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E293B),
-                          borderRadius: BorderRadius.circular(6),
+                          ],
                         ),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: Row(
-                            children: [
-                              _buildBarBtn(
-                                icon: Icons.format_align_right,
-                                color: selectedAlignment == TextAlign.right ? const Color(0xFF3B82F6) : Colors.blueGrey.shade800,
-                                tooltip: 'محاذاة النص لليمين',
-                                onTap: () => setModalState(() => selectedAlignment = TextAlign.right),
-                              ),
-                              _buildBarBtn(
-                                icon: Icons.format_align_center,
-                                color: selectedAlignment == TextAlign.center ? const Color(0xFF3B82F6) : Colors.blueGrey.shade800,
-                                tooltip: 'محاذاة النص للوسط',
-                                onTap: () => setModalState(() => selectedAlignment = TextAlign.center),
-                              ),
-                              _buildBarBtn(
-                                icon: Icons.format_align_left,
-                                color: selectedAlignment == TextAlign.left ? const Color(0xFF3B82F6) : Colors.blueGrey.shade800,
-                                tooltip: 'محاذاة النص لليسار',
-                                onTap: () => setModalState(() => selectedAlignment = TextAlign.left),
-                              ),
-                              _buildBarBtn(
-                                text: isInputArabic ? 'كتابة: ع' : 'Input: En',
-                                color: isInputArabic ? const Color(0xFF059669) : const Color(0xFFD97706),
-                                tooltip: 'تغيير لغة اتجاه مؤشر الكتابة داخل هذا السؤال',
-                                onTap: () {
-                                  setModalState(() {
-                                    isInputArabic = !isInputArabic;
-                                    selectedAlignment = isInputArabic ? TextAlign.right : TextAlign.left;
-                                    currentFont = isInputArabic ? 'Amiri' : 'Arial';
-                                  });
-                                },
-                              ),
+                        const SizedBox(height: 6),
 
-                              const VerticalDivider(color: Colors.white24, indent: 8, endIndent: 8),
-
-                              if (_copiedElement != null)
-                                _buildBarBtn(
-                                  icon: Icons.paste,
-                                  text: 'لصق عنصر',
-                                  color: const Color(0xFF10B981),
-                                  tooltip: 'لصق العنصر المنسوخ من الحافظة في هذا السؤال',
-                                  onTap: () {
-                                    setModalState(() {
-                                      currentElements.add(InsertableElement(
-                                        id: const Uuid().v4(),
-                                        type: _copiedElement!.type,
-                                        content: _copiedElement!.content,
-                                        width: _copiedElement!.width,
-                                        height: _copiedElement!.height,
-                                        dx: _copiedElement!.dx + 10,
-                                        dy: _copiedElement!.dy + 10,
-                                      ));
-                                    });
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('تم لصق العنصر بنجاح في هذا السؤال.'),
-                                        duration: Duration(seconds: 1),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              _buildBarBtn(
-                                icon: Icons.note_add_outlined,
-                                text: 'صفحة جديدة ⤶',
-                                color: const Color(0xFF2563EB),
-                                tooltip: 'إدراج فاصل صفحة جديدة إجبارياً في مكان المؤشر',
-                                onTap: () => setModalState(() => insertAtCursor(' [فاصل_صفحة] ')),
-                              ),
-                              _buildBarBtn(
-                                text: 'معادلة f(x)',
-                                color: const Color(0xFF2563EB),
-                                tooltip: 'إدراج نهايات، مجـ، تكامل، تباديل وتوافيق، متجهات',
-                                onTap: () => showAdvancedEquationDialog(setModalState),
-                              ),
-                              _buildBarBtn(
-                                text: 'عمودي ± ×',
-                                color: const Color(0xFFE11D48),
-                                tooltip: 'جمع / طرح / ضرب عمودي عند المؤشر',
-                                onTap: () => showVerticalMathDialog(setModalState),
-                              ),
-                              _buildBarBtn(
-                                text: 'قسمة ⟌',
-                                color: const Color(0xFF0D9488),
-                                tooltip: 'إدراج كرسي قسمة مطولة عند المؤشر',
-                                onTap: () => showLongDivisionDialog(setModalState),
-                              ),
-                              _buildBarBtn(
-                                text: 'جدول ⊞',
-                                color: const Color(0xFF4338CA),
-                                tooltip: 'تصميم وإدراج جدول مخصص (يدعم التحريك الحر كـ Word)',
-                                onTap: () => showTableDesignerDialog(setModalState),
-                              ),
-                              _buildBarBtn(
-                                text: 'شكل ▱',
-                                color: const Color(0xFFD97706),
-                                tooltip: 'إدراج أشكال تلقائية وهندسية (تدعم التحريك الحر كـ Word)',
-                                onTap: () => showShapeDesignerDialog(setModalState),
-                              ),
-                              _buildBarBtn(
-                                text: 'بسط/مقام',
-                                color: const Color(0xFF7C3AED),
-                                tooltip: 'كسر اعتيادي في موضع المؤشر',
-                                onTap: () => showArabicMathTemplates(setModalState),
-                              ),
-                              _buildBarBtn(
-                                text: '⎷ـ',
-                                color: const Color(0xFF0284C7),
-                                tooltip: 'إدراج جذر',
-                                onTap: () => setModalState(() => insertAtCursor(isInputArabic ? '[جذر:٢٥]' : '[sqrt:25]')),
-                              ),
-                              _buildBarBtn(
-                                icon: Icons.image_outlined,
-                                color: Colors.blueGrey.shade700,
-                                tooltip: 'إدراج صورة',
-                                onTap: () async {
-                                  final img = await _picker.pickImage(source: ImageSource.gallery);
-                                  if (img != null) {
-                                    setModalState(() {
-                                      currentElements.add(InsertableElement(
-                                        id: const Uuid().v4(),
-                                        type: ElementType.image,
-                                        content: img.path,
-                                        width: 90,
-                                        height: 90,
-                                      ));
-                                    });
-                                  }
-                                },
-                              ),
-                              _buildBarBtn(
-                                icon: Icons.border_horizontal,
-                                color: Colors.blueGrey.shade700,
-                                tooltip: 'سطر إجابة',
-                                onTap: () {
-                                  setModalState(() {
-                                    currentElements.add(InsertableElement(
-                                      id: const Uuid().v4(),
-                                      type: ElementType.dottedLine,
-                                      content: '......................................................................',
-                                    ));
-                                  });
-                                },
-                              ),
-                              _buildBarBtn(
-                                text: '( )',
-                                color: Colors.blueGrey.shade700,
-                                tooltip: 'أقواس خالية',
-                                onTap: () => setModalState(() => insertAtCursor('(   )')),
-                              ),
-                              _buildBarBtn(
-                                icon: Icons.check,
-                                color: const Color(0xFF0F766E),
-                                tooltip: 'علامة صح',
-                                onTap: () => setModalState(() => insertAtCursor('✔')),
-                              ),
-                              _buildBarBtn(
-                                icon: Icons.close,
-                                color: const Color(0xFFB91C1C),
-                                tooltip: 'علامة خطأ',
-                                onTap: () => setModalState(() => insertAtCursor('✘')),
-                              ),
-                              _buildBarBtn(
-                                icon: Icons.edit_note,
-                                color: const Color(0xFFD97706),
-                                tooltip: 'مربع إرشاد',
-                                onTap: () {
-                                  _showTextBoxEntryDialog(context, (txt) {
-                                    setModalState(() {
-                                      currentElements.add(InsertableElement(
-                                        id: const Uuid().v4(),
-                                        type: ElementType.textBox,
-                                        content: txt,
-                                      ));
-                                    });
-                                  });
-                                },
-                              ),
-                              _buildBarBtn(
-                                text: 'B',
-                                color: isBoldActive ? Colors.blue : Colors.blueGrey.shade800,
-                                tooltip: 'خط عريض (للتحديد أو للبدء بالكتابة)',
-                                onTap: () {
-                                  setModalState(() {
-                                    isBoldActive = !isBoldActive;
-                                    applyFormatToSelection(bold: isBoldActive);
-                                  });
-                                },
-                              ),
-                              _buildBarBtn(
-                                text: 'U',
-                                color: isUnderlineActive ? Colors.blue : Colors.blueGrey.shade800,
-                                tooltip: 'تسطير (للتحديد أو للبدء بالكتابة)',
-                                onTap: () {
-                                  setModalState(() {
-                                    isUnderlineActive = !isUnderlineActive;
-                                    applyFormatToSelection(underline: isUnderlineActive);
-                                  });
-                                },
-                              ),
-                              PopupMenuButton<String>(
-                                tooltip: 'لون الخط (للمحدد أو للبدء بالكتابة)',
-                                child: Container(
-                                  height: 38,
-                                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                                  decoration: BoxDecoration(
-                                    color: Color(int.parse(currentColor.replaceFirst('#', '0xFF'))),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(color: Colors.white38),
-                                  ),
-                                  child: const Center(
-                                    child: Text('لون',
-                                        style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 12)),
-                                  ),
-                                ),
-                                onSelected: (val) {
-                                  setModalState(() {
-                                    currentColor = val;
-                                    applyFormatToSelection(color: val);
-                                  });
-                                },
-                                itemBuilder: (ctx) => [
-                                  {'name': 'أسود', 'hex': '#000000'},
-                                  {'name': 'أحمر', 'hex': '#B91C1C'},
-                                  {'name': 'أزرق', 'hex': '#1D4ED8'},
-                                  {'name': 'أخضر', 'hex': '#047857'},
-                                ].map((c) => PopupMenuItem(
-                                  value: c['hex'],
-                                  child: Row(
-                                    children: [
-                                      Container(width: 16, height: 16, color: Color(int.parse(c['hex']!.replaceFirst('#', '0xFF')))),
-                                      const SizedBox(width: 8),
-                                      Text(c['name']!),
-                                    ],
-                                  ),
-                                )).toList(),
-                              ),
-                              _buildBarBtn(
-                                text: 'x²',
-                                color: const Color(0xFF0284C7),
-                                tooltip: 'أس علوي',
-                                onTap: () => setModalState(() => insertAtCursor('²')),
-                              ),
-                              _buildBarBtn(
-                                text: 'x₂',
-                                color: const Color(0xFF0284C7),
-                                tooltip: 'صيغة كيميائية',
-                                onTap: () => setModalState(() => insertAtCursor('₂')),
-                              ),
-                              if (isInputArabic)
-                                _buildBarBtn(
-                                  text: 'ـ',
-                                  color: Colors.blueGrey.shade800,
-                                  tooltip: 'كشيدة تمديد',
-                                  onTap: () => _insertTatweel(activeFieldController),
-                                ),
-                              PopupMenuButton<String>(
-                                tooltip: 'نوع الخط للمحدد أو للبدء بالكتابة',
-                                child: Container(
-                                  height: 38,
-                                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF6366F1),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Center(
-                                    child: Text('خط',
-                                        style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 12)),
-                                  ),
-                                ),
-                                onSelected: (val) {
-                                  setModalState(() {
-                                    currentFont = val;
-                                    applyFormatToSelection(font: val);
-                                  });
-                                },
-                                itemBuilder: (ctx) => appFontsList.map((f) => PopupMenuItem(
-                                  value: f['id']!,
-                                  child: Text(
-                                    f['name']!,
-                                    style: TextStyle(fontFamily: f['id']!, fontSize: 13),
-                                  ),
-                                )).toList(),
-                              ),
-                              PopupMenuButton<double>(
-                                tooltip: 'حجم الخط للمحدد أو للبدء بالكتابة',
-                                child: Container(
-                                  height: 38,
-                                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF8B5CF6),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Center(
-                                    child: Text('حجم',
-                                        style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 12)),
-                                  ),
-                                ),
-                                onSelected: (val) {
-                                  setModalState(() {
-                                    currentFontSize = val;
-                                    applyFormatToSelection(size: val);
-                                  });
-                                },
-                                itemBuilder: (ctx) => [12.0, 14.0, 16.0, 18.0, 20.0, 22.0]
-                                    .map((s) => PopupMenuItem(
-                                        value: s, child: Text('${s.toInt()} pt')))
-                                    .toList(),
-                              ),
-                              _buildBarBtn(
-                                text: 'رموز',
-                                color: const Color(0xFF0D9488),
-                                tooltip: 'لوحة الرموز والدوال',
-                                onTap: () => showSymbolsModal(setModalState),
-                              ),
-                              _buildBarBtn(
-                                icon: showCustomKeyboard ? Icons.keyboard_hide : Icons.keyboard,
-                                color: const Color(0xFF475569),
-                                tooltip: showCustomKeyboard ? 'إخفاء لوحة المفاتيح' : 'إظهار لوحة المفاتيح',
-                                onTap: () {
-                                  setModalState(() {
-                                    showCustomKeyboard = !showCustomKeyboard;
-                                    if (showCustomKeyboard) {
-                                      useSystemKeyboard = false;
-                                    }
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
+                        Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 4,
+                          children: [
+                            Text(isAr ? 'عنوان السؤال: ' : 'Title Orient: ',
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            ChoiceChip(
+                              label: const Text('أفقي', style: TextStyle(fontSize: 11)),
+                              selected: orientation == QuestionTitleOrientation.horizontal,
+                              onSelected: (val) => setModalState(
+                                  () => orientation = QuestionTitleOrientation.horizontal),
+                            ),
+                            ChoiceChip(
+                              label: const Text('رأسي ◄', style: TextStyle(fontSize: 11)),
+                              selected: orientation == QuestionTitleOrientation.verticalBottomToTop,
+                              onSelected: (val) => setModalState(() =>
+                                  orientation = QuestionTitleOrientation.verticalBottomToTop),
+                            ),
+                            ChoiceChip(
+                              label: const Text('رأسي ►', style: TextStyle(fontSize: 11)),
+                              selected: orientation == QuestionTitleOrientation.verticalTopToBottom,
+                              onSelected: (val) => setModalState(() =>
+                                  orientation = QuestionTitleOrientation.verticalTopToBottom),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(isAr ? 'عمود الدرجة: ' : 'Mark Col: ',
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            ChoiceChip(
+                              label: const Text('أفقي', style: TextStyle(fontSize: 11)),
+                              selected: gradeOrient == GradeTextOrientation.horizontal,
+                              onSelected: (val) => setModalState(
+                                  () => gradeOrient = GradeTextOrientation.horizontal),
+                            ),
+                            ChoiceChip(
+                              label: const Text('رأسي ◄', style: TextStyle(fontSize: 11)),
+                              selected: gradeOrient == GradeTextOrientation.verticalBottomToTop,
+                              onSelected: (val) => setModalState(() =>
+                                  gradeOrient = GradeTextOrientation.verticalBottomToTop),
+                            ),
+                            ChoiceChip(
+                              label: const Text('رأسي ►', style: TextStyle(fontSize: 11)),
+                              selected: gradeOrient == GradeTextOrientation.verticalTopToBottom,
+                              onSelected: (val) => setModalState(() =>
+                                  gradeOrient = GradeTextOrientation.verticalTopToBottom),
+                            ),
+                            const SizedBox(width: 6),
+                            FilterChip(
+                              avatar: Icon(Icons.view_column, size: 14, color: isTwoCols ? Colors.white : Colors.black87),
+                              label: Text(isAr ? 'عمودان' : '2 Columns', style: TextStyle(fontSize: 11, color: isTwoCols ? Colors.white : Colors.black87)),
+                              selected: isTwoCols,
+                              selectedColor: const Color(0xFF0F766E),
+                              onSelected: (v) => setModalState(() => isTwoCols = v),
+                            ),
+                          ],
                         ),
+                        const SizedBox(height: 8),
+                      ],
+
+                      // ✅ شريط الأدوات المبوب الجديد بدلاً من الشريط الأخضر القديم
+                      ExamRibbonToolbar(
+                        showQuestionSettings: showQuestionSettings,
+                        onToggleQuestionSettings: () => setModalState(() => showQuestionSettings = !showQuestionSettings),
+                        isBold: isBoldActive,
+                        isUnderline: isUnderlineActive,
+                        currentAlignment: selectedAlignment,
+                        currentColor: currentColor,
+                        currentFont: currentFont,
+                        currentFontSize: currentFontSize,
+                        isArabicInput: isInputArabic,
+                        onToggleBold: () { setModalState(() { isBoldActive = !isBoldActive; applyFormatToSelection(bold: isBoldActive); }); },
+                        onToggleUnderline: () { setModalState(() { isUnderlineActive = !isUnderlineActive; applyFormatToSelection(underline: isUnderlineActive); }); },
+                        onAlignmentChanged: (align) => setModalState(() => selectedAlignment = align),
+                        onColorChanged: (c) { setModalState(() { currentColor = c; applyFormatToSelection(color: c); }); },
+                        onFontChanged: (f) { setModalState(() { currentFont = f; applyFormatToSelection(font: f); }); },
+                        onFontSizeChanged: (s) { setModalState(() { currentFontSize = s; applyFormatToSelection(size: s); }); },
+                        onToggleInputLanguage: () {
+                          setModalState(() {
+                            isInputArabic = !isInputArabic;
+                            selectedAlignment = isInputArabic ? TextAlign.right : TextAlign.left;
+                            currentFont = isInputArabic ? 'Amiri' : 'Arial';
+                          });
+                        },
+                        onCopy: () {}, // يمكنك تركها فارغة أو ربطها بمنطق النسخ
+                        onPaste: () {
+                          if (_copiedElement != null) {
+                            setModalState(() {
+                              currentElements.add(InsertableElement(
+                                id: const Uuid().v4(),
+                                type: _copiedElement!.type,
+                                content: _copiedElement!.content,
+                                width: _copiedElement!.width,
+                                height: _copiedElement!.height,
+                                dx: _copiedElement!.dx + 10,
+                                dy: _copiedElement!.dy + 10,
+                              ));
+                            });
+                          }
+                        },
+                        onCut: () {},
+                        onSelectAll: () {},
+                        onDeleteSelected: () {},
+                        onOpenQuestionBank: _showQuestionBankImportDialog,
+                        onInsertImage: () async {
+                          final img = await _picker.pickImage(source: ImageSource.gallery);
+                          if (img != null) {
+                            setModalState(() {
+                              currentElements.add(InsertableElement(id: const Uuid().v4(), type: ElementType.image, content: img.path, width: 90, height: 90));
+                            });
+                          }
+                        },
+                        onInsertDottedLine: () {
+                          setModalState(() {
+                            currentElements.add(InsertableElement(id: const Uuid().v4(), type: ElementType.dottedLine, content: '......................................................................'));
+                          });
+                        },
+                        onInsertPageBreak: () {
+                          setModalState(() => insertAtCursor(' [فاصل_صفحة] '));
+                        },
+                        onInsertTextBox: () {
+                          _showTextBoxEntryDialog(context, (txt) {
+                            setModalState(() {
+                              currentElements.add(InsertableElement(id: const Uuid().v4(), type: ElementType.textBox, content: txt));
+                            });
+                          });
+                        },
+                        onInsertFraction: () => showArabicMathTemplates(setModalState),
+                        onInsertRadical: () => setModalState(() => insertAtCursor(isInputArabic ? '[جذر:٢٥]' : '[sqrt:25]')),
+                        onInsertEquation: () => showAdvancedEquationDialog(setModalState),
+                        onInsertVerticalMath: () => showVerticalMathDialog(setModalState),
+                        onInsertLongDivision: () => showLongDivisionDialog(setModalState),
+                        onOpenSymbolsModal: () => showSymbolsModal(setModalState),
+                        onOpenTableDesigner: () => showTableDesignerDialog(setModalState),
+                        onInsertShape: (kind) {
+                          final jsonPayload = jsonEncode({'kind': kind, 'width': 120.0, 'height': 70.0, 'label': '', 'strokeColor': '#000000', 'fillColor': 'transparent'});
+                          setModalState(() {
+                            currentElements.add(InsertableElement(id: const Uuid().v4(), type: ElementType.shape, content: jsonPayload, width: 120.0, height: 70.0));
+                          });
+                        },
                       ),
                       const SizedBox(height: 8),
 
@@ -4767,6 +4473,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               if (!useSystemKeyboard) {
                                 showCustomKeyboard = true;
                               }
+                              showQuestionSettings = false; // ✅ إخفاء الإعدادات عند الكتابة
                             });
                           },
                           decoration: InputDecoration(
@@ -4813,6 +4520,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               if (!useSystemKeyboard) {
                                 showCustomKeyboard = true;
                               }
+                              showQuestionSettings = false; // ✅ إخفاء الإعدادات عند الكتابة
                             });
                           },
                           decoration: InputDecoration(
@@ -5110,6 +4818,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   void _openFooterSettingsDialog() {
+    // ... (نفس الكود السابق)
     final singleCtrl = TextEditingController(text: _exam.header.singlePageFooterText);
     final multiCtrl = TextEditingController(text: _exam.header.continuationText);
     final signCtrl = TextEditingController(text: _exam.header.teacherSignature);
@@ -5273,6 +4982,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   void _editAdminHeaderDialog() {
+    // ... (نفس الكود السابق)
     final cCountry = TextEditingController(text: _exam.header.country);
     final cGov = TextEditingController(text: _exam.header.governorate);
     final cDir = TextEditingController(text: _exam.header.directorate);
@@ -5353,6 +5063,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   void _editExamDetailsDialog() {
+    // ... (نفس الكود السابق)
     final cGrade = TextEditingController(text: _exam.header.grade);
     final cSub = TextEditingController(text: _exam.header.subject);
     final cDate = TextEditingController(text: _exam.header.examDate);
@@ -5433,6 +5144,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   void _editExamTitleDialog() {
+    // ... (نفس الكود السابق)
     final cTitle = TextEditingController(text: _exam.header.examTitle);
     String font = _exam.header.titleFont;
     double size = _exam.header.titleFontSize;
@@ -5502,6 +5214,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   void _editBasmalaDialog() {
+    // ... (نفس الكود السابق)
     final cBasmala = TextEditingController(text: _exam.header.basmalaText);
     String font = _exam.header.basmalaFont;
     double size = _exam.header.basmalaFontSize;
@@ -5607,6 +5320,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 }
 
 class _LimitArrowPainter extends CustomPainter {
+  // ... (نفس الكود السابق)
   final Color color;
   _LimitArrowPainter({required this.color});
 
@@ -5633,6 +5347,7 @@ class _LimitArrowPainter extends CustomPainter {
 }
 
 class _ExamShapePainter extends CustomPainter {
+  // ... (نفس الكود السابق)
   final String kind;
   final Color strokeColor;
   final Color fillColor;
@@ -5734,6 +5449,7 @@ class _ExamShapePainter extends CustomPainter {
 }
 
 class _ArabicRadicalPainter extends CustomPainter {
+  // ... (نفس الكود السابق)
   final Color color;
   final double radicalStrokeWidth;
 
@@ -5768,6 +5484,7 @@ class _ArabicRadicalPainter extends CustomPainter {
 }
 
 class _EnglishRadicalPainter extends CustomPainter {
+  // ... (نفس الكود السابق)
   final Color color;
   final double radicalStrokeWidth;
 
