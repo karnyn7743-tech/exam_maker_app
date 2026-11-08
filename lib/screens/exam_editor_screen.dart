@@ -1902,7 +1902,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               ),
             ),
           );
-        } else if (type == 'تباديل' || type == 'توافيق') {
+        }         } else if (type == 'تباديل' || type == 'توافيق') {
           final n = parts.isNotEmpty ? parts[0] : (_isArabicExam ? 'ن' : 'n');
           final r = parts.length > 1 ? parts[1] : (_isArabicExam ? 'ر' : 'r');
           final sym = type == 'تباديل'
@@ -1915,37 +1915,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 3.0),
                 child: Row(
-                  mainAxisSize:扩大_buildMinRowChildren(n, sym, r, baseStyle),
-                ),
-              ),
-            );
-        } else if (type == 'مجموع' || type == 'تكامل') {
-          final from = parts.isNotEmpty ? parts[0] : '';
-          final to = parts.length > 1 ? parts[1] : '';
-          final body = parts.length > 2 ? parts[2] : '';
-          final sym = type == 'مجموع' ? (_isArabicExam ? 'مجـ' : '∑') : '∫';
-
-          children.add(
-            WidgetSpan(
-              alignment: PlaceholderAlignment.middle,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(to, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.65, fontWeight: FontWeight.bold)),
-                        Text(sym, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 1.2, fontWeight: FontWeight.bold)),
-                        Text(from, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.65, fontWeight: FontWeight.bold)),
-                      ],
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Text(n, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.75, fontWeight: FontWeight.bold)),
                     ),
-                    if (body.isNotEmpty) ...[
-                      const SizedBox(width: 4),
-                      Text(body, style: baseStyle.copyWith(fontWeight: FontWeight.bold)),
-                    ],
+                    Text(sym, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 1.25, fontWeight: FontWeight.bold)),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(r, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.75, fontWeight: FontWeight.bold)),
+                    ),
                   ],
                 ),
               ),
