@@ -30,7 +30,8 @@ dependencies:
   open_filex: ^4.5.0
   barcode: ^2.2.8
   uuid: ^4.4.0
-
+  archive: ^3.6.1
+  
   # حزم الكاميرا ومعالجة الصور وقراءة الباركود و OCR
   camera: ^0.11.0+1
   image: ^4.2.0
