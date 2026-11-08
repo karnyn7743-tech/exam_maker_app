@@ -383,9 +383,8 @@ class StudentExcelService {
     }
 
     final sheet = excel.tables[targetSheetName]!;
-    final rows = sheet.rows;
 
-    if (rows.length < 4) {
+    if (sheet.maxRows < 4) {
       throw Exception('ورقة العمل لا تحتوي على بيانات كافية (الطلاب يبدأون من الصف الرابع).');
     }
 
@@ -407,24 +406,37 @@ class StudentExcelService {
     const int colGrade = 2;
     const int colSecret = 3;
 
-    // مسح كافة الصفوف حتى النهاية مهما بلغ عددها
-    for (int r = 3; r < rows.length; r++) {
-      final row = rows[r];
-      if (row.isEmpty) continue;
+    // ✅ التعديل الجراحي: استخدام حلقة ذكية تتجاوز مشكلة توقف maxRows في مكتبة excel
+    int r = 3;
+    int consecutiveEmptyRows = 0;
+    
+    while (r < 10000) { // حد أقصى آمن لتجنب الحلقات اللانهائية
+      final rawSeat = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSeat, rowIndex: r)));
+      final rawName = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colName, rowIndex: r)));
+      final rawGrade = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colGrade, rowIndex: r)));
+      final rawSecret = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSecret, rowIndex: r)));
 
-      final rawSeat = row.length > colSeat ? _extractCleanText(row[colSeat]) : '';
-      final rawName = row.length > colName ? _extractCleanText(row[colName]) : '';
-      final rawGrade = row.length > colGrade ? _extractCleanText(row[colGrade]) : '';
-      final rawSecret = row.length > colSecret ? _extractCleanText(row[colSecret]) : '';
+      // فحص إذا كان الصف فارغاً
+      if (rawSeat.isEmpty && rawName.isEmpty) {
+        consecutiveEmptyRows++;
+        if (consecutiveEmptyRows > 20) break; // التوقف بعد 20 صف فارغ متتالٍ (نهاية الجدول)
+        r++;
+        continue;
+      }
+      
+      consecutiveEmptyRows = 0; // تصفير العداد لأننا وجدنا بيانات
 
-      // تجاهل الأسطر الفارغة أو أسطر الترويسة المكررة
-      if (rawSeat.isEmpty || rawName.isEmpty) continue;
-      if (rawSeat.contains('جلوس') || rawName.contains('اسم')) continue;
+      // تجاهل أسطر الترويسة المكررة
+      if (rawSeat.contains('جلوس') || rawName.contains('اسم')) {
+        r++;
+        continue; 
+      }
 
       // فحص مطابقة الصف بالعمود C حصراً
       if (requiredGrade.isNotEmpty) {
         final bool isMatch = _isGradeMatch(rawGrade, requiredGrade);
         if (!isMatch) {
+          r++;
           continue; // تخطي أي صف آخر حتى الوصول للصف المطلوب
         }
       }
@@ -437,6 +449,8 @@ class StudentExcelService {
         grade: rawGrade.isNotEmpty ? rawGrade : requiredGrade,
         secretCode: finalSecretCode,
       ));
+      
+      r++;
     }
 
     // 4. فرز طلاب الصف المستورد تصاعدياً برقم الجلوس لضمان تسلسل الأوراق
