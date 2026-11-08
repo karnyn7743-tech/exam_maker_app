@@ -20,6 +20,10 @@ class ExamRibbonToolbar extends StatefulWidget {
   final double currentFontSize;
   final bool isArabicInput;
 
+  // ✅ الخصائص الجديدة المضافة لإخفاء وإظهار إعدادات السؤال
+  final bool showQuestionSettings;
+  final VoidCallback onToggleQuestionSettings;
+
   final VoidCallback onToggleBold;
   final VoidCallback onToggleUnderline;
   final Function(TextAlign) onAlignmentChanged;
@@ -59,6 +63,8 @@ class ExamRibbonToolbar extends StatefulWidget {
     required this.currentFont,
     required this.currentFontSize,
     required this.isArabicInput,
+    required this.showQuestionSettings, // ✅ إضافة
+    required this.onToggleQuestionSettings, // ✅ إضافة
     required this.onToggleBold,
     required this.onToggleUnderline,
     required this.onAlignmentChanged,
@@ -317,6 +323,21 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
   Widget _buildFormatTab() {
     return Row(
       children: [
+        // ✅ مجموعة جديدة: إعدادات السؤال (تتحكم في إخفاء/إظهار حقول العنوان والدرجة)
+        _buildRibbonGroup(
+          title: 'السؤال',
+          child: Row(
+            children: [
+              _buildToolItem(
+                icon: Icons.tune,
+                label: 'إعدادات السؤال',
+                isSelected: widget.showQuestionSettings,
+                color: const Color(0xFF1E3A8A),
+                onTap: widget.onToggleQuestionSettings,
+              ),
+            ],
+          ),
+        ),
         _buildRibbonGroup(
           title: 'الخط',
           child: Row(
