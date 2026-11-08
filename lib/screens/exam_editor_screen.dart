@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 import '../models/exam_models.dart';
@@ -72,6 +74,10 @@ class ExamEditorScreen extends StatefulWidget {
 }
 
 class _ExamEditorScreenState extends State<ExamEditorScreen> {
+  // أولاً: متغير التكبير والتحكم به
+  double _zoomLevel = 1.0;
+  final TransformationController _transformationController = TransformationController();
+
   late ExamModel _exam;
   late bool _isNew;
 
@@ -103,6 +109,35 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     _isArabicInput = _exam.isArabic;
     _activeAlignment = _exam.isArabic ? TextAlign.right : TextAlign.left;
     _activeFont = _exam.isArabic ? 'Amiri' : 'Arial';
+    _transformationController.value = Matrix4.identity()..scale(_zoomLevel);
+  }
+
+  @override
+  void dispose() {
+    _transformationController.dispose();
+    super.dispose();
+  }
+
+  // أولاً: دوال التكبير والتصغير والملاءمة المساعدة
+  void _zoomIn() {
+    setState(() {
+      _zoomLevel = math.min(_zoomLevel + 0.15, 3.0);
+      _transformationController.value = Matrix4.identity()..scale(_zoomLevel);
+    });
+  }
+
+  void _zoomOut() {
+    setState(() {
+      _zoomLevel = math.max(_zoomLevel - 0.15, 0.5);
+      _transformationController.value = Matrix4.identity()..scale(_zoomLevel);
+    });
+  }
+
+  void _fitScreen() {
+    setState(() {
+      _zoomLevel = 1.0;
+      _transformationController.value = Matrix4.identity()..scale(1.0);
+    });
   }
 
   bool get _isArabicExam => _exam.isArabic;
@@ -1015,8 +1050,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               currentFont: _activeFont,
               currentFontSize: _activeFontSize,
               isArabicInput: _isArabicInput,
-              showQuestionSettings: true, // لا يؤثر هنا لأننا نخفي الإعدادات داخل النافذة المنبثقة
-              onToggleQuestionSettings: () {}, // لا يؤثر هنا
+              showQuestionSettings: true,
+              onToggleQuestionSettings: () {},
+              isTextSelected: false,
+              hasClipboardContent: _copiedElement != null,
+              currentLineSpacing: 1.5,
+              currentZoom: _zoomLevel,
               onToggleBold: () => setState(() => _isBold = !_isBold),
               onToggleUnderline: () => setState(() => _isUnderline = !_isUnderline),
               onAlignmentChanged: (align) => setState(() => _activeAlignment = align),
@@ -1086,6 +1125,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   );
                 }
               },
+              onShare: null,
               onSelectAll: () {},
               onDeleteSelected: () {
                 if (_selectedElementId != null) {
@@ -1127,7 +1167,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   });
                 }
               },
-              // ✅ التعديل هنا: إضافة صفحة جديدة بدلاً من كلمة فاصل
               onInsertPageBreak: () {
                 setState(() {
                   _exam.questions.add(
@@ -1200,19 +1239,37 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   );
                 }
               },
+              onLineSpacingChanged: null,
+              onZoomIn: _zoomIn,
+              onZoomOut: _zoomOut,
+              onFitScreen: _fitScreen,
             ),
 
-            // ورقة الاختبار الحية
+            // أولاً (3): تغليف عرض الورقة البيضاء بـ InteractiveViewer لتمكين التكبير والتصغير
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // ✅ عرض الصفحات المتعددة
-                    ..._buildAllPages(),
-                    const SizedBox(height: 40),
-                  ],
+              child: InteractiveViewer(
+                transformationController: _transformationController,
+                minScale: 0.5,
+                maxScale: 3.0,
+                boundaryMargin: const EdgeInsets.all(80),
+                onInteractionUpdate: (details) {
+                  final scale = _transformationController.value.getMaxScaleOnAxis();
+                  if ((scale - _zoomLevel).abs() > 0.05) {
+                    setState(() {
+                      _zoomLevel = scale;
+                    });
+                  }
+                },
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // عرض الصفحات المتعددة
+                      ..._buildAllPages(),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1223,7 +1280,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // ✅ دالة بناء الصفحات
+  // ثانياً (1): دالة بناء كافة الصفحات وتقسيمها عند page_break_
   List<Widget> _buildAllPages() {
     List<List<QuestionModel>> pages = [[]];
     for (var q in _exam.questions) {
@@ -1338,7 +1395,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }).toList();
   }
 
-  // ✅ دالة بناء الجدول بناءً على الصفحة
+  // ثانياً (2): دالة بناء جدول الأسئلة لصفحة محددة مع الحفاظ على الفهرس العام
   Widget _buildQuestionsTableForPage(List<QuestionModel> questions) {
     final isAr = _isArabicExam;
 
@@ -1636,7 +1693,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   InlineSpan _buildInlineSpanWithFractions(String text, TextStyle baseStyle) {
-    // ... (نفس الكود السابق بدون تغيير)
     final regExp = RegExp(r'(\[فاصل_صفحة\]|\[(كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):(.*?)\])');
     final matches = regExp.allMatches(text);
 
@@ -1690,7 +1746,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
         );
       } else {
-        // ... (باقي كود الرموز الرياضية)
         final type = match.group(2);
         final rawContent = match.group(3) ?? '';
         final parts = rawContent.split(':');
@@ -1738,7 +1793,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           );
         } else if (type == 'جذر' || type == 'sqrt') {
-          // ... (نفس كود الجذر)
           final String degree = parts.length > 1 ? parts[0] : '';
           final String radicand = parts.length > 1 ? parts.sublist(1).join(':') : parts[0];
           final bool isArRadical = (type == 'جذر') && _isArabicExam;
@@ -1796,7 +1850,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           );
         } else if (type == 'نها') {
-          // ... (نفس كود النهايات)
           final v = parts.isNotEmpty ? parts[0] : (_isArabicExam ? 'س' : 'x');
           final t = parts.length > 1 ? parts[1] : (_isArabicExam ? '٠' : '0');
           final fn = parts.length > 2 ? parts[2] : '';
@@ -2280,7 +2333,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _buildAutomatedEditorMcqGrid(QuestionModel q) {
-    // ... (نفس الكود السابق)
     final fullText = q.spans.map((s) => s.text).join('');
     final lines = fullText.split('\n').where((l) => l.trim().isNotEmpty).toList();
 
@@ -2438,7 +2490,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _buildRenderedElement(InsertableElement el) {
-    // ... (نفس الكود السابق)
     final bool isSelected = _selectedElementId == el.id;
 
     Widget coreWidget;
@@ -2620,7 +2671,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _renderCustomTable(String jsonStr) {
-    // ... (نفس الكود السابق)
     try {
       final Map<String, dynamic> data = jsonDecode(jsonStr);
       final int rows = (data['rows'] as num?)?.toInt() ?? 2;
@@ -2669,7 +2719,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _renderCustomShape(String jsonStr, [double? customWidth, double? customHeight]) {
-    // ... (نفس الكود السابق)
     try {
       final Map<String, dynamic> data = jsonDecode(jsonStr);
       final String kind = data['kind'] ?? 'rectangle';
@@ -2713,7 +2762,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _renderMathOperation(String jsonStr) {
-    // ... (نفس الكود السابق)
     try {
       final data = jsonDecode(jsonStr);
       final kind = data['kind'] ?? 'vertical';
@@ -2848,7 +2896,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   void _openHeaderFlexSettingsDialog() {
-    // ... (نفس الكود السابق)
     double sideWidth = _sideHeaderWidth;
     double qWidth = _questionColWidth;
 
@@ -2905,7 +2952,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   void _showQuestionTemplatesDialog() {
-    // ... (نفس الكود السابق)
     final isAr = _isArabicExam;
 
     final templates = isAr
@@ -2990,7 +3036,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   '1 - ............ [ A- .. , B- .. ]\n'
                   '2 - ............ [ A- .. , B- .. ]\n'
                   '3 - ............ [ A- .. , B- .. ]\n'
-                  '4 - ............ [ A- .. , B- .. ]',
+                  '4 - ............ [ A- .. , B- .. ]\n',
               'mark': 8.0,
               'answer': '1- A   2- B   3- A   4- B',
               'twoCols': true,
@@ -3038,7 +3084,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             Row(
               children: [
                 const Icon(Icons.auto_awesome, color: Color(0xFF1E3A8A)),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Text(
                   isAr ? 'قوالب الأسئلة الجاهزة' : 'Question Templates',
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -3100,7 +3146,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // ✅ تعديل شامل لنافذة إدخال السؤال
+  // ثالثاً: نافذة إدخال وتعديل السؤال مع تتبع التحديد والحافظة وتباعد الأسطر
   void _openQuestionDialog({int? questionIndex}) {
     final bool isEdit = questionIndex != null;
     final bool isAr = _isArabicExam;
@@ -3116,6 +3162,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             isTwoColumns: false,
             alignment: isAr ? TextAlign.right : TextAlign.left,
           );
+
+    // ثالثاً (1): متغيرات تتبع تحديد النص والحافظة وتباعد الأسطر
+    TextSelection? lastSelection;
+    bool isTextSelected = false;
+    bool hasClipboardContent = false;
+    double currentLineSpacing = 1.5;
+
+    // فحص محتوى الحافظة مبدئياً
+    Clipboard.hasStrings().then((hasVal) {
+      hasClipboardContent = hasVal;
+    });
 
     final titleCtrl = TextEditingController(text: q.title);
     final textCtrl =
@@ -3134,7 +3191,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     bool showCustomKeyboard = true;
     bool useSystemKeyboard = false;
     TextEditingController activeFieldController = textCtrl;
-    bool showQuestionSettings = true; // ✅ متغير إظهار/إخفاء الإعدادات
+    bool showQuestionSettings = true;
 
     final defaultFont = isAr ? 'Amiri' : 'Arial';
     List<TextSpanModel> workingSpans = q.spans.isNotEmpty
@@ -3272,6 +3329,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       }
     }
 
+    // ثالثاً (2): استخدام lastSelection بدلاً من textCtrl.selection لضمان عدم تأثر باقي النص
     void applyFormatToSelection({
       bool? bold,
       bool? underline,
@@ -3285,7 +3343,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       if (size != null) currentFontSize = size;
       if (color != null) currentColor = color;
 
-      final sel = textCtrl.selection;
+      final sel = lastSelection ?? textCtrl.selection;
       if (!sel.isValid || sel.isCollapsed || sel.start == sel.end) {
         return;
       }
@@ -3347,7 +3405,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showAdvancedEquationDialog(void Function(void Function()) setParentState) {
-      // ... (نفس الكود السابق)
       String eqType = isAr ? 'نها' : 'نها';
       final f1Ctrl = TextEditingController(text: isAr ? 'س' : 'x');
       final f2Ctrl = TextEditingController(text: isAr ? '٠' : '0');
@@ -3460,7 +3517,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showVerticalMathDialog(void Function(void Function()) setParentState) {
-      // ... (نفس الكود السابق)
       int rowCount = 2;
       String op = '×';
       final r1Ctrl = TextEditingController(text: isAr ? '٥٣٤' : '534');
@@ -3531,7 +3587,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showLongDivisionDialog(void Function(void Function()) setParentState) {
-      // ... (نفس الكود السابق)
       final dividendCtrl = TextEditingController(text: isAr ? '٨٤٦' : '846');
       final divisorCtrl = TextEditingController(text: isAr ? '٢' : '2');
       final quotientCtrl = TextEditingController(text: '');
@@ -3605,7 +3660,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showTableDesignerDialog(void Function(void Function()) setParentState, {InsertableElement? existingElement}) {
-      // ... (نفس الكود السابق)
       int rowCount = 3;
       int colCount = 3;
       bool hasHeader = true;
@@ -3749,7 +3803,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showShapeDesignerDialog(void Function(void Function()) setParentState, {InsertableElement? existingElement}) {
-      // ... (نفس الكود السابق)
       String shapeKind = 'rectangle';
       double width = 120.0;
       double height = 70.0;
@@ -3775,6 +3828,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         'triangle': 'مثلث متساوي الساقين',
         'rightTriangle': 'مثلث قائم الزاوية',
         'parallelogram': 'متوازي أضلاع',
+        'pentagon': 'شكل خماسي منتظم',
+        'hexagon': 'شكل سداسي منتظم',
+        'callout': 'شكل تعليق / سحابة كلام',
         'line': 'خط مستقيم',
         'arrow': 'سهم توجيهي',
       };
@@ -3796,7 +3852,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   DropdownButtonFormField<String>(
-                    value: shapeKind,
+                    value: shapeNames.containsKey(shapeKind) ? shapeKind : 'rectangle',
                     decoration: const InputDecoration(labelText: 'نوع الشكل الهندسي', border: OutlineInputBorder()),
                     items: shapeNames.entries
                         .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
@@ -3933,7 +3989,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showArabicMathTemplates(void Function(void Function()) setParentState) {
-      // ... (نفس الكود السابق)
       final numCtrl = TextEditingController(text: isAr ? '١' : '1');
       final denCtrl = TextEditingController(text: isAr ? '٣' : '3');
 
@@ -3967,7 +4022,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showSymbolsModal(void Function(void Function()) setParentState) {
-      // ... (نفس الكود السابق)
       final categories = <String, Iterable<String>>{
         'زخارف وفواصل': const [
           '﴾   ﴿', '«   »', '۞', '۩', '۝', '✦ ✦ ✦', '❖ ❖ ❖', '~*~*~*~*~',
@@ -4045,7 +4099,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     Widget buildInteractiveEditorElement(InsertableElement el, int elementIndex, StateSetter setModalState) {
-      // ... (نفس الكود السابق)
       void moveElementUp() {
         if (elementIndex > 0) {
           setModalState(() {
@@ -4292,7 +4345,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // ✅ إخفاء وإظهار إعدادات السؤال (العنوان والدرجة والاتجاه)
+                      // إخفاء وإظهار إعدادات السؤال (العنوان والدرجة والاتجاه)
                       if (showQuestionSettings) ...[
                         Row(
                           children: [
@@ -4376,7 +4429,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         const SizedBox(height: 8),
                       ],
 
-                      // ✅ شريط الأدوات المبوب الجديد بدلاً من الشريط الأخضر القديم
+                      // ثالثاً (4): تمرير المتغيرات الجديدة للشريط وربط أزرار النسخ والقص واللصق بحزمة Clipboard
                       ExamRibbonToolbar(
                         showQuestionSettings: showQuestionSettings,
                         onToggleQuestionSettings: () => setModalState(() => showQuestionSettings = !showQuestionSettings),
@@ -4387,6 +4440,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         currentFont: currentFont,
                         currentFontSize: currentFontSize,
                         isArabicInput: isInputArabic,
+                        isTextSelected: isTextSelected,
+                        hasClipboardContent: hasClipboardContent,
+                        currentLineSpacing: currentLineSpacing,
+                        currentZoom: _zoomLevel,
                         onToggleBold: () { setModalState(() { isBoldActive = !isBoldActive; applyFormatToSelection(bold: isBoldActive); }); },
                         onToggleUnderline: () { setModalState(() { isUnderlineActive = !isUnderlineActive; applyFormatToSelection(underline: isUnderlineActive); }); },
                         onAlignmentChanged: (align) => setModalState(() => selectedAlignment = align),
@@ -4400,25 +4457,91 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             currentFont = isInputArabic ? 'Amiri' : 'Arial';
                           });
                         },
-                        onCopy: () {}, // يمكنك تركها فارغة أو ربطها بمنطق النسخ
-                        onPaste: () {
-                          if (_copiedElement != null) {
+                        onCopy: () async {
+                          final sel = lastSelection ?? textCtrl.selection;
+                          if (sel.isValid && !sel.isCollapsed) {
+                            final start = math.min(sel.start, sel.end);
+                            final end = math.max(sel.start, sel.end);
+                            final selectedText = textCtrl.text.substring(start, end);
+                            await Clipboard.setData(ClipboardData(text: selectedText));
                             setModalState(() {
-                              currentElements.add(InsertableElement(
-                                id: const Uuid().v4(),
-                                type: _copiedElement!.type,
-                                content: _copiedElement!.content,
-                                width: _copiedElement!.width,
-                                height: _copiedElement!.height,
-                                dx: _copiedElement!.dx + 10,
-                                dy: _copiedElement!.dy + 10,
-                              ));
+                              hasClipboardContent = true;
+                            });
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('تم نسخ النص المحدد إلى الحافظة.')),
+                              );
+                            }
+                          }
+                        },
+                        onCut: () async {
+                          final sel = lastSelection ?? textCtrl.selection;
+                          if (sel.isValid && !sel.isCollapsed) {
+                            final start = math.min(sel.start, sel.end);
+                            final end = math.max(sel.start, sel.end);
+                            final selectedText = textCtrl.text.substring(start, end);
+                            await Clipboard.setData(ClipboardData(text: selectedText));
+                            textCtrl.text = textCtrl.text.replaceRange(start, end, '');
+                            textCtrl.selection = TextSelection.collapsed(offset: start);
+                            lastSelection = textCtrl.selection;
+                            setModalState(() {
+                              isTextSelected = false;
+                              hasClipboardContent = true;
+                            });
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('تم قص النص إلى الحافظة.')),
+                              );
+                            }
+                          }
+                        },
+                        onPaste: () async {
+                          final data = await Clipboard.getData(Clipboard.kTextPlain);
+                          if (data != null && data.text != null && data.text!.isNotEmpty) {
+                            final clipText = data.text!;
+                            final sel = lastSelection ?? textCtrl.selection;
+                            final pos = sel.isValid ? math.min(sel.start, sel.end) : textCtrl.text.length;
+                            final end = sel.isValid ? math.max(sel.start, sel.end) : textCtrl.text.length;
+                            setModalState(() {
+                              textCtrl.text = textCtrl.text.replaceRange(pos, end, clipText);
+                              textCtrl.selection = TextSelection.collapsed(offset: pos + clipText.length);
+                              lastSelection = textCtrl.selection;
+                              isTextSelected = false;
                             });
                           }
                         },
-                        onCut: () {},
-                        onSelectAll: () {},
-                        onDeleteSelected: () {},
+                        onShare: () {
+                          final sel = lastSelection ?? textCtrl.selection;
+                          if (sel.isValid && !sel.isCollapsed) {
+                            final start = math.min(sel.start, sel.end);
+                            final end = math.max(sel.start, sel.end);
+                            final selectedText = textCtrl.text.substring(start, end);
+                            Clipboard.setData(ClipboardData(text: selectedText));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('تم نسخ النص للمشاركة.')),
+                            );
+                          }
+                        },
+                        onSelectAll: () {
+                          setModalState(() {
+                            textCtrl.selection = TextSelection(baseOffset: 0, extentOffset: textCtrl.text.length);
+                            lastSelection = textCtrl.selection;
+                            isTextSelected = textCtrl.text.isNotEmpty;
+                          });
+                        },
+                        onDeleteSelected: () {
+                          final sel = lastSelection ?? textCtrl.selection;
+                          if (sel.isValid && !sel.isCollapsed) {
+                            final start = math.min(sel.start, sel.end);
+                            final end = math.max(sel.start, sel.end);
+                            setModalState(() {
+                              textCtrl.text = textCtrl.text.replaceRange(start, end, '');
+                              textCtrl.selection = TextSelection.collapsed(offset: start);
+                              lastSelection = textCtrl.selection;
+                              isTextSelected = false;
+                            });
+                          }
+                        },
                         onOpenQuestionBank: _showQuestionBankImportDialog,
                         onInsertImage: () async {
                           final img = await _picker.pickImage(source: ImageSource.gallery);
@@ -4456,9 +4579,18 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             currentElements.add(InsertableElement(id: const Uuid().v4(), type: ElementType.shape, content: jsonPayload, width: 120.0, height: 70.0));
                           });
                         },
+                        onLineSpacingChanged: (spacing) {
+                          setModalState(() {
+                            currentLineSpacing = spacing;
+                          });
+                        },
+                        onZoomIn: _zoomIn,
+                        onZoomOut: _zoomOut,
+                        onFitScreen: _fitScreen,
                       ),
                       const SizedBox(height: 8),
 
+                      // ثالثاً (3): إضافة onChanged وتحديث خاصية style بـ height: currentLineSpacing
                       Directionality(
                         textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
                         child: TextField(
@@ -4469,13 +4601,32 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           enableInteractiveSelection: true,
                           keyboardType: useSystemKeyboard ? TextInputType.multiline : TextInputType.none,
                           maxLines: 4,
+                          style: TextStyle(height: currentLineSpacing),
+                          onChanged: (val) {
+                            setModalState(() {
+                              lastSelection = textCtrl.selection;
+                              isTextSelected = textCtrl.selection.isValid && !textCtrl.selection.isCollapsed;
+                            });
+                            Clipboard.hasStrings().then((hasVal) {
+                              if (hasVal != hasClipboardContent) {
+                                setModalState(() => hasClipboardContent = hasVal);
+                              }
+                            });
+                          },
                           onTap: () {
                             setModalState(() {
                               activeFieldController = textCtrl;
+                              lastSelection = textCtrl.selection;
+                              isTextSelected = textCtrl.selection.isValid && !textCtrl.selection.isCollapsed;
                               if (!useSystemKeyboard) {
                                 showCustomKeyboard = true;
                               }
-                              showQuestionSettings = false; // ✅ إخفاء الإعدادات عند الكتابة
+                              showQuestionSettings = false;
+                            });
+                            Clipboard.hasStrings().then((hasVal) {
+                              if (hasVal != hasClipboardContent) {
+                                setModalState(() => hasClipboardContent = hasVal);
+                              }
                             });
                           },
                           decoration: InputDecoration(
@@ -4522,7 +4673,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               if (!useSystemKeyboard) {
                                 showCustomKeyboard = true;
                               }
-                              showQuestionSettings = false; // ✅ إخفاء الإعدادات عند الكتابة
+                              showQuestionSettings = false;
                             });
                           },
                           decoration: InputDecoration(
@@ -4820,7 +4971,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   void _openFooterSettingsDialog() {
-    // ... (نفس الكود السابق)
     final singleCtrl = TextEditingController(text: _exam.header.singlePageFooterText);
     final multiCtrl = TextEditingController(text: _exam.header.continuationText);
     final signCtrl = TextEditingController(text: _exam.header.teacherSignature);
@@ -4984,7 +5134,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   void _editAdminHeaderDialog() {
-    // ... (نفس الكود السابق)
     final cCountry = TextEditingController(text: _exam.header.country);
     final cGov = TextEditingController(text: _exam.header.governorate);
     final cDir = TextEditingController(text: _exam.header.directorate);
@@ -5065,7 +5214,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   void _editExamDetailsDialog() {
-    // ... (نفس الكود السابق)
     final cGrade = TextEditingController(text: _exam.header.grade);
     final cSub = TextEditingController(text: _exam.header.subject);
     final cDate = TextEditingController(text: _exam.header.examDate);
@@ -5146,7 +5294,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   void _editExamTitleDialog() {
-    // ... (نفس الكود السابق)
     final cTitle = TextEditingController(text: _exam.header.examTitle);
     String font = _exam.header.titleFont;
     double size = _exam.header.titleFontSize;
@@ -5216,7 +5363,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   void _editBasmalaDialog() {
-    // ... (نفس الكود السابق)
     final cBasmala = TextEditingController(text: _exam.header.basmalaText);
     String font = _exam.header.basmalaFont;
     double size = _exam.header.basmalaFontSize;
@@ -5322,7 +5468,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 }
 
 class _LimitArrowPainter extends CustomPainter {
-  // ... (نفس الكود السابق)
   final Color color;
   _LimitArrowPainter({required this.color});
 
@@ -5348,8 +5493,8 @@ class _LimitArrowPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+// رابعاً: تعديل _ExamShapePainter لإضافة الأشكال الهندسية الجديدة
 class _ExamShapePainter extends CustomPainter {
-  // ... (نفس الكود السابق)
   final String kind;
   final Color strokeColor;
   final Color fillColor;
@@ -5420,6 +5565,64 @@ class _ExamShapePainter extends CustomPainter {
         canvas.drawPath(path, strokePaint);
         break;
 
+      // رابعاً (1): شكل خماسي منتظم (Pentagon) باستخدام cos و sin
+      case 'pentagon':
+        final cx = w / 2;
+        final cy = h / 2;
+        final rx = (w - 4) / 2;
+        final ry = (h - 4) / 2;
+        const sides = 5;
+        final path = Path();
+        for (int i = 0; i < sides; i++) {
+          final angle = (i * 2 * math.pi / sides) - (math.pi / 2);
+          final px = cx + rx * math.cos(angle);
+          final py = cy + ry * math.sin(angle);
+          if (i == 0) {
+            path.moveTo(px, py);
+          } else {
+            path.lineTo(px, py);
+          }
+        }
+        path.close();
+        if (fillColor != Colors.transparent) canvas.drawPath(path, fillPaint);
+        canvas.drawPath(path, strokePaint);
+        break;
+
+      // رابعاً (1): شكل سداسي منتظم (Hexagon) باستخدام cos و sin
+      case 'hexagon':
+        final cx = w / 2;
+        final cy = h / 2;
+        final rx = (w - 4) / 2;
+        final ry = (h - 4) / 2;
+        const sides = 6;
+        final path = Path();
+        for (int i = 0; i < sides; i++) {
+          final angle = (i * 2 * math.pi / sides) - (math.pi / 6);
+          final px = cx + rx * math.cos(angle);
+          final py = cy + ry * math.sin(angle);
+          if (i == 0) {
+            path.moveTo(px, py);
+          } else {
+            path.lineTo(px, py);
+          }
+        }
+        path.close();
+        if (fillColor != Colors.transparent) canvas.drawPath(path, fillPaint);
+        canvas.drawPath(path, strokePaint);
+        break;
+
+      // رابعاً (1): شكل تعليق / سحابة كلام (Callout)
+      case 'callout':
+        final bubbleH = h * 0.75;
+        final path = Path()
+          ..addRRect(RRect.fromRectAndRadius(Rect.fromLTWH(2, 2, w - 4, bubbleH - 2), const Radius.circular(8)))
+          ..moveTo(w * 0.35, bubbleH)
+          ..lineTo(w * 0.20, h - 2)
+          ..lineTo(w * 0.45, bubbleH);
+        if (fillColor != Colors.transparent) canvas.drawPath(path, fillPaint);
+        canvas.drawPath(path, strokePaint);
+        break;
+
       case 'line':
         canvas.drawLine(Offset(2, h / 2), Offset(w - 2, h / 2), strokePaint);
         break;
@@ -5451,7 +5654,6 @@ class _ExamShapePainter extends CustomPainter {
 }
 
 class _ArabicRadicalPainter extends CustomPainter {
-  // ... (نفس الكود السابق)
   final Color color;
   final double radicalStrokeWidth;
 
@@ -5486,7 +5688,6 @@ class _ArabicRadicalPainter extends CustomPainter {
 }
 
 class _EnglishRadicalPainter extends CustomPainter {
-  // ... (نفس الكود السابق)
   final Color color;
   final double radicalStrokeWidth;
 
