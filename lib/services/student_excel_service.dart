@@ -33,7 +33,7 @@ class StudentExcelResult {
 }
 
 class StudentExcelService {
-  /// ✅ دالة جديدة: إصلاح أبعاد ملف الإكسيل المخزنة بشكل خاطئ (مشكلة توقف القراءة عند صف معين)
+  /// ✅ دالة جديدة: إصلاح أبعاد ملف الإكسيل المخزنة بشكل خاطئ
   static Uint8List _fixExcelDimensions(Uint8List bytes) {
     try {
       final archive = ZipDecoder().decodeBytes(bytes);
@@ -44,8 +44,9 @@ class StudentExcelService {
           final contentBytes = file.content as List<int>;
           String content = utf8.decode(contentBytes);
           
+          // ✅ إصلاح Regex: يتعرف على أي وسم dimension مهما كانت المسافات بداخله
           if (content.contains('<dimension')) {
-            content = content.replaceAll(RegExp(r'<dimension ref="[^"]*"/>'), '<dimension ref="A1:Z10000"/>');
+            content = content.replaceAll(RegExp(r'<dimension[^>]*>'), '<dimension ref="A1:Z10000"/>');
           }
           
           final newFile = ArchiveFile(file.name, content.length, utf8.encode(content));
@@ -56,9 +57,8 @@ class StudentExcelService {
       }
 
       final zipEncoder = ZipEncoder();
-      final encoded = zipEncoder.encode(newArchive); // قد ترجع List<int>?
+      final encoded = zipEncoder.encode(newArchive); 
       
-      // ✅ التعديل هنا: التحقق من أن النتيجة ليست فارغة
       if (encoded != null) {
         return Uint8List.fromList(encoded);
       }
@@ -109,8 +109,8 @@ class StudentExcelService {
     final normCell = _normalizeArabic(studentGradeCell);
     final normTarget = _normalizeArabic(targetGrade);
 
-    if (normTarget.isEmpty) return true;
-    if (normCell.isEmpty) return false;
+    if (normTarget.isEmpty) return true; 
+    if (normCell.isEmpty) return false;  
 
     if (normCell == normTarget) {
       return true;
@@ -381,20 +381,39 @@ class StudentExcelService {
     const int colGrade = 2;
     const int colSecret = 3;
 
-    for (int r = 3; r < sheet.maxRows; r++) {
+    // ✅ الحل الهجين: نبدأ من 3، ونستمر حتى لو انتهى maxRows بـ 50 صف، ونتوقف إذا مررنا 30 صفاً فارغاً
+    int r = 3;
+    int consecutiveEmptyRows = 0;
+    int safeLimit = sheet.maxRows + 50; // هامش أمان إذا كانت maxRows خاطئة
+
+    while (r < safeLimit) {
       final rawSeat = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSeat, rowIndex: r)));
       final rawName = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colName, rowIndex: r)));
       final rawGrade = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colGrade, rowIndex: r)));
       final rawSecret = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSecret, rowIndex: r)));
 
-      if (rawSeat.isEmpty && rawName.isEmpty) continue;
+      // فحص إذا كان الصف فارغاً
+      if (rawSeat.isEmpty && rawName.isEmpty) {
+        consecutiveEmptyRows++;
+        if (consecutiveEmptyRows > 30) break; // التوقف بعد 30 صف فارغ متتالٍ (نهاية الجدول الفعلية)
+        r++;
+        continue;
+      }
       
-      if (rawSeat.contains('جلوس') || rawName.contains('اسم')) continue;
+      consecutiveEmptyRows = 0; // تصفير العداد لأننا وجدنا بيانات
 
+      // تجاهل أسطر الترويسة المكررة
+      if (rawSeat.contains('جلوس') || rawName.contains('اسم')) {
+        r++;
+        continue; 
+      }
+
+      // فحص مطابقة الصف بالعمود C حصراً
       if (requiredGrade.isNotEmpty) {
         final bool isMatch = _isGradeMatch(rawGrade, requiredGrade);
         if (!isMatch) {
-          continue; 
+          r++;
+          continue; // تخطي أي صف آخر حتى الوصول للصف المطلوب
         }
       }
 
@@ -406,8 +425,11 @@ class StudentExcelService {
         grade: rawGrade.isNotEmpty ? rawGrade : requiredGrade,
         secretCode: finalSecretCode,
       ));
+      
+      r++;
     }
 
+    // 4. فرز طلاب الصف المستورد تصاعدياً برقم الجلوس لضمان تسلسل الأوراق
     students.sort((a, b) {
       final intA = int.tryParse(a.seatNo.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
       final intB = int.tryParse(b.seatNo.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
