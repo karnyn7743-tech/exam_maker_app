@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:archive/archive.dart'; // ✅ تمت الإضافة
 import 'package:excel/excel.dart';
 
 class StudentData {
@@ -30,6 +33,37 @@ class StudentExcelResult {
 }
 
 class StudentExcelService {
+  /// ✅ دالة جديدة: إصلاح أبعاد ملف الإكسيل المخزنة بشكل خاطئ (مشكلة توقف القراءة عند صف معين)
+  static Uint8List _fixExcelDimensions(Uint8List bytes) {
+    try {
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final newArchive = Archive();
+
+      for (final file in archive) {
+        // البحث في جميع أوراق العمل
+        if (file.name.startsWith('xl/worksheets/sheet') && file.name.endsWith('.xml')) {
+          String content = utf8.decode(file.content as List<int>);
+          
+          // استبدال البعد الخاطئ (مثلاً A1:H285) ببعد كبير يغطي كل البيانات
+          if (content.contains('<dimension')) {
+            content = content.replaceAll(RegExp(r'<dimension ref="[^"]*"/>'), '<dimension ref="A1:Z10000"/>');
+          }
+          
+          final newFile = ArchiveFile(file.name, content.length, utf8.encode(content));
+          newArchive.addFile(newFile);
+        } else {
+          newArchive.addFile(file);
+        }
+      }
+
+      final zipEncoder = ZipEncoder();
+      return Uint8List.fromList(zipEncoder.encode(newArchive));
+    } catch (e) {
+      // في حال حدوث خطأ، نعيد الملف الأصلي كما هو
+      return bytes; 
+    }
+  }
+
   /// استخراج النص النقي الخام من خلية الإكسيل متجاوزاً تغليف الكائنات ومحارف التنسيق المخفية
   static String _extractCleanText(dynamic cell) {
     if (cell == null) return '';
@@ -137,7 +171,10 @@ class StudentExcelService {
       if (!await file.exists()) return false;
 
       final bytes = await file.readAsBytes();
-      final excel = Excel.decodeBytes(bytes);
+      // ✅ إصلاح الأبعاد قبل الفحص
+      final fixedBytes = _fixExcelDimensions(bytes);
+      final excel = Excel.decodeBytes(fixedBytes);
+      
       if (excel.tables.isEmpty) return false;
 
       final sheet = excel.tables.values.first;
@@ -362,7 +399,9 @@ class StudentExcelService {
     String? examTitle,
   }) async {
     final bytes = await File(filePath).readAsBytes();
-    final excel = Excel.decodeBytes(bytes);
+    // ✅ إصلاح الأبعاد قبل القراءة
+    final fixedBytes = _fixExcelDimensions(bytes);
+    final excel = Excel.decodeBytes(fixedBytes);
 
     if (excel.tables.isEmpty) {
       throw Exception('ملف الإكسيل فارغ ولا يحتوي على جداول بيانات.');
@@ -406,7 +445,7 @@ class StudentExcelService {
     const int colGrade = 2;
     const int colSecret = 3;
 
-    // ✅ بعد تحديث مكتبة excel إلى الإصدار 4.0.6+، أصبحت maxRows دقيقة وتشمل جميع الصفوف
+    // ✅ بعد إصلاح الأبعاد، أصبحت maxRows دقيقة وتشمل جميع الصفوف
     for (int r = 3; r < sheet.maxRows; r++) {
       final rawSeat = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSeat, rowIndex: r)));
       final rawName = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colName, rowIndex: r)));
@@ -466,7 +505,9 @@ class StudentExcelService {
       if (!await file.exists()) return false;
 
       final bytes = await file.readAsBytes();
-      final excel = Excel.decodeBytes(bytes);
+      // ✅ إصلاح الأبعاد قبل التعديل
+      final fixedBytes = _fixExcelDimensions(bytes);
+      final excel = Excel.decodeBytes(fixedBytes);
 
       if (!excel.tables.containsKey(sheetName)) return false;
       final sheet = excel.tables[sheetName]!;
