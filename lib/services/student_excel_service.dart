@@ -406,37 +406,23 @@ class StudentExcelService {
     const int colGrade = 2;
     const int colSecret = 3;
 
-    // ✅ التعديل الجراحي: استخدام حلقة ذكية تتجاوز مشكلة توقف maxRows في مكتبة excel
-    int r = 3;
-    int consecutiveEmptyRows = 0;
-    
-    while (r < 10000) { // حد أقصى آمن لتجنب الحلقات اللانهائية
+    // ✅ بعد تحديث مكتبة excel إلى الإصدار 4.0.6+، أصبحت maxRows دقيقة وتشمل جميع الصفوف
+    for (int r = 3; r < sheet.maxRows; r++) {
       final rawSeat = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSeat, rowIndex: r)));
       final rawName = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colName, rowIndex: r)));
       final rawGrade = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colGrade, rowIndex: r)));
       final rawSecret = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: colSecret, rowIndex: r)));
 
-      // فحص إذا كان الصف فارغاً
-      if (rawSeat.isEmpty && rawName.isEmpty) {
-        consecutiveEmptyRows++;
-        if (consecutiveEmptyRows > 20) break; // التوقف بعد 20 صف فارغ متتالٍ (نهاية الجدول)
-        r++;
-        continue;
-      }
+      // تجاهل الأسطر الفارغة تماماً
+      if (rawSeat.isEmpty && rawName.isEmpty) continue;
       
-      consecutiveEmptyRows = 0; // تصفير العداد لأننا وجدنا بيانات
-
       // تجاهل أسطر الترويسة المكررة
-      if (rawSeat.contains('جلوس') || rawName.contains('اسم')) {
-        r++;
-        continue; 
-      }
+      if (rawSeat.contains('جلوس') || rawName.contains('اسم')) continue;
 
       // فحص مطابقة الصف بالعمود C حصراً
       if (requiredGrade.isNotEmpty) {
         final bool isMatch = _isGradeMatch(rawGrade, requiredGrade);
         if (!isMatch) {
-          r++;
           continue; // تخطي أي صف آخر حتى الوصول للصف المطلوب
         }
       }
@@ -449,8 +435,6 @@ class StudentExcelService {
         grade: rawGrade.isNotEmpty ? rawGrade : requiredGrade,
         secretCode: finalSecretCode,
       ));
-      
-      r++;
     }
 
     // 4. فرز طلاب الصف المستورد تصاعدياً برقم الجلوس لضمان تسلسل الأوراق
