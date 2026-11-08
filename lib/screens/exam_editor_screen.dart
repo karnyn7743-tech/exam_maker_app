@@ -580,10 +580,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     final List<String> mcqOptions = isAr
-        ? (_exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.arabicLetters
-            ? ['أ', 'ب', 'جـ', 'د']
-            : ['١', '٢', '٣', '٤'])
-        : ['A', 'B', 'C', 'D'];
+    ? (_exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.arabicLetters
+        ? ['أ', 'ب', 'جـ', 'د']
+        : ['١', '٢', '٣', '٤'])
+    : (_exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.arabicLetters
+        ? ['A', 'B', 'C', 'D']
+        : ['1', '2', '3', '4']);
 
     final List<String> tfOptions = isAr ? ['ص', 'خ'] : ['T', 'F'];
 
