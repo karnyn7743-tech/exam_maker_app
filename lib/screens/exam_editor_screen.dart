@@ -78,11 +78,9 @@ class ExamEditorScreen extends StatefulWidget {
 }
 
 class _ExamEditorScreenState extends State<ExamEditorScreen> {
-  // متغير التكبير والتحكم به
   double _zoomLevel = 1.0;
   final TransformationController _transformationController = TransformationController();
 
-  // تتبع استهلاك مساحة ورقة A4 لكل صفحة
   final Map<int, double> _pageHeights = {};
 
   late ExamModel _exam;
@@ -118,7 +116,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     _activeFont = _exam.isArabic ? 'Amiri' : 'Arial';
     _transformationController.value = Matrix4.identity()..scale(_zoomLevel);
 
-    // ملاءمة حجم صفحة A4 تلقائياً مع حجم الشاشة عند فتح المحرر
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fitScreenToA4();
     });
@@ -130,7 +127,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     super.dispose();
   }
 
-  // حساب التكبير ليلائم عرض A4 تلقائياً مع عرض الجهاز
   void _fitScreenToA4() {
     if (!mounted) return;
     final screenWidth = MediaQuery.of(context).size.width;
@@ -144,7 +140,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
   }
 
-  // قياس الارتفاع الفعلي لمحتوى كل صفحة لحساب نسبة الاستهلاك بدقة
   void _measurePagesHeight() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -152,7 +147,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     });
   }
 
-  // دوال التكبير والتصغير والملاءمة المساعدة
   void _zoomIn() {
     setState(() {
       _zoomLevel = math.min(_zoomLevel + 0.15, 3.0);
@@ -185,6 +179,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         _exam.header.examTitle = 'اختبار نهائي';
       }
     });
+
+    _measurePagesHeight();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1306,7 +1302,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // عرض الصفحات بتنسيق ومقاييس A4
                       ..._buildAllPages(),
                       const SizedBox(height: 50),
                     ],
@@ -1321,7 +1316,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // دالة بناء كافة الصفحات وتقسيمها عند page_break_ مع تطبيق أبعاد A4 ومؤشر استهلاك المساحة
   List<Widget> _buildAllPages() {
     List<List<QuestionModel>> pages = [[]];
     for (var q in _exam.questions) {
@@ -1332,13 +1326,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       }
     }
 
+    // اتجاه قراءة الصفحة كاملة (RTL للعربي و LTR للإنجليزي)
     final TextDirection examDir = _isArabicExam ? TextDirection.rtl : TextDirection.ltr;
 
     return pages.asMap().entries.map((entry) {
       final int pageIndex = entry.key;
       final List<QuestionModel> pageQuestions = entry.value;
 
-      // حساب الارتفاع المستهلك الفعلي
       final double consumedHeight = _pageHeights[pageIndex] ?? 0.0;
       final double fillPercentage = (consumedHeight / kA4PaperHeight).clamp(0.0, 1.5);
       final int displayPercent = (fillPercentage * 100).toInt();
@@ -1367,7 +1361,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
           child: Stack(
             children: [
-              // قياس مساحة المحتوى الفعلية عبر NotificationListener
               NotificationListener<SizeChangedLayoutNotification>(
                 onNotification: (_) {
                   _measurePagesHeight();
@@ -1392,7 +1385,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           top: _exam.header.topMargin1cm ? 8.5 : 12.0,
                           left: 12.0,
                           right: 12.0,
-                          bottom: 34.0, // هامش لتجنب تداخل مؤشر المساحة السفلي
+                          bottom: 34.0,
                         ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -1463,6 +1456,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             
                             const SizedBox(height: 8),
 
+                            // تغليف جدول الأسئلة بالاتجاه الصحيح للاختبار
                             Directionality(
                               textDirection: examDir,
                               child: _buildQuestionsTableForPage(pageQuestions),
@@ -1478,7 +1472,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
               ),
 
-              // مؤشر قياس استهلاك مساحة ورقة A4 أسفل كل صفحة
+              // شريط قياس امتلاء الصفحة
               Positioned(
                 bottom: 6,
                 left: 12,
@@ -1543,10 +1537,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }).toList();
   }
 
-  // دالة بناء جدول الأسئلة لصفحة محددة مع الحفاظ على الفهرس العام
+  // دالة بناء جدول الأسئلة مع ضبط ترتيب الأعمدة الدقيق للغتين
   Widget _buildQuestionsTableForPage(List<QuestionModel> questions) {
     final isAr = _isArabicExam;
 
+    // العمود 0 دائماً هو السؤال
+    // العمود 1 دائماً هو نص السؤال والمحتوى
+    // العمود 2 دائماً هو الدرجة
+    // بفضل Directionality(textDirection: RTL):
+    // العمود 0 يرسم يميناً، العمود 1 بالوسط، العمود 2 يساراً كما هو مطلوب رسميًا.
     return Table(
       border: TableBorder.all(color: Colors.black, width: 1),
       columnWidths: {
@@ -1558,13 +1557,19 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         TableRow(
           decoration: BoxDecoration(color: Colors.grey.shade100),
           children: [
+            // 0: خانة عنوان عمود السؤال (في اليمين بالعربي، في اليسار بالإنجليزي)
             TableCell(
               verticalAlignment: TableCellVerticalAlignment.middle,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Text(isAr ? 'السؤال' : 'Q', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5)),
+                child: Text(
+                  isAr ? 'السؤال' : 'Q',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5),
+                ),
               ),
             ),
+            // 1: خانة التوجيه بالوسط
             TableCell(
               verticalAlignment: TableCellVerticalAlignment.middle,
               child: InkWell(
@@ -1572,18 +1577,25 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
                   child: Text(
-                    _exam.header.instructionText.isNotEmpty ? _exam.header.instructionText : (isAr ? 'أجب عن جميع الأسئلة الآتية' : 'Answer all the following questions'),
+                    _exam.header.instructionText.isNotEmpty
+                        ? _exam.header.instructionText
+                        : (isAr ? 'أجب عن جميع الأسئلة الآتية' : 'Answer all the following questions'),
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 11),
                   ),
                 ),
               ),
             ),
+            // 2: خانة عنوان عمود الدرجة (في اليسار بالعربي، في اليمين بالإنجليزي)
             TableCell(
               verticalAlignment: TableCellVerticalAlignment.middle,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Text(isAr ? 'الدرجة' : 'Mark', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5)),
+                child: Text(
+                  isAr ? 'الدرجة' : 'Mark',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5),
+                ),
               ),
             ),
           ],
@@ -1591,25 +1603,44 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         ...questions.map((q) {
           final indexInMainList = _exam.questions.indexOf(q);
           
-          Widget titleWidget = Text(q.title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11));
-          if (q.titleOrientation == QuestionTitleOrientation.verticalBottomToTop) titleWidget = RotatedBox(quarterTurns: 3, child: titleWidget);
-          else if (q.titleOrientation == QuestionTitleOrientation.verticalTopToBottom) titleWidget = RotatedBox(quarterTurns: 1, child: titleWidget);
+          Widget titleWidget = Text(
+            q.title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+          );
+          if (q.titleOrientation == QuestionTitleOrientation.verticalBottomToTop) {
+            titleWidget = RotatedBox(quarterTurns: 3, child: titleWidget);
+          } else if (q.titleOrientation == QuestionTitleOrientation.verticalTopToBottom) {
+            titleWidget = RotatedBox(quarterTurns: 1, child: titleWidget);
+          }
 
           final markUnit = isAr ? 'د' : 'm';
           final markText = q.mark > 0 ? (q.mark % 1 == 0 ? '${q.mark.toInt()} $markUnit' : '${q.mark} $markUnit') : '-';
-          Widget markWidget = Text(markText, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11));
-          if (q.gradeOrientation == GradeTextOrientation.verticalBottomToTop) markWidget = RotatedBox(quarterTurns: 3, child: markWidget);
-          else if (q.gradeOrientation == GradeTextOrientation.verticalTopToBottom) markWidget = RotatedBox(quarterTurns: 1, child: markWidget);
+          Widget markWidget = Text(
+            markText,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+          );
+          if (q.gradeOrientation == GradeTextOrientation.verticalBottomToTop) {
+            markWidget = RotatedBox(quarterTurns: 3, child: markWidget);
+          } else if (q.gradeOrientation == GradeTextOrientation.verticalTopToBottom) {
+            markWidget = RotatedBox(quarterTurns: 1, child: markWidget);
+          }
 
           return TableRow(
             children: [
+              // 0: محتوى عمود السؤال (يمين بالعربي)
               TableCell(
                 verticalAlignment: TableCellVerticalAlignment.middle,
                 child: InkWell(
                   onTap: () => _openQuestionDialog(questionIndex: indexInMainList),
-                  child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Center(child: titleWidget)),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Center(child: titleWidget),
+                  ),
                 ),
               ),
+              // 1: نص السؤال والعناصر المرافقة بالوسط
               TableCell(
                 verticalAlignment: TableCellVerticalAlignment.middle,
                 child: InkWell(
@@ -1626,13 +1657,27 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           const SizedBox(height: 6),
                           Container(
                             padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(color: Colors.blue.shade50, border: Border.all(color: Colors.blue.shade300), borderRadius: BorderRadius.circular(4)),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              border: Border.all(color: Colors.blue.shade300),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Icon(Icons.check_circle_outline, size: 16, color: Colors.blue),
                                 const SizedBox(width: 4),
-                                Expanded(child: Text(isAr ? 'الإجابة النموذجية: ${q.answerKey}' : 'Model Answer: ${q.answerKey}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blue.shade900, fontFamily: isAr ? 'Amiri' : 'Arial'))),
+                                Expanded(
+                                  child: Text(
+                                    isAr ? 'الإجابة النموذجية: ${q.answerKey}' : 'Model Answer: ${q.answerKey}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: Colors.blue.shade900,
+                                      fontFamily: isAr ? 'Amiri' : 'Arial',
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -1642,11 +1687,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                 ),
               ),
+              // 2: محتوى عمود الدرجة (يسار بالعربي)
               TableCell(
                 verticalAlignment: TableCellVerticalAlignment.middle,
                 child: InkWell(
                   onTap: () => _openQuestionDialog(questionIndex: indexInMainList),
-                  child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Center(child: markWidget)),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Center(child: markWidget),
+                  ),
                 ),
               ),
             ],
@@ -3296,7 +3345,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // نافذة إدخال وتعديل السؤال مع تتبع التحديد والحافظة وتباعد الأسطر
   void _openQuestionDialog({int? questionIndex}) {
     final bool isEdit = questionIndex != null;
     final bool isAr = _isArabicExam;
@@ -4576,7 +4624,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         const SizedBox(height: 8),
                       ],
 
-                      // شريط الأدوات المبوب وتمرير المتغيرات المطلوبة
                       ExamRibbonToolbar(
                         showQuestionSettings: showQuestionSettings,
                         onToggleQuestionSettings: () => setModalState(() => showQuestionSettings = !showQuestionSettings),
@@ -5648,7 +5695,6 @@ class _LimitArrowPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// تعديل _ExamShapePainter لإضافة الأشكال الهندسية الجديدة
 class _ExamShapePainter extends CustomPainter {
   final String kind;
   final Color strokeColor;
@@ -5720,7 +5766,6 @@ class _ExamShapePainter extends CustomPainter {
         canvas.drawPath(path, strokePaint);
         break;
 
-      // شكل خماسي منتظم (Pentagon) باستخدام cos و sin
       case 'pentagon':
         final cx = w / 2;
         final cy = h / 2;
@@ -5743,7 +5788,6 @@ class _ExamShapePainter extends CustomPainter {
         canvas.drawPath(path, strokePaint);
         break;
 
-      // شكل سداسي منتظم (Hexagon) باستخدام cos و sin
       case 'hexagon':
         final cx = w / 2;
         final cy = h / 2;
@@ -5766,7 +5810,6 @@ class _ExamShapePainter extends CustomPainter {
         canvas.drawPath(path, strokePaint);
         break;
 
-      // شكل تعليق / سحابة كلام (Callout)
       case 'callout':
         final bubbleH = h * 0.75;
         final path = Path()
