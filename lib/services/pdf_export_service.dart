@@ -665,16 +665,6 @@ class PdfExportService {
     return [_buildQuestionsSubTable(exam.questions, exam.header.instructionText, ttf, isAr)];
   }
 
-  /// ✅ الحل القطعي لانعكاس الأعمدة في PDF:
-  /// بما أن جدول الـ PDF يرسم الأعمدة هندسياً من اليسار لليمين دائماً:
-  /// في العربي (RTL):
-  /// العمود 0 (أقصى اليسار) = الدرجة (38pt)
-  /// العمود 1 (الوسط) = المحتوى (Flex)
-  /// العمود 2 (أقصى اليمين) = السؤال (38pt)
-  /// في الإنجليزي (LTR):
-  /// العمود 0 (أقصى اليسار) = السؤال (38pt)
-  /// العمود 1 (الوسط) = المحتوى (Flex)
-  /// العمود 2 (أقصى اليمين) = الدرجة (38pt)
   static pw.Widget _buildQuestionsSubTable(
     List<QuestionModel> questions,
     String instructionText,
@@ -687,17 +677,11 @@ class PdfExportService {
     final String colQuestionTitle = isAr ? 'السؤال' : 'Question';
     final String colMarkTitle = isAr ? 'الدرجة' : 'Mark';
 
-    final columnWidths = isAr
-        ? const <int, pw.TableColumnWidth>{
-            0: pw.FixedColumnWidth(38), // أقصى اليسار: الدرجة
-            1: pw.FlexColumnWidth(),     // الوسط: المحتوى
-            2: pw.FixedColumnWidth(38), // أقصى اليمين: السؤال
-          }
-        : const <int, pw.TableColumnWidth>{
-            0: pw.FixedColumnWidth(38), // أقصى اليسار: Question
-            1: pw.FlexColumnWidth(),     // الوسط: Content
-            2: pw.FixedColumnWidth(38), // أقصى اليمين: Mark
-          };
+    final columnWidths = const <int, pw.TableColumnWidth>{
+      0: pw.FixedColumnWidth(38),
+      1: pw.FlexColumnWidth(),
+      2: pw.FixedColumnWidth(38),
+    };
 
     final questionHeaderCell = pw.Padding(
       padding: const pw.EdgeInsets.all(4),
@@ -730,59 +714,60 @@ class PdfExportService {
       ),
     );
 
-    return pw.Directionality(
-      textDirection: pw.TextDirection.ltr, // تثبيت الاتجاه الهندسي للجدول لضمان عدم العكس
-      child: pw.Table(
-        border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
-        columnWidths: columnWidths,
-        children: [
-          pw.TableRow(
-            decoration: const pw.BoxDecoration(color: PdfColors.grey100),
-            children: isAr
-                ? [markHeaderCell, instructionHeaderCell, questionHeaderCell]
-                : [questionHeaderCell, instructionHeaderCell, markHeaderCell],
-          ),
-          ...questions.map((q) {
-            final qTitleCell = pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(vertical: 6),
-              child: pw.Center(
-                child: pw.Text(q.title,
-                    textAlign: pw.TextAlign.center,
-                    style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
-              ),
-            );
-
-            final qContentCell = pw.Padding(
-              padding: const pw.EdgeInsets.all(6),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                children: [
-                  _buildPdfQuestionContent(q, ttf, isAr),
-                  if (q.elements.isNotEmpty) pw.SizedBox(height: 4),
-                  ...q.elements.map((el) => _buildPdfElement(el, ttf, isAr)),
-                ],
-              ),
-            );
-
-            final qMarkCell = pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(vertical: 6),
-              child: pw.Center(
-                child: pw.Text(
-                  _formatMark(q.mark, isAr),
+    return pw.Table(
+      border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
+      columnWidths: columnWidths,
+      children: [
+        pw.TableRow(
+          decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+          children: [
+            questionHeaderCell,
+            instructionHeaderCell,
+            markHeaderCell,
+          ],
+        ),
+        ...questions.map((q) {
+          final qTitleCell = pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(vertical: 6),
+            child: pw.Center(
+              child: pw.Text(q.title,
                   textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
-                ),
-              ),
-            );
+                  style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+            ),
+          );
 
-            return pw.TableRow(
-              children: isAr
-                  ? [qMarkCell, qContentCell, qTitleCell]
-                  : [qTitleCell, qContentCell, qMarkCell],
-            );
-          }),
-        ],
-      ),
+          final qContentCell = pw.Padding(
+            padding: const pw.EdgeInsets.all(6),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                _buildPdfQuestionContent(q, ttf, isAr),
+                if (q.elements.isNotEmpty) pw.SizedBox(height: 4),
+                ...q.elements.map((el) => _buildPdfElement(el, ttf, isAr)),
+              ],
+            ),
+          );
+
+          final qMarkCell = pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(vertical: 6),
+            child: pw.Center(
+              child: pw.Text(
+                _formatMark(q.mark, isAr),
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
+              ),
+            ),
+          );
+
+          return pw.TableRow(
+            children: [
+              qTitleCell,
+              qContentCell,
+              qMarkCell,
+            ],
+          );
+        }),
+      ],
     );
   }
 
