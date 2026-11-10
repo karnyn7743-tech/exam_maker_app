@@ -21,6 +21,10 @@ import '../widgets/exam_ribbon_toolbar.dart';
 
 typedef FontItem = Map<String, String>;
 
+// أبعاد ورقة A4 القياسية للشاشات والطباعة (بكسل منطقي 96 DPI)
+const double kA4PaperWidth = 794.0;
+const double kA4PaperHeight = 1123.0;
+
 // قائمة الخطوط الرسمية المعتمدة
 const List<FontItem> appFontsList = [
   {'id': 'Amiri', 'name': 'خط الأميري (الافتراضي)'},
@@ -74,9 +78,12 @@ class ExamEditorScreen extends StatefulWidget {
 }
 
 class _ExamEditorScreenState extends State<ExamEditorScreen> {
-  // أولاً: متغير التكبير والتحكم به
+  // متغير التكبير والتحكم به
   double _zoomLevel = 1.0;
   final TransformationController _transformationController = TransformationController();
+
+  // تتبع استهلاك مساحة ورقة A4 لكل صفحة
+  final Map<int, double> _pageHeights = {};
 
   late ExamModel _exam;
   late bool _isNew;
@@ -110,6 +117,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     _activeAlignment = _exam.isArabic ? TextAlign.right : TextAlign.left;
     _activeFont = _exam.isArabic ? 'Amiri' : 'Arial';
     _transformationController.value = Matrix4.identity()..scale(_zoomLevel);
+
+    // ملاءمة حجم صفحة A4 تلقائياً مع حجم الشاشة عند فتح المحرر
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fitScreenToA4();
+    });
   }
 
   @override
@@ -118,7 +130,29 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     super.dispose();
   }
 
-  // أولاً: دوال التكبير والتصغير والملاءمة المساعدة
+  // حساب التكبير ليلائم عرض A4 تلقائياً مع عرض الجهاز
+  void _fitScreenToA4() {
+    if (!mounted) return;
+    final screenWidth = MediaQuery.of(context).size.width;
+    if (screenWidth > 0) {
+      final double targetScale = ((screenWidth - 20) / kA4PaperWidth).clamp(0.4, 1.0);
+      setState(() {
+        _zoomLevel = targetScale;
+        _transformationController.value = Matrix4.identity()..scale(targetScale);
+      });
+      _measurePagesHeight();
+    }
+  }
+
+  // قياس الارتفاع الفعلي لمحتوى كل صفحة لحساب نسبة الاستهلاك بدقة
+  void _measurePagesHeight() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {});
+    });
+  }
+
+  // دوال التكبير والتصغير والملاءمة المساعدة
   void _zoomIn() {
     setState(() {
       _zoomLevel = math.min(_zoomLevel + 0.15, 3.0);
@@ -128,16 +162,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
   void _zoomOut() {
     setState(() {
-      _zoomLevel = math.max(_zoomLevel - 0.15, 0.5);
+      _zoomLevel = math.max(_zoomLevel - 0.15, 0.4);
       _transformationController.value = Matrix4.identity()..scale(_zoomLevel);
     });
   }
 
   void _fitScreen() {
-    setState(() {
-      _zoomLevel = 1.0;
-      _transformationController.value = Matrix4.identity()..scale(1.0);
-    });
+    _fitScreenToA4();
   }
 
   bool get _isArabicExam => _exam.isArabic;
@@ -186,6 +217,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       setState(() {
         _exam.header.logoImagePath = image.path;
       });
+      _measurePagesHeight();
     }
   }
 
@@ -426,6 +458,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 _isNew = true;
               });
               Navigator.pop(dCtx);
+              _measurePagesHeight();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('تم توليد (${ctrl.text.trim()}) بنجاح مع خلط الفقرات!'),
@@ -585,6 +618,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               : 'Question ${_exam.questions.length + 1}';
                           setState(() => _exam.questions.add(imported));
                           Navigator.pop(bCtx);
+                          _measurePagesHeight();
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('تم إدراج (${item.question.title}) بنجاح.'), backgroundColor: Colors.green.shade800),
                           );
@@ -932,8 +966,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final TextDirection examDir = _isArabicExam ? TextDirection.rtl : TextDirection.ltr;
-
     return GestureDetector(
       onTap: () {
         if (_selectedElementId != null) {
@@ -1101,6 +1133,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       dy: _copiedElement!.dy + 10,
                     ));
                   });
+                  _measurePagesHeight();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('تم لصق العنصر في السؤال الأخير.')),
                   );
@@ -1120,6 +1153,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       dy: el.dy,
                     );
                   });
+                  _measurePagesHeight();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('تم قص العنصر إلى الحافظة.')),
                   );
@@ -1135,6 +1169,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     }
                     _selectedElementId = null;
                   });
+                  _measurePagesHeight();
                 }
               },
               onOpenQuestionBank: _showQuestionBankImportDialog,
@@ -1150,6 +1185,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       height: 90,
                     ));
                   });
+                  _measurePagesHeight();
                 } else if (_exam.questions.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('يرجى إضافة سؤال أولاً لإدراج الصورة بداخله.')),
@@ -1165,6 +1201,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       content: '......................................................................',
                     ));
                   });
+                  _measurePagesHeight();
                 }
               },
               onInsertPageBreak: () {
@@ -1178,6 +1215,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     ),
                   );
                 });
+                _measurePagesHeight();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('تمت إضافة صفحة جديدة')),
                 );
@@ -1192,6 +1230,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         content: txt,
                       ));
                     });
+                    _measurePagesHeight();
                   }
                 });
               },
@@ -1205,6 +1244,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       fontSize: _activeFontSize,
                     ));
                   });
+                  _measurePagesHeight();
                 } else {
                   _openQuestionDialog();
                 }
@@ -1233,6 +1273,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       height: 70.0,
                     ));
                   });
+                  _measurePagesHeight();
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('يرجى إضافة سؤال أولاً لإدراج الشكل بداخله.')),
@@ -1245,29 +1286,29 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               onFitScreen: _fitScreen,
             ),
 
-            // أولاً (3): تغليف عرض الورقة البيضاء بـ InteractiveViewer لتمكين التكبير والتصغير
+            // تغليف عرض الورقة البيضاء بـ InteractiveViewer وتثبيت أبعاد A4
             Expanded(
               child: InteractiveViewer(
                 transformationController: _transformationController,
-                minScale: 0.5,
+                minScale: 0.35,
                 maxScale: 3.0,
-                boundaryMargin: const EdgeInsets.all(80),
+                boundaryMargin: const EdgeInsets.all(120),
                 onInteractionUpdate: (details) {
                   final scale = _transformationController.value.getMaxScaleOnAxis();
-                  if ((scale - _zoomLevel).abs() > 0.05) {
+                  if ((scale - _zoomLevel).abs() > 0.03) {
                     setState(() {
                       _zoomLevel = scale;
                     });
                   }
                 },
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                  padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // عرض الصفحات المتعددة
+                      // عرض الصفحات بتنسيق ومقاييس A4
                       ..._buildAllPages(),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 50),
                     ],
                   ),
                 ),
@@ -1280,7 +1321,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // ثانياً (1): دالة بناء كافة الصفحات وتقسيمها عند page_break_
+  // دالة بناء كافة الصفحات وتقسيمها عند page_break_ مع تطبيق أبعاد A4 ومؤشر استهلاك المساحة
   List<Widget> _buildAllPages() {
     List<List<QuestionModel>> pages = [[]];
     for (var q in _exam.questions) {
@@ -1297,105 +1338,212 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       final int pageIndex = entry.key;
       final List<QuestionModel> pageQuestions = entry.value;
 
-      return Container(
-        margin: const EdgeInsets.only(bottom: 24.0),
-        constraints: const BoxConstraints(maxWidth: 820),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(2),
-          boxShadow: const [
-            BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3)),
-          ],
-        ),
-        padding: EdgeInsets.only(
-          top: _exam.header.topMargin1cm ? 8.5 : 12.0,
-          left: 12.0,
-          right: 12.0,
-          bottom: 12.0,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (pageIndex == 0) ...[
-              if (_exam.header.topMargin1cm) ...[
-                Directionality(
-                  textDirection: TextDirection.rtl,
-                  child: InkWell(
-                    onTap: _openFooterSettingsDialog,
-                    borderRadius: BorderRadius.circular(4),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
-                      margin: const EdgeInsets.only(bottom: 6.0),
-                      decoration: BoxDecoration(
-                        color: _exam.header.studentDataMode != 'none' ? Colors.green.shade50 : Colors.transparent,
-                        borderRadius: BorderRadius.circular(4),
-                        border: _exam.header.studentDataMode != 'none' ? Border.all(color: Colors.green.shade200, width: 0.8) : null,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              if (_exam.header.studentDataMode != 'none') const Icon(Icons.how_to_reg, size: 14, color: Colors.green),
-                              const SizedBox(width: 4),
-                              Text(
-                                _exam.header.studentDataMode != 'none' ? 'اسم الطالب: [ كشف إكسيل مفعّل ]' : 'اسم الطالب: .................................................',
-                                style: TextStyle(fontFamily: _exam.header.adminFont, fontWeight: FontWeight.bold, fontSize: 11, color: _exam.header.studentDataMode != 'none' ? Colors.green.shade900 : Colors.black87),
+      // حساب الارتفاع المستهلك الفعلي
+      final double consumedHeight = _pageHeights[pageIndex] ?? 0.0;
+      final double fillPercentage = (consumedHeight / kA4PaperHeight).clamp(0.0, 1.5);
+      final int displayPercent = (fillPercentage * 100).toInt();
+      final bool isOverflown = consumedHeight > kA4PaperHeight;
+
+      return Center(
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 28.0),
+          width: kA4PaperWidth,
+          constraints: const BoxConstraints(
+            minWidth: kA4PaperWidth,
+            maxWidth: kA4PaperWidth,
+            minHeight: kA4PaperHeight,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(2),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 10,
+                spreadRadius: 1,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // قياس مساحة المحتوى الفعلية عبر NotificationListener
+              NotificationListener<SizeChangedLayoutNotification>(
+                onNotification: (_) {
+                  _measurePagesHeight();
+                  return true;
+                },
+                child: SizeChangedLayoutNotifier(
+                  child: Builder(
+                    builder: (context) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        final RenderBox? box = context.findRenderObject() as RenderBox?;
+                        if (box != null && box.hasSize) {
+                          if (_pageHeights[pageIndex] != box.size.height) {
+                            setState(() {
+                              _pageHeights[pageIndex] = box.size.height;
+                            });
+                          }
+                        }
+                      });
+
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          top: _exam.header.topMargin1cm ? 8.5 : 12.0,
+                          left: 12.0,
+                          right: 12.0,
+                          bottom: 34.0, // هامش لتجنب تداخل مؤشر المساحة السفلي
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (pageIndex == 0) ...[
+                              if (_exam.header.topMargin1cm) ...[
+                                Directionality(
+                                  textDirection: TextDirection.rtl,
+                                  child: InkWell(
+                                    onTap: _openFooterSettingsDialog,
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
+                                      margin: const EdgeInsets.only(bottom: 6.0),
+                                      decoration: BoxDecoration(
+                                        color: _exam.header.studentDataMode != 'none' ? Colors.green.shade50 : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: _exam.header.studentDataMode != 'none' ? Border.all(color: Colors.green.shade200, width: 0.8) : null,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              if (_exam.header.studentDataMode != 'none') const Icon(Icons.how_to_reg, size: 14, color: Colors.green),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                _exam.header.studentDataMode != 'none' ? 'اسم الطالب: [ كشف إكسيل مفعّل ]' : 'اسم الطالب: .................................................',
+                                                style: TextStyle(fontFamily: _exam.header.adminFont, fontWeight: FontWeight.bold, fontSize: 11, color: _exam.header.studentDataMode != 'none' ? Colors.green.shade900 : Colors.black87),
+                                              ),
+                                            ],
+                                          ),
+                                          Row(
+                                            children: [
+                                              Text(
+                                                _exam.header.studentDataMode != 'none' ? 'رقم الجلوس: [ آلي ]' : 'رقم الجلوس: [ ........... ]',
+                                                style: TextStyle(fontFamily: _exam.header.detailsFont, fontWeight: FontWeight.bold, fontSize: 11, color: _exam.header.studentDataMode != 'none' ? Colors.green.shade900 : Colors.black87),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              const Icon(Icons.settings, size: 13, color: Colors.grey),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              Directionality(textDirection: TextDirection.rtl, child: _buildExamHeader()),
+                            ] else ...[
+                              Directionality(
+                                textDirection: TextDirection.rtl,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  decoration: const BoxDecoration(
+                                    border: Border(bottom: BorderSide(color: Colors.black, width: 1.5)),
+                                  ),
+                                  child: Text(
+                                    'تابع اختبار مادة ${_exam.header.subject} للصف ${_exam.header.grade}',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E3A8A)),
+                                  ),
+                                ),
                               ),
                             ],
-                          ),
-                          Row(
-                            children: [
-                              Text(
-                                _exam.header.studentDataMode != 'none' ? 'رقم الجلوس: [ آلي ]' : 'رقم الجلوس: [ ........... ]',
-                                style: TextStyle(fontFamily: _exam.header.detailsFont, fontWeight: FontWeight.bold, fontSize: 11, color: _exam.header.studentDataMode != 'none' ? Colors.green.shade900 : Colors.black87),
-                              ),
-                              const SizedBox(width: 6),
-                              const Icon(Icons.settings, size: 13, color: Colors.grey),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+                            
+                            const SizedBox(height: 8),
+
+                            Directionality(
+                              textDirection: examDir,
+                              child: _buildQuestionsTableForPage(pageQuestions),
+                            ),
+                            const SizedBox(height: 10),
+
+                            Directionality(textDirection: TextDirection.rtl, child: _buildFooterPreview()),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 ),
-              ],
-              Directionality(textDirection: TextDirection.rtl, child: _buildExamHeader()),
-            ] else ...[
-              Directionality(
-                textDirection: TextDirection.rtl,
+              ),
+
+              // مؤشر قياس استهلاك مساحة ورقة A4 أسفل كل صفحة
+              Positioned(
+                bottom: 6,
+                left: 12,
+                right: 12,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: Colors.black, width: 1.5)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: isOverflown ? Colors.red.shade400 : Colors.grey.shade300),
                   ),
-                  child: Text(
-                    'تابع اختبار مادة ${_exam.header.subject} للصف ${_exam.header.grade}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E3A8A)),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isOverflown ? Colors.red.shade700 : const Color(0xFF1E3A8A),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'A4 - صفحة ${pageIndex + 1} من ${pages.length}',
+                          style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: fillPercentage.clamp(0.0, 1.0),
+                            backgroundColor: Colors.grey.shade300,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              isOverflown
+                                  ? Colors.red
+                                  : (fillPercentage > 0.85 ? Colors.orange : Colors.green),
+                            ),
+                            minHeight: 6,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        isOverflown
+                            ? 'فاضت الصفحة ($displayPercent%) ⚠️'
+                            : 'استهلاك: $displayPercent%',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: isOverflown
+                              ? Colors.red.shade800
+                              : (fillPercentage > 0.85 ? Colors.orange.shade900 : Colors.black87),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ],
-            
-            const SizedBox(height: 8),
-
-            Directionality(
-              textDirection: examDir,
-              child: _buildQuestionsTableForPage(pageQuestions),
-            ),
-            const SizedBox(height: 10),
-
-            Directionality(textDirection: TextDirection.rtl, child: _buildFooterPreview()),
-          ],
+          ),
         ),
       );
     }).toList();
   }
 
-  // ثانياً (2): دالة بناء جدول الأسئلة لصفحة محددة مع الحفاظ على الفهرس العام
+  // دالة بناء جدول الأسئلة لصفحة محددة مع الحفاظ على الفهرس العام
   Widget _buildQuestionsTableForPage(List<QuestionModel> questions) {
     final isAr = _isArabicExam;
 
@@ -2942,6 +3090,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   _markColWidth = qWidth;
                 });
                 Navigator.pop(ctx);
+                _measurePagesHeight();
               },
               child: const Text('تطبيق الأبعاد'),
             ),
@@ -3128,6 +3277,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         _exam.questions.add(newQ);
                       });
                       Navigator.pop(ctx);
+                      _measurePagesHeight();
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text('تمت إضافة ${t['title']} بنجاح'),
@@ -3146,7 +3296,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  // ثالثاً: نافذة إدخال وتعديل السؤال مع تتبع التحديد والحافظة وتباعد الأسطر
+  // نافذة إدخال وتعديل السؤال مع تتبع التحديد والحافظة وتباعد الأسطر
   void _openQuestionDialog({int? questionIndex}) {
     final bool isEdit = questionIndex != null;
     final bool isAr = _isArabicExam;
@@ -3163,13 +3313,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             alignment: isAr ? TextAlign.right : TextAlign.left,
           );
 
-    // ثالثاً (1): متغيرات تتبع تحديد النص والحافظة وتباعد الأسطر
     TextSelection? lastSelection;
     bool isTextSelected = false;
     bool hasClipboardContent = false;
     double currentLineSpacing = 1.5;
 
-    // فحص محتوى الحافظة مبدئياً
     Clipboard.hasStrings().then((hasVal) {
       hasClipboardContent = hasVal;
     });
@@ -3329,7 +3477,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       }
     }
 
-    // ثالثاً (2): استخدام lastSelection بدلاً من textCtrl.selection لضمان عدم تأثر باقي النص
     void applyFormatToSelection({
       bool? bold,
       bool? underline,
@@ -4429,7 +4576,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         const SizedBox(height: 8),
                       ],
 
-                      // ثالثاً (4): تمرير المتغيرات الجديدة للشريط وربط أزرار النسخ والقص واللصق بحزمة Clipboard
+                      // شريط الأدوات المبوب وتمرير المتغيرات المطلوبة
                       ExamRibbonToolbar(
                         showQuestionSettings: showQuestionSettings,
                         onToggleQuestionSettings: () => setModalState(() => showQuestionSettings = !showQuestionSettings),
@@ -4590,7 +4737,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ),
                       const SizedBox(height: 8),
 
-                      // ثالثاً (3): إضافة onChanged وتحديث خاصية style بـ height: currentLineSpacing
                       Directionality(
                         textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
                         child: TextField(
@@ -4756,6 +4902,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                           });
                                           Navigator.pop(dCtx);
                                           Navigator.pop(ctx);
+                                          _measurePagesHeight();
                                           ScaffoldMessenger.of(context).showSnackBar(
                                             const SnackBar(
                                               content: Text('تم حذف السؤال بنجاح'),
@@ -4815,6 +4962,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                   }
                                 });
                                 Navigator.pop(ctx);
+                                _measurePagesHeight();
                               },
                               child: Text(
                                 isAr ? 'تأكيد وحفظ السؤال' : 'Save Question',
@@ -4946,6 +5094,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           }
         });
         setState(() {});
+        _measurePagesHeight();
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -5124,6 +5273,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   _exam.header.teacherSignature = signCtrl.text;
                 });
                 Navigator.pop(ctx);
+                _measurePagesHeight();
               },
               child: const Text('حفظ الإعدادات', style: TextStyle(color: Colors.white)),
             ),
@@ -5204,6 +5354,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   _exam.header.adminBold = bold;
                 });
                 Navigator.pop(ctx);
+                _measurePagesHeight();
               },
               child: const Text('حفظ'),
             ),
@@ -5284,6 +5435,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   _exam.header.detailsBold = bold;
                 });
                 Navigator.pop(ctx);
+                _measurePagesHeight();
               },
               child: const Text('حفظ'),
             ),
@@ -5353,6 +5505,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   _exam.header.titleBold = bold;
                 });
                 Navigator.pop(ctx);
+                _measurePagesHeight();
               },
               child: const Text('حفظ'),
             ),
@@ -5430,6 +5583,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   _exam.header.basmalaBold = bold;
                 });
                 Navigator.pop(ctx);
+                _measurePagesHeight();
               },
               child: const Text('حفظ'),
             ),
@@ -5458,6 +5612,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             onPressed: () {
               setState(() => _exam.header.instructionText = cInst.text);
               Navigator.pop(ctx);
+              _measurePagesHeight();
             },
             child: const Text('حفظ'),
           ),
@@ -5493,7 +5648,7 @@ class _LimitArrowPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// رابعاً: تعديل _ExamShapePainter لإضافة الأشكال الهندسية الجديدة
+// تعديل _ExamShapePainter لإضافة الأشكال الهندسية الجديدة
 class _ExamShapePainter extends CustomPainter {
   final String kind;
   final Color strokeColor;
@@ -5565,7 +5720,7 @@ class _ExamShapePainter extends CustomPainter {
         canvas.drawPath(path, strokePaint);
         break;
 
-      // رابعاً (1): شكل خماسي منتظم (Pentagon) باستخدام cos و sin
+      // شكل خماسي منتظم (Pentagon) باستخدام cos و sin
       case 'pentagon':
         final cx = w / 2;
         final cy = h / 2;
@@ -5588,7 +5743,7 @@ class _ExamShapePainter extends CustomPainter {
         canvas.drawPath(path, strokePaint);
         break;
 
-      // رابعاً (1): شكل سداسي منتظم (Hexagon) باستخدام cos و sin
+      // شكل سداسي منتظم (Hexagon) باستخدام cos و sin
       case 'hexagon':
         final cx = w / 2;
         final cy = h / 2;
@@ -5611,7 +5766,7 @@ class _ExamShapePainter extends CustomPainter {
         canvas.drawPath(path, strokePaint);
         break;
 
-      // رابعاً (1): شكل تعليق / سحابة كلام (Callout)
+      // شكل تعليق / سحابة كلام (Callout)
       case 'callout':
         final bubbleH = h * 0.75;
         final path = Path()
