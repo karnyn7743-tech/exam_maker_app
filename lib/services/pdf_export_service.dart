@@ -667,20 +667,18 @@ class PdfExportService {
     final String colQuestionTitle = isAr ? 'السؤال' : 'Question';
     final String colMarkTitle = isAr ? 'الدرجة' : 'Mark';
 
-    // ضبط عروض الأعمدة بناءً على لغة الاختبار لحل مشكلة انعكاس الأعمدة في PDF
     final columnWidths = isAr
         ? {
-            0: const pw.FixedColumnWidth(35), // أقصى اليمين في العربية: السؤال
-            1: const pw.FlexColumnWidth(),     // الوسط: نص ومحتوى السؤال
-            2: const pw.FixedColumnWidth(35), // أقصى اليسار في العربية: الدرجة
+            0: const pw.FixedColumnWidth(35),
+            1: const pw.FlexColumnWidth(),
+            2: const pw.FixedColumnWidth(35),
           }
         : {
-            0: const pw.FixedColumnWidth(35), // أقصى اليسار في الإنجليزية: Question
-            1: const pw.FlexColumnWidth(),     // الوسط: Content
-            2: const pw.FixedColumnWidth(35), // أقصى اليمين في الإنجليزية: Mark
+            0: const pw.FixedColumnWidth(35),
+            1: const pw.FlexColumnWidth(),
+            2: const pw.FixedColumnWidth(35),
           };
 
-    // خلية رأس عمود السؤال
     final questionHeaderCell = pw.Padding(
       padding: const pw.EdgeInsets.all(4),
       child: pw.Text(colQuestionTitle,
@@ -688,7 +686,6 @@ class PdfExportService {
           style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
     );
 
-    // خلية رأس عمود التوجيه (بالوسط)
     final instructionHeaderCell = pw.Padding(
       padding: const pw.EdgeInsets.all(4),
       child: pw.Text(headerInstruction,
@@ -700,7 +697,6 @@ class PdfExportService {
               color: PdfColors.red900)),
     );
 
-    // خلية رأس عمود الدرجة
     final markHeaderCell = pw.Padding(
       padding: const pw.EdgeInsets.all(4),
       child: pw.Text(colMarkTitle,
@@ -719,7 +715,6 @@ class PdfExportService {
               : [questionHeaderCell, instructionHeaderCell, markHeaderCell],
         ),
         ...questions.map((q) {
-          // محتوى خلية السؤال
           final qTitleCell = pw.Padding(
             padding: const pw.EdgeInsets.symmetric(vertical: 6),
             child: pw.Center(
@@ -729,7 +724,6 @@ class PdfExportService {
             ),
           );
 
-          // محتوى خلية نص السؤال
           final qContentCell = pw.Padding(
             padding: const pw.EdgeInsets.all(6),
             child: pw.Column(
@@ -742,7 +736,6 @@ class PdfExportService {
             ),
           );
 
-          // محتوى خلية الدرجة
           final qMarkCell = pw.Padding(
             padding: const pw.EdgeInsets.symmetric(vertical: 6),
             child: pw.Center(
@@ -1108,11 +1101,11 @@ class PdfExportService {
                 padding: const pw.EdgeInsets.symmetric(horizontal: 2.0),
                 child: pw.Row(
                   mainAxisSize: pw.MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Column(
                       mainAxisSize: pw.MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
                       children: [
                         pw.Text(
                           label,
@@ -1126,7 +1119,7 @@ class PdfExportService {
                         pw.SizedBox(height: 1),
                         pw.Row(
                           mainAxisSize: pw.MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.center,
+                          crossAxisAlignment: pw.CrossAxisAlignment.center,
                           children: [
                             pw.Text(
                               v,
@@ -1324,7 +1317,7 @@ class PdfExportService {
                   textDirection: isRtlVert ? pw.TextDirection.rtl : pw.TextDirection.ltr,
                   child: pw.Column(
                     mainAxisSize: pw.MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
                       ...numbers.asMap().entries.map((entry) {
                         final idx = entry.key;
@@ -1388,7 +1381,7 @@ class PdfExportService {
                   textDirection: isRtl ? pw.TextDirection.rtl : pw.TextDirection.ltr,
                   child: pw.Column(
                     mainAxisSize: pw.MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
                       if (quotient.isNotEmpty)
                         pw.Padding(
@@ -1408,7 +1401,7 @@ class PdfExportService {
                         ),
                       pw.Row(
                         mainAxisSize: pw.MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                        crossAxisAlignment: pw.CrossAxisAlignment.center,
                         children: [
                           pw.Text(
                             divisor,
@@ -1526,7 +1519,7 @@ class PdfExportService {
                 margin: const pw.EdgeInsets.symmetric(vertical: 4),
                 padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 child: pw.Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
                     ...rows.asMap().entries.map((entry) {
                       final idx = entry.key;
@@ -1581,7 +1574,7 @@ class PdfExportService {
             return pw.Center(
               child: pw.Column(
                 mainAxisSize: pw.MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
                 children: [
                   pw.Text(
                     num,
