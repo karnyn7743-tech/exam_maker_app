@@ -667,74 +667,97 @@ class PdfExportService {
     final String colQuestionTitle = isAr ? 'السؤال' : 'Question';
     final String colMarkTitle = isAr ? 'الدرجة' : 'Mark';
 
+    // ضبط عروض الأعمدة بناءً على لغة الاختبار لحل مشكلة انعكاس الأعمدة في PDF
+    final columnWidths = isAr
+        ? {
+            0: const pw.FixedColumnWidth(35), // أقصى اليمين في العربية: السؤال
+            1: const pw.FlexColumnWidth(),     // الوسط: نص ومحتوى السؤال
+            2: const pw.FixedColumnWidth(35), // أقصى اليسار في العربية: الدرجة
+          }
+        : {
+            0: const pw.FixedColumnWidth(35), // أقصى اليسار في الإنجليزية: Question
+            1: const pw.FlexColumnWidth(),     // الوسط: Content
+            2: const pw.FixedColumnWidth(35), // أقصى اليمين في الإنجليزية: Mark
+          };
+
+    // خلية رأس عمود السؤال
+    final questionHeaderCell = pw.Padding(
+      padding: const pw.EdgeInsets.all(4),
+      child: pw.Text(colQuestionTitle,
+          textAlign: pw.TextAlign.center,
+          style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+    );
+
+    // خلية رأس عمود التوجيه (بالوسط)
+    final instructionHeaderCell = pw.Padding(
+      padding: const pw.EdgeInsets.all(4),
+      child: pw.Text(headerInstruction,
+          textAlign: pw.TextAlign.center,
+          style: pw.TextStyle(
+              font: ttf,
+              fontSize: 10,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.red900)),
+    );
+
+    // خلية رأس عمود الدرجة
+    final markHeaderCell = pw.Padding(
+      padding: const pw.EdgeInsets.all(4),
+      child: pw.Text(colMarkTitle,
+          textAlign: pw.TextAlign.center,
+          style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+    );
+
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
-      columnWidths: {
-        0: const pw.FixedColumnWidth(35),
-        1: const pw.FlexColumnWidth(),
-        2: const pw.FixedColumnWidth(35),
-      },
+      columnWidths: columnWidths,
       children: [
         pw.TableRow(
           decoration: const pw.BoxDecoration(color: PdfColors.grey100),
-          children: [
-            pw.Padding(
-              padding: const pw.EdgeInsets.all(4),
-              child: pw.Text(colQuestionTitle,
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
-            ),
-            pw.Padding(
-              padding: const pw.EdgeInsets.all(4),
-              child: pw.Text(headerInstruction,
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(
-                      font: ttf,
-                      fontSize: 10,
-                      fontWeight: pw.FontWeight.bold,
-                      color: PdfColors.red900)),
-            ),
-            pw.Padding(
-              padding: const pw.EdgeInsets.all(4),
-              child: pw.Text(colMarkTitle,
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
-            ),
-          ],
+          children: isAr
+              ? [questionHeaderCell, instructionHeaderCell, markHeaderCell]
+              : [questionHeaderCell, instructionHeaderCell, markHeaderCell],
         ),
         ...questions.map((q) {
+          // محتوى خلية السؤال
+          final qTitleCell = pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(vertical: 6),
+            child: pw.Center(
+              child: pw.Text(q.title,
+                  textAlign: pw.TextAlign.center,
+                  style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+            ),
+          );
+
+          // محتوى خلية نص السؤال
+          final qContentCell = pw.Padding(
+            padding: const pw.EdgeInsets.all(6),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                _buildPdfQuestionContent(q, ttf, isAr),
+                if (q.elements.isNotEmpty) pw.SizedBox(height: 4),
+                ...q.elements.map((el) => _buildPdfElement(el, ttf, isAr)),
+              ],
+            ),
+          );
+
+          // محتوى خلية الدرجة
+          final qMarkCell = pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(vertical: 6),
+            child: pw.Center(
+              child: pw.Text(
+                _formatMark(q.mark, isAr),
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
+              ),
+            ),
+          );
+
           return pw.TableRow(
-            children: [
-              pw.Padding(
-                padding: const pw.EdgeInsets.symmetric(vertical: 6),
-                child: pw.Center(
-                  child: pw.Text(q.title,
-                      textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
-                ),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(6),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                  children: [
-                    _buildPdfQuestionContent(q, ttf, isAr),
-                    if (q.elements.isNotEmpty) pw.SizedBox(height: 4),
-                    ...q.elements.map((el) => _buildPdfElement(el, ttf, isAr)),
-                  ],
-                ),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.symmetric(vertical: 6),
-                child: pw.Center(
-                  child: pw.Text(
-                    _formatMark(q.mark, isAr),
-                    textAlign: pw.TextAlign.center,
-                    style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
+            children: isAr
+                ? [qTitleCell, qContentCell, qMarkCell]
+                : [qTitleCell, qContentCell, qMarkCell],
           );
         }),
       ],
@@ -1085,11 +1108,11 @@ class PdfExportService {
                 padding: const pw.EdgeInsets.symmetric(horizontal: 2.0),
                 child: pw.Row(
                   mainAxisSize: pw.MainAxisSize.min,
-                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     pw.Column(
                       mainAxisSize: pw.MainAxisSize.min,
-                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         pw.Text(
                           label,
@@ -1103,7 +1126,7 @@ class PdfExportService {
                         pw.SizedBox(height: 1),
                         pw.Row(
                           mainAxisSize: pw.MainAxisSize.min,
-                          crossAxisAlignment: pw.CrossAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             pw.Text(
                               v,
@@ -1301,7 +1324,7 @@ class PdfExportService {
                   textDirection: isRtlVert ? pw.TextDirection.rtl : pw.TextDirection.ltr,
                   child: pw.Column(
                     mainAxisSize: pw.MainAxisSize.min,
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       ...numbers.asMap().entries.map((entry) {
                         final idx = entry.key;
@@ -1365,7 +1388,7 @@ class PdfExportService {
                   textDirection: isRtl ? pw.TextDirection.rtl : pw.TextDirection.ltr,
                   child: pw.Column(
                     mainAxisSize: pw.MainAxisSize.min,
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (quotient.isNotEmpty)
                         pw.Padding(
@@ -1385,7 +1408,7 @@ class PdfExportService {
                         ),
                       pw.Row(
                         mainAxisSize: pw.MainAxisSize.min,
-                        crossAxisAlignment: pw.CrossAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           pw.Text(
                             divisor,
@@ -1503,7 +1526,7 @@ class PdfExportService {
                 margin: const pw.EdgeInsets.symmetric(vertical: 4),
                 padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     ...rows.asMap().entries.map((entry) {
                       final idx = entry.key;
@@ -1558,7 +1581,7 @@ class PdfExportService {
             return pw.Center(
               child: pw.Column(
                 mainAxisSize: pw.MainAxisSize.min,
-                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   pw.Text(
                     num,
