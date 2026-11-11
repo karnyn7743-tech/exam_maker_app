@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:excel/excel.dart';
+import 'package:excel/excel.dart' hide Border;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -138,8 +138,10 @@ class _FetchGradesScreenState extends State<FetchGradesScreen> {
 
   Future<String?> _copyToPermanent(String sourcePath, String originalName) async {
     Directory? externalDir = await getExternalStorageDirectory();
+    if (externalDir == null) return null;
+
     String basePath = "";
-    List<String> paths = externalDir!.path.split("/");
+    List<String> paths = externalDir.path.split("/");
     for (int x = 1; x < paths.length; x++) {
       if (paths[x] != "Android") {
         basePath += "/${paths[x]}";
@@ -168,6 +170,10 @@ class _FetchGradesScreenState extends State<FetchGradesScreen> {
         final fileName = result.files.single.name;
         final permPath = await _copyToPermanent(cachePath, fileName);
         
+        if (permPath == null) {
+          throw Exception("تعذر الوصول إلى مسار التخزين لحفظ الملف.");
+        }
+
         final bytes = await File(permPath).readAsBytes();
         final excel = Excel.decodeBytes(bytes);
         final sheet = excel.tables['statment'] ?? excel.tables.values.first;
@@ -206,6 +212,10 @@ class _FetchGradesScreenState extends State<FetchGradesScreen> {
         final fileName = result.files.single.name;
         final permPath = await _copyToPermanent(cachePath, fileName);
         
+        if (permPath == null) {
+          throw Exception("تعذر الوصول إلى مسار التخزين لحفظ الملف.");
+        }
+
         setState(() {
           _sourcePath = permPath;
           _sourceName = fileName;
