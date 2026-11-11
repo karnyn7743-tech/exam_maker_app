@@ -7,7 +7,8 @@ import '../services/exam_storage_service.dart';
 import 'activation_screen.dart';
 import 'exam_editor_screen.dart';
 import 'grade_scanner_screen.dart';
-import 'manual_grade_entry_screen.dart'; // ✅ تمت إضافة استدعاء الشاشة الجديدة
+import 'manual_grade_entry_screen.dart';
+import 'fetch_grades_screen.dart'; // ✅ تمت إضافة استدعاء الشاشة الجديدة
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -302,11 +303,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 4. إدخال بقية درجات أعمال السنة (جديد)
+  // 4. إدخال بقية درجات أعمال السنة
   void _openManualGradeEntry() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const ManualGradeEntryScreen()),
+    );
+  }
+
+  // 5. جلب درجات المحصلات (جديد)
+  void _openFetchGradesScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const FetchGradesScreen()),
     );
   }
 
@@ -474,12 +483,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // الزر الرابع (الجديد)
+                    // الزر الرابع
                     _buildMainActionButton(
                       title: 'إدخال بقية درجات أعمال السنة',
                       icon: Icons.playlist_add_check,
                       onTap: _openManualGradeEntry,
                       backgroundColor: const Color(0xFF00897B), // أخضر مزرق للتمييز
+                    ),
+                    const SizedBox(height: 20),
+
+                    // ✅ الزر الخامس (الجديد)
+                    _buildMainActionButton(
+                      title: 'جلب درجات المحصلات (م١ / م٢)',
+                      icon: Icons.sync_alt,
+                      onTap: _openFetchGradesScreen,
+                      backgroundColor: const Color(0xFFE65100), // برتقالي غامق لتمييزه
                     ),
                   ],
                 ),
@@ -564,12 +582,12 @@ class _HomeScreenState extends State<HomeScreen> {
     required String title,
     required IconData icon,
     required VoidCallback onTap,
-    Color backgroundColor = const Color(0xFF7E57C2), // ✅ تمت إضافة خاصية اللون هنا
+    Color backgroundColor = const Color(0xFF7E57C2),
   }) {
     return Container(
       height: 64,
       decoration: BoxDecoration(
-        color: backgroundColor, // استخدام اللون الممرر
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(
