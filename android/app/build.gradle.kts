@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.fawaz.exam_maker_app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -22,7 +22,7 @@ android {
         
         // ضبط الحد الأدنى إلى 21 لدعم ML Kit و Mobile Scanner
         minSdk = 21
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 36
         
         // تفعيل MultiDex لاستيعاب مكتبات معالجة الصور والذكاء الاصطناعي والإكسيل
         multiDexEnabled = true
