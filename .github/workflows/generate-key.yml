@@ -6,7 +6,16 @@ jobs:
     steps:
       - name: Generate Key
         run: |
-          keytool -genkeypair -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias my-key -storepass shaza24&luqmaan14 -keypass shaza24&luqmaan14 -dname "CN=Developer, OU=Dev, O=App, L=City, S=State, C=YE" -noprompt
+          keytool -genkeypair -v \
+            -keystore release-key.jks \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -alias my-key \
+            -storepass shaza24&luqmaan14 \
+            -keypass shaza24&luqmaan14 \
+            -dname "CN=Developer, OU=Dev, O=App, L=City, S=State, C=YE" \
+            -noprompt
       - name: Upload Keystore
         uses: actions/upload-artifact@v4
         with:
