@@ -266,6 +266,106 @@ String _patchSingleCellInXml(
   return rawSheetXml;
 }
 
+// ═══════════════════════════════════════════════════════════
+// تحديث القيمة المخزنة <v> لدوال المجموع والمحصلات في الصف المعدل
+// مع الإبقاء التام على المعادلة <f> دون تغيير
+// ═══════════════════════════════════════════════════════════
+
+String _updateSourceRowCachedFormulas(
+  String rawSheetXml,
+  int rowIndex,
+  List<String> sharedStrings,
+) {
+  final doc = XmlDocument.parse(rawSheetXml);
+  final rows = _getRows(doc);
+  final int rowNum = rowIndex + 1;
+
+  final Map<String, String> formulaUpdates = {};
+
+  double? getNum(int col, int rIdx) {
+    final v = _getValueAt(rows, col, rIdx, sharedStrings);
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString().trim());
+  }
+
+  // 1. تحديث مجاميع الأشهر الثمانية:
+  // الفصل الأول: I(8), N(13), S(18), X(23) | الفصل الثاني: AE(30), AJ(35), AO(40), AT(45)
+  final monthStartCols = [4, 9, 14, 19, 26, 31, 36, 41];
+  final Map<int, double?> monthTotals = {};
+
+  for (final startCol in monthStartCols) {
+    final sumCol = startCol + 4;
+    double sum = 0;
+    bool hasAny = false;
+    for (int offset = 0; offset < 4; offset++) {
+      final val = getNum(startCol + offset, rowIndex);
+      if (val != null) {
+        sum += val;
+        hasAny = true;
+      }
+    }
+    if (hasAny) {
+      monthTotals[sumCol] = sum;
+      final formatted = sum == sum.roundToDouble() ? sum.toInt().toString() : sum.toString();
+      formulaUpdates[_cellReference(sumCol, rowIndex).toUpperCase()] = formatted;
+    } else {
+      monthTotals[sumCol] = null;
+    }
+  }
+
+  // 2. تحديث المحصلة م١ (Y = col 24) و م٢ (AU = col 46)
+  void computeMahsala(int mahsalaCol, List<int> mCols) {
+    final mCountVal = getNum(mahsalaCol, 2); // الصف 3 (index 2)
+    final int mCount = mCountVal?.toInt() ?? 0;
+    if (mCount < 1 || mCount > 4) return;
+
+    double sumMonths = 0;
+    for (int i = 0; i < mCount; i++) {
+      final t = monthTotals[mCols[i]];
+      if (t == null) return; // إذا كان أحد الأشهر المطلوبة فارغاً تظل المحصلة فارغة
+      sumMonths += t;
+    }
+
+    final int mahsala = (sumMonths / (5.0 * mCount)).ceil();
+    formulaUpdates[_cellReference(mahsalaCol, rowIndex).toUpperCase()] = mahsala.toString();
+  }
+
+  computeMahsala(24, [8, 13, 18, 23]);
+  computeMahsala(46, [30, 35, 40, 45]);
+
+  if (formulaUpdates.isEmpty) return rawSheetXml;
+
+  // تحديث وسم <v> فقط داخل خلايا المعادلات المستهدفة في هذا الصف مع بقاء <f> كما هو
+  final rowPattern = RegExp(
+    r'(<row\b[^>]*\br="' + rowNum.toString() + r'"[^>]*>)(.*?)(</row>)',
+    dotAll: true,
+  );
+
+  return rawSheetXml.replaceFirstMapped(rowPattern, (rowMatch) {
+    final rowOpen = rowMatch.group(1)!;
+    String rowBody = rowMatch.group(2)!;
+    final rowClose = rowMatch.group(3)!;
+
+    for (final entry in formulaUpdates.entries) {
+      final ref = entry.key;
+      final valStr = entry.value;
+
+      final fCellPattern = RegExp(
+        r'(<c\b[^>]*\br="' + ref + r'"[^>]*>.*?<f[^>]*>.*?</f>)(?:<v>.*?</v>)?(</c>)',
+        dotAll: true,
+      );
+
+      rowBody = rowBody.replaceFirstMapped(fCellPattern, (cm) {
+        final openWithF = cm.group(1)!.replaceAll(RegExp(r'\s*\bt="str"'), '');
+        return '$openWithF<v>$valStr</v>${cm.group(2)}';
+      });
+    }
+
+    return '$rowOpen$rowBody$rowClose';
+  });
+}
+
 Uint8List _rebuildCleanXlsxArchive(
   Archive originalArchive,
   String updatedSheetPath,
@@ -283,6 +383,26 @@ Uint8List _rebuildCleanXlsxArchive(
 
     if (entryPath == normalizedUpdatedPath) {
       final bytes = utf8.encode(updatedSheetXmlString);
+      cleanArchive.addFile(ArchiveFile(file.name, bytes.length, bytes));
+      continue;
+    }
+
+    if (entryPath == 'xl/workbook.xml') {
+      String rawXml = utf8.decode(file.content as List<int>);
+      if (rawXml.contains('<calcPr')) {
+        if (rawXml.contains('fullCalcOnLoad=')) {
+          rawXml = rawXml.replaceAll(
+            RegExp(r'fullCalcOnLoad="[^"]*"'),
+            'fullCalcOnLoad="1"',
+          );
+        } else {
+          rawXml = rawXml.replaceFirst(
+            '<calcPr',
+            '<calcPr fullCalcOnLoad="1"',
+          );
+        }
+      }
+      final bytes = utf8.encode(rawXml);
       cleanArchive.addFile(ArchiveFile(file.name, bytes.length, bytes));
       continue;
     }
@@ -495,7 +615,10 @@ Map<String, dynamic> _saveGradeIsolate(Map<String, dynamic> args) {
 
     final cellRef = _cellReference(targetCol, targetRow);
     final patchedXml = _patchSingleCellInXml(rawSheetXml, cellRef, gradeVal);
-    final encodedData = _rebuildCleanXlsxArchive(archive, sheetPath, patchedXml);
+    final updatedWithFormulasXml =
+        _updateSourceRowCachedFormulas(patchedXml, targetRow, sharedStrings);
+    final encodedData =
+        _rebuildCleanXlsxArchive(archive, sheetPath, updatedWithFormulasXml);
 
     // الكتابة الذرية الآمنة للحفاظ على سلامة الملف والمعادلات في جميع الأوراق
     final tempFile = File('$filePath.tmp');
