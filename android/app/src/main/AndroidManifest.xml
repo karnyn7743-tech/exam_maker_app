@@ -12,7 +12,7 @@
         android:maxSdkVersion="32"
         tools:replace="android:maxSdkVersion" />
     
-    <!-- إذن إدارة الملفات الشاملة: ضروري جداً لأندرويد 11+ للحفظ في مجلد Download/درجات الطلاب -->
+    <!-- إذن إدارة الملفات الشاملة: ضروري جداً لأندرويد 11+ للحفظ في مجلد Download/المحرر البسيط -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
     
     <!-- إذن قراءة الصور للشعار على أندرويد 13 فما فوق -->
@@ -53,10 +53,34 @@
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
+            
+            <!-- الفلتر الأساسي لتشغيل التطبيق -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- 1. فتح ملفات .exam عند النقر عليها في مدير الملفات أو الواتساب وتيليجرام -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.exam" />
+                <data android:pathPattern=".*\\..*\\.exam" />
+                <data android:pathPattern=".*\\..*\\..*\\.exam" />
+                <data android:host="*" />
+            </intent-filter>
+
+            <!-- 2. استقبال ملفات .exam عبر قائمة "مشاركة إلى" -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+
         </activity>
         
         <meta-data
