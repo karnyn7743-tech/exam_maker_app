@@ -86,6 +86,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   late ExamModel _exam;
   late bool _isNew;
 
+  // أعلام ضبط الحفظ التلقائي ومنع التزامن أو التكرار غير الضروري
+  bool _isAutoSaving = false;
+  bool _hasAutoSavedInitialQuestion = false;
+
   bool _showAnswerKeyMode = false;
 
   double _sideHeaderWidth = 145.0;
@@ -111,6 +115,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     super.initState();
     _exam = widget.initialExam;
     _isNew = widget.isNewExam;
+    _hasAutoSavedInitialQuestion = !_isNew ||
+        (_exam.filePath != null && _exam.filePath!.trim().isNotEmpty);
     _isArabicInput = _exam.isArabic;
     _activeAlignment = _exam.isArabic ? TextAlign.right : TextAlign.left;
     _activeFont = _exam.isArabic ? 'Amiri' : 'Arial';
@@ -125,6 +131,55 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   void dispose() {
     _transformationController.dispose();
     super.dispose();
+  }
+
+  /// التحقق مما إذا كان العنصر سؤالاً فعلياً وليس فاصل صفحة.
+  bool _isActualQuestion(QuestionModel q) {
+    return !q.id.startsWith('page_break_');
+  }
+
+  /// عدد الأسئلة الفعلية في الاختبار (باستثناء فواصل الصفحات).
+  int get _actualQuestionsCount =>
+      _exam.questions.where(_isActualQuestion).length;
+
+  /// الحفظ التلقائي الفوري عند إضافة أول سؤال فعلي فقط.
+  /// يحفظ في مجلد Download/المحرر البسيط بالاسم القياسي:
+  /// الصف_المادة_الشهر أو الفصل.exam
+  Future<void> _autoSaveOnFirstQuestionIfNeeded() async {
+    if (_hasAutoSavedInitialQuestion) return;
+    if (_isAutoSaving) return;
+    if (_actualQuestionsCount < 1) return;
+
+    _isAutoSaving = true;
+    try {
+      _exam.fileName = ExamStorageService.computeStandardBaseName(_exam);
+      await ExamStorageService.saveOrUpdateExam(_exam);
+
+      if (!mounted) return;
+      setState(() {
+        _hasAutoSavedInitialQuestion = true;
+        _isNew = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('تم الحفظ التلقائي للاختبار: ${_exam.fileName}.exam'),
+          backgroundColor: Colors.green.shade700,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('تعذر الحفظ التلقائي للاختبار: $e'),
+          backgroundColor: Colors.red.shade700,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } finally {
+      _isAutoSaving = false;
+    }
   }
 
   // حذف صفحة محددة مع الإبقاء على فواصل الصفحات بين الصفحات المتبقية.
@@ -320,14 +375,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Future<void> _triggerSave() async {
-    final gradeName = _exam.header.grade.trim().isNotEmpty ? _exam.header.grade.trim() : 'عام';
-    final subjectName = _exam.header.subject.trim().isNotEmpty ? _exam.header.subject.trim() : 'مادة';
-    final typeName = _exam.examType == ExamType.automated ? 'مؤتمت' : 'شامل';
-    final langSuffix = _isArabicExam ? 'عربي' : 'En';
-    final generatedName = '$gradeName _ $subjectName _ $typeName _ $langSuffix';
-
-    if (_isNew || _exam.fileName.isEmpty || _exam.fileName.startsWith('اختبار_') || _exam.fileName == 'اختبار جديد') {
-      _exam.fileName = generatedName;
+    // في حالة اختبار جديد لم يُحفظ بعد، نعطيه الاسم القياسي الافتراضي
+    if ((_exam.filePath == null || _exam.filePath!.trim().isEmpty) &&
+        (_exam.fileName.trim().isEmpty ||
+            _exam.fileName.startsWith('اختبار_') ||
+            _exam.fileName == 'اختبار جديد')) {
+      _exam.fileName = ExamStorageService.computeStandardBaseName(_exam);
     }
 
     final saved = await showSaveChoiceDialog(
@@ -335,13 +388,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       currentExam: _exam,
       isNewExam: _isNew,
       onPerformSave: (ExamModel updated) {
+        if (!mounted) return;
         setState(() {
           _exam = updated;
           _isNew = false;
+          _hasAutoSavedInitialQuestion = true;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('تم حفظ الاختبار بنجاح: ${_exam.fileName}'),
+            content: Text('تم حفظ الاختبار بنجاح: ${_exam.fileName}.exam'),
             backgroundColor: Colors.green.shade700,
           ),
         );
@@ -354,8 +409,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Future<void> _exportExamProjectFile() async {
-    await ExamStorageService.saveOrUpdateExam(_exam);
     try {
+      await ExamStorageService.saveOrUpdateExam(_exam);
+      if (mounted) {
+        setState(() {
+          _isNew = false;
+          _hasAutoSavedInitialQuestion = true;
+        });
+      }
       final path = await ExamShareService.exportExamFile(_exam);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -379,11 +440,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Future<void> _exportPdfToDownloads() async {
-    await ExamStorageService.saveOrUpdateExam(_exam);
     final isAnswerKey = await _showExportChoiceDialog('تصدير إلى PDF');
     if (isAnswerKey == null) return;
 
     try {
+      await ExamStorageService.saveOrUpdateExam(_exam);
+      if (mounted) {
+        setState(() {
+          _isNew = false;
+          _hasAutoSavedInitialQuestion = true;
+        });
+      }
       final examToExport = isAnswerKey ? _buildAnswerKeyExam() : _exam;
       final path = await PdfExportService.exportToDownloadsPdf(examToExport);
       if (mounted) {
@@ -408,8 +475,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Future<void> _exportOmrSheetToDownloads() async {
-    await ExamStorageService.saveOrUpdateExam(_exam);
     try {
+      await ExamStorageService.saveOrUpdateExam(_exam);
+      if (mounted) {
+        setState(() {
+          _isNew = false;
+          _hasAutoSavedInitialQuestion = true;
+        });
+      }
       final path = await OmrSheetService.generateOmrPdf(_exam);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -526,10 +599,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
-            onPressed: () {
+            onPressed: () async {
               final newExam = _exam.copyWith(
                 newId: const Uuid().v4(),
                 newFileName: ctrl.text.trim(),
+                clearFilePath: true,
               );
               newExam.header.examTitle = '${_exam.header.examTitle} - ' + (_isArabicExam ? '(ب)' : '(B)');
 
@@ -554,15 +628,19 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               setState(() {
                 _exam = newExam;
                 _isNew = true;
+                _hasAutoSavedInitialQuestion = false;
               });
               Navigator.pop(dCtx);
               _measurePagesHeight();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('تم توليد (${ctrl.text.trim()}) بنجاح مع خلط الفقرات!'),
-                  backgroundColor: Colors.green.shade800,
-                ),
-              );
+              await _autoSaveOnFirstQuestionIfNeeded();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('تم توليد (${ctrl.text.trim()}) بنجاح مع خلط الفقرات!'),
+                    backgroundColor: Colors.green.shade800,
+                  ),
+                );
+              }
             },
             child: const Text('توليد النموذج الآن', style: TextStyle(color: Colors.white)),
           ),
@@ -709,7 +787,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             setBState(() => bankQuestions.removeWhere((q) => q.id == item.id));
                           },
                         ),
-                        onTap: () {
+                        onTap: () async {
                           final imported = QuestionModel.fromMap(item.question.toMap());
                           imported.title = _isArabicExam
                               ? 'السؤال ${_exam.questions.length + 1}'
@@ -720,6 +798,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('تم إدراج (${item.question.title}) بنجاح.'), backgroundColor: Colors.green.shade800),
                           );
+                          await _autoSaveOnFirstQuestionIfNeeded();
                         },
                       );
                     },
@@ -756,6 +835,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     final List<String> tfOptions = isAr ? ['ص', 'خ'] : ['T', 'F'];
 
+    final int countBefore = _actualQuestionsCount;
     while (_exam.questions.length < totalItems) {
       final int idx = _exam.questions.length + 1;
       final bool isTf = idx <= tfCount;
@@ -768,6 +848,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         spans: [TextSpanModel(text: '')],
         answerKey: '',
       ));
+    }
+
+    if (countBefore == 0 && _actualQuestionsCount > 0) {
+      _autoSaveOnFirstQuestionIfNeeded();
     }
 
     showDialog(
@@ -1382,7 +1466,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               onZoomIn: _zoomIn,
               onZoomOut: _zoomOut,
               onFitScreen: _fitScreen,
-              onDeletePage: _showDeletePageDialog,
             ),
 
             // تغليف عرض الورقة البيضاء بـ InteractiveViewer وتثبيت أبعاد A4
@@ -1644,11 +1727,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   Widget _buildQuestionsTableForPage(List<QuestionModel> questions) {
     final isAr = _isArabicExam;
 
-    // العمود 0 دائماً هو السؤال
-    // العمود 1 دائماً هو نص السؤال والمحتوى
-    // العمود 2 دائماً هو الدرجة
-    // بفضل Directionality(textDirection: RTL):
-    // العمود 0 يرسم يميناً، العمود 1 بالوسط، العمود 2 يساراً كما هو مطلوب رسميًا.
     return Table(
       border: TableBorder.all(color: Colors.black, width: 1),
       columnWidths: {
@@ -3407,7 +3485,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     title: Text(t['title'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                     subtitle: Text(t['subtitle'] as String, style: const TextStyle(fontSize: 11)),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                    onTap: () {
+                    onTap: () async {
                       final newQ = QuestionModel(
                         id: const Uuid().v4(),
                         title: t['qTitle'] as String,
@@ -3437,6 +3515,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           duration: const Duration(seconds: 2),
                         ),
                       );
+                      await _autoSaveOnFirstQuestionIfNeeded();
                     },
                   );
                 },
@@ -3498,7 +3577,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               text: s.text,
               isBold: s.isBold,
               isUnderline: s.isUnderline,
-              fontSize: s.fontSize,
+              fontSize: s.fontSize.clamp(8.0, 36.0).toDouble(),
               fontFamily: s.fontFamily,
               colorHex: s.colorHex,
             )).toList()
@@ -3512,7 +3591,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ];
 
     String currentFont = q.spans.isNotEmpty ? q.spans.first.fontFamily : defaultFont;
-    double currentFontSize = 14.0;
+    double currentFontSize = (q.spans.isNotEmpty ? q.spans.first.fontSize : 14.0).clamp(8.0, 36.0).toDouble();
     bool isBoldActive = false;
     bool isUnderlineActive = false;
     String currentColor = '#000000';
@@ -3524,7 +3603,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             text: inserted,
             colorHex: template.colorHex,
             fontFamily: template.fontFamily,
-            fontSize: template.fontSize,
+            fontSize: template.fontSize.clamp(8.0, 36.0).toDouble(),
             isBold: template.isBold,
             isUnderline: template.isUnderline,
           )
@@ -3559,7 +3638,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             text: inserted,
             colorHex: template.colorHex,
             fontFamily: template.fontFamily,
-            fontSize: template.fontSize,
+            fontSize: template.fontSize.clamp(8.0, 36.0).toDouble(),
             isBold: template.isBold,
             isUnderline: template.isUnderline,
           ));
@@ -3585,7 +3664,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           text: inserted,
           colorHex: template.colorHex,
           fontFamily: template.fontFamily,
-          fontSize: template.fontSize,
+          fontSize: template.fontSize.clamp(8.0, 36.0).toDouble(),
           isBold: template.isBold,
           isUnderline: template.isUnderline,
         ));
@@ -3603,7 +3682,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           text: symbol,
           colorHex: currentColor,
           fontFamily: currentFont,
-          fontSize: currentFontSize,
+          fontSize: currentFontSize.clamp(8.0, 36.0).toDouble(),
           isBold: isBoldActive,
           isUnderline: isUnderlineActive,
         );
@@ -3638,7 +3717,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       if (bold != null) isBoldActive = bold;
       if (underline != null) isUnderlineActive = underline;
       if (font != null) currentFont = font;
-      if (size != null) currentFontSize = size;
+      final double? clampedSize = size?.clamp(8.0, 36.0).toDouble();
+      if (clampedSize != null) currentFontSize = clampedSize;
       if (color != null) currentColor = color;
 
       final sel = lastSelection ?? textCtrl.selection;
@@ -3680,7 +3760,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             text: fullText.substring(overlapStart, overlapEnd),
             isBold: bold ?? span.isBold,
             isUnderline: underline ?? span.isUnderline,
-            fontSize: size ?? span.fontSize,
+            fontSize: clampedSize ?? span.fontSize,
             fontFamily: font ?? span.fontFamily,
             colorHex: color ?? span.colorHex,
           ));
@@ -5076,7 +5156,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 backgroundColor: const Color(0xFF1E3A8A),
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                               ),
-                              onPressed: () {
+                              onPressed: () async {
+                                final double safeFontSize = currentFontSize.clamp(8.0, 36.0).toDouble();
                                 final spansToSave = workingSpans.isNotEmpty &&
                                         workingSpans.map((s) => s.text).join('') == textCtrl.text
                                     ? workingSpans
@@ -5085,7 +5166,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                           text: textCtrl.text,
                                           isBold: isBoldActive,
                                           isUnderline: isUnderlineActive,
-                                          fontSize: currentFontSize,
+                                          fontSize: safeFontSize,
                                           fontFamily: currentFont,
                                           colorHex: currentColor,
                                         )
@@ -5113,6 +5194,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 });
                                 Navigator.pop(ctx);
                                 _measurePagesHeight();
+                                if (!isEdit) {
+                                  await _autoSaveOnFirstQuestionIfNeeded();
+                                }
                               },
                               child: Text(
                                 isAr ? 'تأكيد وحفظ السؤال' : 'Save Question',
@@ -5573,7 +5657,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
+                final oldStandardName = ExamStorageService.computeStandardBaseName(_exam);
+
                 setState(() {
                   _exam.header.grade = cGrade.text;
                   _exam.header.subject = cSub.text;
@@ -5584,8 +5670,48 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   _exam.header.detailsFontSize = size;
                   _exam.header.detailsBold = bold;
                 });
+
+                final newStandardName = ExamStorageService.computeStandardBaseName(_exam);
+
                 Navigator.pop(ctx);
                 _measurePagesHeight();
+
+                // إذا كان الاختبار محفوظاً مسبقاً وتغيرت بيانات الاسم القياسي (الصف / المادة / الفترة)،
+                // ننشئ ملفاً جديداً بالاسم القياسي الجديد مع الإبقاء على الملف القديم سليماً.
+                if (_exam.filePath != null &&
+                    _exam.filePath!.trim().isNotEmpty &&
+                    oldStandardName != newStandardName) {
+                  try {
+                    final duplicatedExam = _exam.copyWith(
+                      newId: const Uuid().v4(),
+                      newFileName: newStandardName,
+                      clearFilePath: true,
+                    );
+                    await ExamStorageService.saveOrUpdateExam(duplicatedExam);
+                    if (mounted) {
+                      setState(() {
+                        _exam = duplicatedExam;
+                        _isNew = false;
+                        _hasAutoSavedInitialQuestion = true;
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('تم إنشاء ملف جديد بالبيانات المحدّثة: ${_exam.fileName}.exam'),
+                          backgroundColor: Colors.green.shade700,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('تعذر إنشاء الملف الجديد بعد تعديل الترويسة: $e'),
+                          backgroundColor: Colors.red.shade700,
+                        ),
+                      );
+                    }
+                  }
+                }
               },
               child: const Text('حفظ'),
             ),
@@ -5647,15 +5773,57 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
+                final oldStandardName = ExamStorageService.computeStandardBaseName(_exam);
+
                 setState(() {
                   _exam.header.examTitle = cTitle.text;
                   _exam.header.titleFont = font;
                   _exam.header.titleFontSize = size;
                   _exam.header.titleBold = bold;
                 });
+
+                final newStandardName = ExamStorageService.computeStandardBaseName(_exam);
+
                 Navigator.pop(ctx);
                 _measurePagesHeight();
+
+                // إذا كانت الفترة فارغة واعتمد الاسم القياسي على عنوان الاختبار وتغير العنوان،
+                // ننشئ ملفاً جديداً مع الإبقاء على الملف القديم سليماً.
+                if (_exam.filePath != null &&
+                    _exam.filePath!.trim().isNotEmpty &&
+                    oldStandardName != newStandardName) {
+                  try {
+                    final duplicatedExam = _exam.copyWith(
+                      newId: const Uuid().v4(),
+                      newFileName: newStandardName,
+                      clearFilePath: true,
+                    );
+                    await ExamStorageService.saveOrUpdateExam(duplicatedExam);
+                    if (mounted) {
+                      setState(() {
+                        _exam = duplicatedExam;
+                        _isNew = false;
+                        _hasAutoSavedInitialQuestion = true;
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('تم إنشاء ملف جديد بالبيانات المحدّثة: ${_exam.fileName}.exam'),
+                          backgroundColor: Colors.green.shade700,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('تعذر إنشاء الملف الجديد بعد تعديل العنوان: $e'),
+                          backgroundColor: Colors.red.shade700,
+                        ),
+                      );
+                    }
+                  }
+                }
               },
               child: const Text('حفظ'),
             ),
