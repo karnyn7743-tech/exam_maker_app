@@ -543,7 +543,7 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
 }
 
 // Fonts list should be accessible globally in the app
-const List> appFontsList = [
+const List<Map<String, String>> appFontsList = [
   {'id': 'Amiri', 'name': 'خط الأميري (الافتراضي)'},
   {'id': 'Hafs', 'name': 'مصحف حفص (عثماني)'},
   {'id': 'Thuluth', 'name': 'خط الثلث'},
