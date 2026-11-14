@@ -121,6 +121,11 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
   RibbonTab _activeTab = RibbonTab.format;
   bool _isExpanded = true;
 
+  static const List<double> _fontSizes = [
+    8.0, 9.0, 10.0, 11.0, 12.0, 14.0, 16.0, 18.0,
+    20.0, 22.0, 24.0, 26.0, 28.0, 30.0, 32.0, 34.0, 36.0,
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -210,7 +215,6 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
       case RibbonTab.math: return _buildMathTab();
       case RibbonTab.layout: return _buildLayoutTab();
       case RibbonTab.view: return _buildViewTab();
-      default: return const SizedBox.shrink();
     }
   }
 
@@ -357,8 +361,68 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
             children: [
               _buildToolItem(icon: Icons.format_bold, label: 'عريض', isSelected: widget.isBold, onTap: widget.onToggleBold),
               _buildToolItem(icon: Icons.format_underlined, label: 'تسطير', isSelected: widget.isUnderline, onTap: widget.onToggleUnderline),
-              _buildToolItem(icon: Icons.text_increase, label: 'تكبير', onTap: () => widget.onFontSizeChanged?.call(widget.currentFontSize + 1)),
-              _buildToolItem(icon: Icons.text_decrease, label: 'تصغير', onTap: () => widget.onFontSizeChanged?.call(widget.currentFontSize > 8 ? widget.currentFontSize - 1 : 8)),
+              PopupMenuButton<double>(
+                tooltip: 'حجم الخط (8 - 36)',
+                onSelected: widget.onFontSizeChanged,
+                itemBuilder: (ctx) => _fontSizes.map((s) {
+                  final bool isCurrent = widget.currentFontSize == s;
+                  return PopupMenuItem<double>(
+                    value: s,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${s.toInt()}',
+                          style: TextStyle(
+                            fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                            color: isCurrent ? const Color(0xFF1E3A8A) : Colors.black87,
+                          ),
+                        ),
+                        if (isCurrent)
+                          const Icon(Icons.check, size: 16, color: Color(0xFF1E3A8A)),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: const Color(0xFFCBD5E1)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${widget.currentFontSize.toInt()}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1E3A8A),
+                            ),
+                          ),
+                          const Icon(Icons.arrow_drop_down, size: 16, color: Color(0xFF334155)),
+                        ],
+                      ),
+                      const Text('حجم الخط', style: TextStyle(fontSize: 9.5, color: Color(0xFF334155))),
+                    ],
+                  ),
+                ),
+              ),
+              _buildToolItem(
+                icon: Icons.text_increase,
+                label: 'تكبير',
+                onTap: () => widget.onFontSizeChanged?.call(widget.currentFontSize < 36 ? widget.currentFontSize + 1 : 36),
+              ),
+              _buildToolItem(
+                icon: Icons.text_decrease,
+                label: 'تصغير',
+                onTap: () => widget.onFontSizeChanged?.call(widget.currentFontSize > 8 ? widget.currentFontSize - 1 : 8),
+              ),
               PopupMenuButton<String>(
                 tooltip: 'لون النص',
                 onSelected: widget.onColorChanged,
@@ -485,14 +549,6 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
             ],
           ),
         ),
-        _buildRibbonGroup(
-          title: 'الصفحة',
-          child: Row(
-            children: [
-              _buildToolItem(icon: Icons.insert_page_break, label: 'فاصل صفحة', onTap: widget.onInsertPageBreak),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -529,7 +585,7 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
 }
 
 // Fonts list should be accessible globally in the app
-const List<Map<String, String>> appFontsList = [
+const List> appFontsList = [
   {'id': 'Amiri', 'name': 'خط الأميري (الافتراضي)'},
   {'id': 'Hafs', 'name': 'مصحف حفص (عثماني)'},
   {'id': 'Thuluth', 'name': 'خط الثلث'},
