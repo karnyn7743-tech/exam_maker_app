@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 
@@ -22,9 +23,9 @@ enum QuestionTitleOrientation {
 
 /// اتجاه كتابة النص في عمود الدرجة
 enum GradeTextOrientation {
-  horizontal,          // أفقي عادي
-  verticalBottomToTop, // عمودي مائل للأعلى
-  verticalTopToBottom, // عمودي مائل للأسفل
+  horizontal,
+  verticalBottomToTop,
+  verticalTopToBottom,
 }
 
 /// أنواع العناصر القابلة للإدراج داخل الأسئلة
@@ -33,8 +34,8 @@ enum ElementType {
   textBox,
   dottedLine,
   mathOperation,
-  table, // الجداول المخصصة القابلة للتحرير والتلوين
-  shape, // الأشكال الهندسية والتلقائية الملونة
+  table,
+  shape,
 }
 
 class InsertableElement {
@@ -44,9 +45,9 @@ class InsertableElement {
   double width;
   double height;
   String alignment;
-  double dx;          // الإزاحة الأفقية للتحريك الحر
-  double dy;          // الإزاحة الرأسية للتحريك الحر
-  bool isFloating;    // هل العنصر عائم بحرية كبرنامج Word
+  double dx;
+  double dy;
+  bool isFloating;
 
   InsertableElement({
     required this.id,
@@ -74,21 +75,22 @@ class InsertableElement {
 
   factory InsertableElement.fromMap(Map<String, dynamic> map) {
     final rawType = map['type']?.toString() ?? 'textBox';
+
     final parsedType = ElementType.values.firstWhere(
       (e) => e.name == rawType,
       orElse: () => ElementType.textBox,
     );
 
     return InsertableElement(
-      id: map['id'] ?? '',
+      id: map['id']?.toString() ?? '',
       type: parsedType,
-      content: map['content'] ?? '',
+      content: map['content']?.toString() ?? '',
       width: (map['width'] as num?)?.toDouble() ?? 100.0,
       height: (map['height'] as num?)?.toDouble() ?? 100.0,
-      alignment: map['alignment'] ?? 'center',
+      alignment: map['alignment']?.toString() ?? 'center',
       dx: (map['dx'] as num?)?.toDouble() ?? 0.0,
       dy: (map['dy'] as num?)?.toDouble() ?? 0.0,
-      isFloating: map['isFloating'] ?? false,
+      isFloating: map['isFloating'] as bool? ?? false,
     );
   }
 }
@@ -99,7 +101,7 @@ class TextSpanModel {
   bool isUnderline;
   double fontSize;
   String fontFamily;
-  String colorHex; // دعم تلوين الكلمات والنصوص بصيغة HEX
+  String colorHex;
 
   TextSpanModel({
     required this.text,
@@ -120,12 +122,13 @@ class TextSpanModel {
       };
 
   factory TextSpanModel.fromMap(Map<String, dynamic> map) => TextSpanModel(
-        text: map['text'] ?? '',
-        isBold: map['isBold'] ?? false,
-        isUnderline: map['isUnderline'] ?? false,
+        text: map['text']?.toString() ?? '',
+        isBold: map['isBold'] as bool? ?? false,
+        isUnderline: map['isUnderline'] as bool? ?? false,
         fontSize: (map['fontSize'] as num?)?.toDouble() ?? 14.0,
-        fontFamily: map['fontFamily'] ?? 'Traditional Arabic',
-        colorHex: map['colorHex'] ?? '#000000',
+        fontFamily:
+            map['fontFamily']?.toString() ?? 'Traditional Arabic',
+        colorHex: map['colorHex']?.toString() ?? '#000000',
       );
 }
 
@@ -134,12 +137,12 @@ class QuestionModel {
   String title;
   QuestionTitleOrientation titleOrientation;
   double mark;
-  GradeTextOrientation gradeOrientation; // اتجاه كتابة الدرجة في عمود الدرجة
+  GradeTextOrientation gradeOrientation;
   List<TextSpanModel> spans;
   List<InsertableElement> elements;
   String answerKey;
   bool isTwoColumns;
-  TextAlign? alignment; // المحاذاة المستقلة للسؤال [يمين ، وسط ، يسار]
+  TextAlign? alignment;
 
   QuestionModel({
     required this.id,
@@ -168,19 +171,26 @@ class QuestionModel {
       };
 
   factory QuestionModel.fromMap(Map<String, dynamic> map) {
-    final rawOrientation = map['titleOrientation']?.toString() ?? 'horizontal';
-    final parsedOrientation = QuestionTitleOrientation.values.firstWhere(
+    final rawOrientation =
+        map['titleOrientation']?.toString() ?? 'horizontal';
+
+    final parsedOrientation =
+        QuestionTitleOrientation.values.firstWhere(
       (e) => e.name == rawOrientation,
       orElse: () => QuestionTitleOrientation.horizontal,
     );
 
-    final rawGradeOrient = map['gradeOrientation']?.toString() ?? 'horizontal';
-    final parsedGradeOrient = GradeTextOrientation.values.firstWhere(
+    final rawGradeOrient =
+        map['gradeOrientation']?.toString() ?? 'horizontal';
+
+    final parsedGradeOrient =
+        GradeTextOrientation.values.firstWhere(
       (e) => e.name == rawGradeOrient,
       orElse: () => GradeTextOrientation.horizontal,
     );
 
     final rawAlign = map['alignment']?.toString();
+
     final parsedAlign = rawAlign != null
         ? TextAlign.values.firstWhere(
             (e) => e.name == rawAlign,
@@ -188,22 +198,33 @@ class QuestionModel {
           )
         : null;
 
+    final rawSpans = map['spans'];
+    final rawElements = map['elements'];
+
     return QuestionModel(
-      id: map['id'] ?? '',
-      title: map['title'] ?? '',
+      id: map['id']?.toString() ?? '',
+      title: map['title']?.toString() ?? '',
       titleOrientation: parsedOrientation,
       mark: (map['mark'] as num?)?.toDouble() ?? 0.0,
       gradeOrientation: parsedGradeOrient,
-      spans: (map['spans'] as List<dynamic>?)
-              ?.map((item) => TextSpanModel.fromMap(item))
-              .toList() ??
-          [],
-      elements: (map['elements'] as List<dynamic>?)
-              ?.map((item) => InsertableElement.fromMap(item))
-              .toList() ??
-          [],
-      answerKey: map['answerKey'] ?? '',
-      isTwoColumns: map['isTwoColumns'] ?? false,
+      spans: rawSpans is List
+          ? rawSpans
+              .whereType<Map>()
+              .map((item) => TextSpanModel.fromMap(
+                    Map<String, dynamic>.from(item),
+                  ))
+              .toList()
+          : [],
+      elements: rawElements is List
+          ? rawElements
+              .whereType<Map>()
+              .map((item) => InsertableElement.fromMap(
+                    Map<String, dynamic>.from(item),
+                  ))
+              .toList()
+          : [],
+      answerKey: map['answerKey']?.toString() ?? '',
+      isTwoColumns: map['isTwoColumns'] as bool? ?? false,
       alignment: parsedAlign,
     );
   }
@@ -231,7 +252,7 @@ class HeaderModel {
   bool topMargin1cm;
 
   // خصائص استيراد بيانات الطلاب وكود المادة
-  String studentDataMode; // 'none', 'namesOnly', 'namesAndQr'
+  String studentDataMode;
   String? excelFilePath;
   int subjectCode;
 
@@ -268,7 +289,8 @@ class HeaderModel {
     this.examTitle = 'اختبار نهاية الفصل الدراسي الأول',
     this.instructionText = 'أجب عن جميع الأسئلة الآتية',
     this.isMultiPage = false,
-    this.singlePageFooterText = 'انتهت الأسئلة مع تمنياتنا لكم بالتوفيق والنجاح',
+    this.singlePageFooterText =
+        'انتهت الأسئلة مع تمنياتنا لكم بالتوفيق والنجاح',
     this.continuationText = 'يتبع الصفحة التالية ◄',
     this.teacherSignature = 'معلم المادة: ......................',
     this.topMargin1cm = true,
@@ -327,40 +349,51 @@ class HeaderModel {
       };
 
   factory HeaderModel.fromMap(Map<String, dynamic> map) => HeaderModel(
-        country: map['country'] ?? 'الجمهورية اليمنية',
-        ministry: map['ministry'] ?? 'وزارة التربية والتعليم والبحث العلمي',
-        governorate: map['governorate'] ?? '',
-        directorate: map['directorate'] ?? '',
-        school: map['school'] ?? '',
-        basmalaText: map['basmalaText'] ?? 'بسم الله الرحمن الرحيم',
-        logoImagePath: map['logoImagePath'],
-        grade: map['grade'] ?? '',
-        subject: map['subject'] ?? '',
-        examDate: map['examDate'] ?? '',
-        examTime: map['examTime'] ?? '',
-        period: map['period'] ?? '',
-        examTitle: map['examTitle'] ?? '',
-        instructionText: map['instructionText'] ?? '',
-        isMultiPage: map['isMultiPage'] ?? false,
-        singlePageFooterText: map['singlePageFooterText'] ?? '',
-        continuationText: map['continuationText'] ?? '',
-        teacherSignature: map['teacherSignature'] ?? '',
-        topMargin1cm: map['topMargin1cm'] ?? true,
-        studentDataMode: map['studentDataMode'] ?? 'none',
-        excelFilePath: map['excelFilePath'],
-        subjectCode: map['subjectCode'] ?? 1,
-        basmalaFont: map['basmalaFont'] ?? 'Amiri',
-        basmalaFontSize: (map['basmalaFontSize'] as num?)?.toDouble() ?? 12.0,
-        basmalaBold: map['basmalaBold'] ?? true,
-        titleFont: map['titleFont'] ?? 'Amiri',
-        titleFontSize: (map['titleFontSize'] as num?)?.toDouble() ?? 12.0,
-        titleBold: map['titleBold'] ?? true,
-        adminFont: map['adminFont'] ?? 'Amiri',
-        adminFontSize: (map['adminFontSize'] as num?)?.toDouble() ?? 9.5,
-        adminBold: map['adminBold'] ?? false,
-        detailsFont: map['detailsFont'] ?? 'Amiri',
-        detailsFontSize: (map['detailsFontSize'] as num?)?.toDouble() ?? 10.0,
-        detailsBold: map['detailsBold'] ?? false,
+        country:
+            map['country']?.toString() ?? 'الجمهورية اليمنية',
+        ministry: map['ministry']?.toString() ??
+            'وزارة التربية والتعليم والبحث العلمي',
+        governorate: map['governorate']?.toString() ?? '',
+        directorate: map['directorate']?.toString() ?? '',
+        school: map['school']?.toString() ?? '',
+        basmalaText:
+            map['basmalaText']?.toString() ?? 'بسم الله الرحمن الرحيم',
+        logoImagePath: map['logoImagePath']?.toString(),
+        grade: map['grade']?.toString() ?? '',
+        subject: map['subject']?.toString() ?? '',
+        examDate: map['examDate']?.toString() ?? '',
+        examTime: map['examTime']?.toString() ?? '',
+        period: map['period']?.toString() ?? '',
+        examTitle: map['examTitle']?.toString() ?? '',
+        instructionText: map['instructionText']?.toString() ?? '',
+        isMultiPage: map['isMultiPage'] as bool? ?? false,
+        singlePageFooterText:
+            map['singlePageFooterText']?.toString() ?? '',
+        continuationText:
+            map['continuationText']?.toString() ?? '',
+        teacherSignature:
+            map['teacherSignature']?.toString() ?? '',
+        topMargin1cm: map['topMargin1cm'] as bool? ?? true,
+        studentDataMode:
+            map['studentDataMode']?.toString() ?? 'none',
+        excelFilePath: map['excelFilePath']?.toString(),
+        subjectCode: (map['subjectCode'] as num?)?.toInt() ?? 1,
+        basmalaFont: map['basmalaFont']?.toString() ?? 'Amiri',
+        basmalaFontSize:
+            (map['basmalaFontSize'] as num?)?.toDouble() ?? 12.0,
+        basmalaBold: map['basmalaBold'] as bool? ?? true,
+        titleFont: map['titleFont']?.toString() ?? 'Amiri',
+        titleFontSize:
+            (map['titleFontSize'] as num?)?.toDouble() ?? 12.0,
+        titleBold: map['titleBold'] as bool? ?? true,
+        adminFont: map['adminFont']?.toString() ?? 'Amiri',
+        adminFontSize:
+            (map['adminFontSize'] as num?)?.toDouble() ?? 9.5,
+        adminBold: map['adminBold'] as bool? ?? false,
+        detailsFont: map['detailsFont']?.toString() ?? 'Amiri',
+        detailsFontSize:
+            (map['detailsFontSize'] as num?)?.toDouble() ?? 10.0,
+        detailsBold: map['detailsBold'] as bool? ?? false,
       );
 }
 
@@ -383,15 +416,18 @@ class AutomatedExamConfig {
       };
 
   factory AutomatedExamConfig.fromMap(Map<String, dynamic> map) {
-    final rawSymbolType = map['choiceSymbolType']?.toString() ?? 'arabicLetters';
+    final rawSymbolType =
+        map['choiceSymbolType']?.toString() ?? 'arabicLetters';
+
     final parsedSymbolType = ChoiceSymbolType.values.firstWhere(
       (e) => e.name == rawSymbolType,
       orElse: () => ChoiceSymbolType.arabicLetters,
     );
 
     return AutomatedExamConfig(
-      trueFalseCount: map['trueFalseCount'] ?? 10,
-      mcqCount: map['mcqCount'] ?? 10,
+      trueFalseCount:
+          (map['trueFalseCount'] as num?)?.toInt() ?? 10,
+      mcqCount: (map['mcqCount'] as num?)?.toInt() ?? 10,
       choiceSymbolType: parsedSymbolType,
     );
   }
@@ -399,19 +435,29 @@ class AutomatedExamConfig {
 
 class ExamModel {
   final String id;
+
+  /// اسم ملف الاختبار، دون المسار الكامل.
   String fileName;
+
+  /// المسار الكامل للملف المحفوظ، إن كان محفوظاً في الجهاز.
+  ///
+  /// هذا الحقل اختياري للتوافق مع ملفات .exam القديمة.
+  /// عند فتح ملف موجود يجب الاحتفاظ بمساره حتى يتم تحديث الملف نفسه.
+  String? filePath;
+
   ExamType examType;
-  bool isArabic; // هل الاختبار عربي (RTL) أم إنجليزي (LTR) بالكامل
+  bool isArabic;
   AutomatedExamConfig automatedConfig;
   DateTime createdAt;
   DateTime updatedAt;
   HeaderModel header;
   List<QuestionModel> questions;
-  double targetTotalMarks; // الدرجة المستهدفة لميزان تدقيق الدرجات التراكمي
+  double targetTotalMarks;
 
   ExamModel({
     required this.id,
     required this.fileName,
+    this.filePath,
     this.examType = ExamType.traditional,
     this.isArabic = true,
     AutomatedExamConfig? automatedConfig,
@@ -420,7 +466,8 @@ class ExamModel {
     required this.header,
     required this.questions,
     this.targetTotalMarks = 50.0,
-  }) : automatedConfig = automatedConfig ?? AutomatedExamConfig();
+  }) : automatedConfig =
+            automatedConfig ?? AutomatedExamConfig();
 
   double get totalMarks =>
       questions.fold(0.0, (sum, item) => sum + item.mark);
@@ -428,6 +475,8 @@ class ExamModel {
   ExamModel copyWith({
     String? newId,
     String? newFileName,
+    String? newFilePath,
+    bool clearFilePath = false,
     ExamType? newExamType,
     bool? newIsArabic,
     AutomatedExamConfig? newAutomatedConfig,
@@ -438,6 +487,7 @@ class ExamModel {
     return ExamModel(
       id: newId ?? id,
       fileName: newFileName ?? fileName,
+      filePath: clearFilePath ? null : (newFilePath ?? filePath),
       examType: newExamType ?? examType,
       isArabic: newIsArabic ?? isArabic,
       automatedConfig: newAutomatedConfig ??
@@ -447,13 +497,15 @@ class ExamModel {
       header: newHeader ?? HeaderModel.fromMap(header.toMap()),
       questions: newQuestions ??
           questions.map((q) => QuestionModel.fromMap(q.toMap())).toList(),
-      targetTotalMarks: newTargetTotalMarks ?? targetTotalMarks,
+      targetTotalMarks:
+          newTargetTotalMarks ?? targetTotalMarks,
     );
   }
 
   Map<String, dynamic> toMap() => {
         'id': id,
         'fileName': fileName,
+        'filePath': filePath,
         'examType': examType.name,
         'isArabic': isArabic,
         'automatedConfig': automatedConfig.toMap(),
@@ -465,36 +517,71 @@ class ExamModel {
       };
 
   factory ExamModel.fromMap(Map<String, dynamic> map) {
-    final rawType = map['examType']?.toString() ?? 'traditional';
+    final rawType =
+        map['examType']?.toString() ?? 'traditional';
+
     final parsedType = ExamType.values.firstWhere(
       (e) => e.name == rawType,
       orElse: () => ExamType.traditional,
     );
 
+    final rawConfig = map['automatedConfig'];
+    final rawHeader = map['header'];
+    final rawQuestions = map['questions'];
+
+    DateTime parseDate(dynamic value) {
+      if (value == null) return DateTime.now();
+
+      return DateTime.tryParse(value.toString()) ??
+          DateTime.now();
+    }
+
     return ExamModel(
-      id: map['id'] ?? '',
-      fileName: map['fileName'] ?? '',
+      id: map['id']?.toString() ?? '',
+      fileName: map['fileName']?.toString() ?? '',
+      filePath: map['filePath']?.toString(),
       examType: parsedType,
-      isArabic: map['isArabic'] ?? true,
-      automatedConfig: AutomatedExamConfig.fromMap(
-        map['automatedConfig'] ?? {},
-      ),
-      createdAt: map['createdAt'] != null
-          ? DateTime.parse(map['createdAt'])
-          : DateTime.now(),
-      updatedAt: map['updatedAt'] != null
-          ? DateTime.parse(map['updatedAt'])
-          : DateTime.now(),
-      header: HeaderModel.fromMap(map['header'] ?? {}),
-      questions: (map['questions'] as List<dynamic>?)
-              ?.map((item) => QuestionModel.fromMap(item))
-              .toList() ??
-          [],
-      targetTotalMarks: (map['targetTotalMarks'] as num?)?.toDouble() ?? 50.0,
+      isArabic: map['isArabic'] as bool? ?? true,
+      automatedConfig: rawConfig is Map
+          ? AutomatedExamConfig.fromMap(
+              Map<String, dynamic>.from(rawConfig),
+            )
+          : AutomatedExamConfig(),
+      createdAt: parseDate(map['createdAt']),
+      updatedAt: parseDate(map['updatedAt']),
+      header: rawHeader is Map
+          ? HeaderModel.fromMap(
+              Map<String, dynamic>.from(rawHeader),
+            )
+          : HeaderModel(),
+      questions: rawQuestions is List
+          ? rawQuestions
+              .whereType<Map>()
+              .map((item) => QuestionModel.fromMap(
+                    Map<String, dynamic>.from(item),
+                  ))
+              .toList()
+          : [],
+      targetTotalMarks:
+          (map['targetTotalMarks'] as num?)?.toDouble() ?? 50.0,
     );
   }
 
+  /// تحويل الاختبار إلى نص JSON واحد صالح للتخزين.
   String toJson() => jsonEncode(toMap());
-  factory ExamModel.fromJson(String source) =>
-      ExamModel.fromMap(jsonDecode(source));
+
+  /// قراءة ملف JSON قديم أو جديد وإعادة بناء الاختبار.
+  factory ExamModel.fromJson(String source) {
+    final decoded = jsonDecode(source);
+
+    if (decoded is! Map) {
+      throw const FormatException(
+        'محتوى ملف الاختبار غير صالح: الجذر ليس كائن JSON.',
+      );
+    }
+
+    return ExamModel.fromMap(
+      Map<String, dynamic>.from(decoded),
+    );
+  }
 }
