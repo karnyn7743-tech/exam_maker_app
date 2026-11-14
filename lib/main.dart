@@ -3,9 +3,15 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'screens/activation_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/activation_service.dart';
+import 'services/exam_storage_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // إنشاء وتجهيز مجلد [المحرر البسيط] في وحدة التخزين بمجرد تثبيت وتشغيل التطبيق
+  try {
+    await ExamStorageService.ensureAppFolderExists();
+  } catch (_) {}
 
   // فحص حالة الترخيص: لا يمكن الدخول إلا بترخيص ساري (تجريبي أو دائم)
   final status = await ActivationService.getLicenseStatus();
