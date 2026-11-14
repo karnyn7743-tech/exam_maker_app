@@ -128,7 +128,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   // حذف صفحة محددة مع الإبقاء على فواصل الصفحات بين الصفحات المتبقية.
-  // عناصر الصفحة هي الأسئلة الواقعة بين علامتي page_break_ في قائمة الأسئلة.
   Future<void> _showDeletePageDialog() async {
     final List<int> pageBreakIndexes = <int>[];
     for (int i = 0; i < _exam.questions.length; i++) {
@@ -190,7 +189,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     if (!mounted || confirmed != true) return;
 
-    // إعادة حساب مواضع الفواصل تحسباً لأي تغيير حدث أثناء ظهور الحوار.
     final List<int> currentBreakIndexes = <int>[];
     for (int i = 0; i < _exam.questions.length; i++) {
       if (_exam.questions[i].id.startsWith('page_break_')) {
@@ -204,14 +202,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         : currentBreakIndexes[selectedPage - 1];
     setState(() {
       if (selectedPage == 0) {
-        // الصفحة الأولى: احذف محتواها وفاصلها اللاحق إن وجد.
         final int deleteEnd = currentBreakIndexes.isNotEmpty
             ? currentBreakIndexes.first + 1
             : _exam.questions.length;
         _exam.questions.removeRange(0, deleteEnd);
       } else {
-        // الصفحات التالية: احذف الفاصل السابق ومحتوى الصفحة، مع إبقاء
-        // الفاصل اللاحق حتى تظل الصفحات التي بعدها مستقلة.
         final int deleteEnd = selectedPage < currentBreakIndexes.length
             ? currentBreakIndexes[selectedPage]
             : _exam.questions.length;
@@ -220,6 +215,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       _pageHeights.clear();
       _selectedElementId = null;
     });
+
+    if (_exam.questions.isNotEmpty) {
+      await ExamStorageService.saveOrUpdateExam(_exam);
+    }
 
     _measurePagesHeight();
     if (mounted) {
@@ -320,14 +319,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Future<void> _triggerSave() async {
-    final gradeName = _exam.header.grade.trim().isNotEmpty ? _exam.header.grade.trim() : 'عام';
-    final subjectName = _exam.header.subject.trim().isNotEmpty ? _exam.header.subject.trim() : 'مادة';
-    final typeName = _exam.examType == ExamType.automated ? 'مؤتمت' : 'شامل';
-    final langSuffix = _isArabicExam ? 'عربي' : 'En';
-    final generatedName = '$gradeName _ $subjectName _ $typeName _ $langSuffix';
+    final standardName = ExamStorageService.buildStandardFileName(_exam).replaceAll('.exam', '');
 
     if (_isNew || _exam.fileName.isEmpty || _exam.fileName.startsWith('اختبار_') || _exam.fileName == 'اختبار جديد') {
-      _exam.fileName = generatedName;
+      _exam.fileName = standardName;
     }
 
     final saved = await showSaveChoiceDialog(
@@ -341,7 +336,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('تم حفظ الاختبار بنجاح: ${_exam.fileName}'),
+            content: Text('تم حفظ الاختبار بنجاح في مجلد المحرر البسيط: ${_exam.fileName}'),
             backgroundColor: Colors.green.shade700,
           ),
         );
@@ -526,7 +521,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
-            onPressed: () {
+            onPressed: () async {
               final newExam = _exam.copyWith(
                 newId: const Uuid().v4(),
                 newFileName: ctrl.text.trim(),
@@ -553,16 +548,19 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
               setState(() {
                 _exam = newExam;
-                _isNew = true;
+                _isNew = false;
               });
-              Navigator.pop(dCtx);
+              await ExamStorageService.saveOrUpdateExam(_exam);
+              if (dCtx.mounted) Navigator.pop(dCtx);
               _measurePagesHeight();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('تم توليد (${ctrl.text.trim()}) بنجاح مع خلط الفقرات!'),
-                  backgroundColor: Colors.green.shade800,
-                ),
-              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('تم توليد (${ctrl.text.trim()}) وحفظه بنجاح مع خلط الفقرات!'),
+                    backgroundColor: Colors.green.shade800,
+                  ),
+                );
+              }
             },
             child: const Text('توليد النموذج الآن', style: TextStyle(color: Colors.white)),
           ),
@@ -603,7 +601,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F766E)),
               icon: const Icon(Icons.auto_fix_high, color: Colors.white, size: 18),
               label: const Text('توزيع الدرجة الكلية بالتساوي على الأسئلة', style: TextStyle(color: Colors.white)),
-              onPressed: () {
+              onPressed: () async {
                 final target = double.tryParse(targetCtrl.text) ?? _exam.targetTotalMarks;
                 if (_exam.questions.isNotEmpty) {
                   final markPerQ = double.parse((target / _exam.questions.length).toStringAsFixed(2));
@@ -613,10 +611,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       q.mark = markPerQ;
                     }
                   });
-                  Navigator.pop(dCtx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('تم توزيع الدرجات بالتساوي: $markPerQ د لكل سؤال'), backgroundColor: Colors.teal.shade800),
-                  );
+                  await ExamStorageService.saveOrUpdateExam(_exam);
+                  if (dCtx.mounted) Navigator.pop(dCtx);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('تم توزيع الدرجات بالتساوي: $markPerQ د لكل سؤال'), backgroundColor: Colors.teal.shade800),
+                    );
+                  }
                 }
               },
             ),
@@ -709,17 +710,23 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             setBState(() => bankQuestions.removeWhere((q) => q.id == item.id));
                           },
                         ),
-                        onTap: () {
+                        onTap: () async {
                           final imported = QuestionModel.fromMap(item.question.toMap());
                           imported.title = _isArabicExam
                               ? 'السؤال ${_exam.questions.length + 1}'
                               : 'Question ${_exam.questions.length + 1}';
-                          setState(() => _exam.questions.add(imported));
-                          Navigator.pop(bCtx);
+                          setState(() {
+                            _exam.questions.add(imported);
+                            _isNew = false;
+                          });
+                          await ExamStorageService.saveOrUpdateExam(_exam);
+                          if (bCtx.mounted) Navigator.pop(bCtx);
                           _measurePagesHeight();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('تم إدراج (${item.question.title}) بنجاح.'), backgroundColor: Colors.green.shade800),
-                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('تم إدراج (${item.question.title}) وحفظ الاختبار في مجلد المحرر البسيط.'), backgroundColor: Colors.green.shade800),
+                            );
+                          }
                         },
                       );
                     },
@@ -915,14 +922,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           actions: [
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1B5E20)),
-              onPressed: () {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(isAr ? 'تم حفظ مفاتيح إجابات الاختبار بنجاح.' : 'Answer keys saved successfully.'),
-                    backgroundColor: const Color(0xFF1B5E20),
-                  ),
-                );
+              onPressed: () async {
+                await ExamStorageService.saveOrUpdateExam(_exam);
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(isAr ? 'تم حفظ مفاتيح إجابات الاختبار بنجاح.' : 'Answer keys saved successfully.'),
+                      backgroundColor: const Color(0xFF1B5E20),
+                    ),
+                  );
+                }
               },
               child: Text(isAr ? 'تم الحفظ' : 'Done', style: const TextStyle(color: Colors.white)),
             ),
@@ -1429,7 +1439,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       }
     }
 
-    // اتجاه قراءة الصفحة كاملة (RTL للعربي و LTR للإنجليزي)
     final TextDirection examDir = _isArabicExam ? TextDirection.rtl : TextDirection.ltr;
 
     return pages.asMap().entries.map((entry) {
@@ -1559,7 +1568,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             
                             const SizedBox(height: 8),
 
-                            // تغليف جدول الأسئلة بالاتجاه الصحيح للاختبار
                             Directionality(
                               textDirection: examDir,
                               child: _buildQuestionsTableForPage(pageQuestions),
@@ -1640,15 +1648,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }).toList();
   }
 
-  // دالة بناء جدول الأسئلة مع ضبط ترتيب الأعمدة الدقيق للغتين
   Widget _buildQuestionsTableForPage(List<QuestionModel> questions) {
     final isAr = _isArabicExam;
 
-    // العمود 0 دائماً هو السؤال
-    // العمود 1 دائماً هو نص السؤال والمحتوى
-    // العمود 2 دائماً هو الدرجة
-    // بفضل Directionality(textDirection: RTL):
-    // العمود 0 يرسم يميناً، العمود 1 بالوسط، العمود 2 يساراً كما هو مطلوب رسميًا.
     return Table(
       border: TableBorder.all(color: Colors.black, width: 1),
       columnWidths: {
@@ -1660,7 +1662,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         TableRow(
           decoration: BoxDecoration(color: Colors.grey.shade100),
           children: [
-            // 0: خانة عنوان عمود السؤال (في اليمين بالعربي، في اليسار بالإنجليزي)
             TableCell(
               verticalAlignment: TableCellVerticalAlignment.middle,
               child: Padding(
@@ -1672,7 +1673,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
               ),
             ),
-            // 1: خانة التوجيه بالوسط
             TableCell(
               verticalAlignment: TableCellVerticalAlignment.middle,
               child: InkWell(
@@ -1689,7 +1689,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
               ),
             ),
-            // 2: خانة عنوان عمود الدرجة (في اليسار بالعربي، في اليمين بالإنجليزي)
             TableCell(
               verticalAlignment: TableCellVerticalAlignment.middle,
               child: Padding(
@@ -1732,7 +1731,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
           return TableRow(
             children: [
-              // 0: محتوى عمود السؤال (يمين بالعربي)
               TableCell(
                 verticalAlignment: TableCellVerticalAlignment.middle,
                 child: InkWell(
@@ -1743,7 +1741,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                 ),
               ),
-              // 1: نص السؤال والعناصر المرافقة بالوسط
               TableCell(
                 verticalAlignment: TableCellVerticalAlignment.middle,
                 child: InkWell(
@@ -1790,7 +1787,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                 ),
               ),
-              // 2: محتوى عمود الدرجة (يسار بالعربي)
               TableCell(
                 verticalAlignment: TableCellVerticalAlignment.middle,
                 child: InkWell(
@@ -3407,7 +3403,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     title: Text(t['title'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                     subtitle: Text(t['subtitle'] as String, style: const TextStyle(fontSize: 11)),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                    onTap: () {
+                    onTap: () async {
                       final newQ = QuestionModel(
                         id: const Uuid().v4(),
                         title: t['qTitle'] as String,
@@ -3427,16 +3423,20 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       );
                       setState(() {
                         _exam.questions.add(newQ);
+                        _isNew = false;
                       });
-                      Navigator.pop(ctx);
+                      await ExamStorageService.saveOrUpdateExam(_exam);
+                      if (ctx.mounted) Navigator.pop(ctx);
                       _measurePagesHeight();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('تمت إضافة ${t['title']} بنجاح'),
-                          backgroundColor: Colors.green.shade700,
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('تمت إضافة ${t['title']} وحفظ الاختبار في مجلد المحرر البسيط.'),
+                            backgroundColor: Colors.green.shade700,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
                     },
                   );
                 },
@@ -4643,7 +4643,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // إخفاء وإظهار إعدادات السؤال (العنوان والدرجة والاتجاه)
                       if (showQuestionSettings) ...[
                         Row(
                           children: [
@@ -5046,20 +5045,23 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                       ),
                                       ElevatedButton(
                                         style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade800),
-                                        onPressed: () {
+                                        onPressed: () async {
                                           setState(() {
                                             _exam.questions.removeAt(questionIndex);
                                           });
-                                          Navigator.pop(dCtx);
-                                          Navigator.pop(ctx);
+                                          await ExamStorageService.saveOrUpdateExam(_exam);
+                                          if (dCtx.mounted) Navigator.pop(dCtx);
+                                          if (ctx.mounted) Navigator.pop(ctx);
                                           _measurePagesHeight();
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(
-                                              content: Text('تم حذف السؤال بنجاح'),
-                                              backgroundColor: Colors.red,
-                                              duration: Duration(seconds: 2),
-                                            ),
-                                          );
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('تم حذف السؤال بنجاح'),
+                                                backgroundColor: Colors.red,
+                                                duration: Duration(seconds: 2),
+                                              ),
+                                            );
+                                          }
                                         },
                                         child: const Text('نعم، احذف', style: TextStyle(color: Colors.white)),
                                       ),
@@ -5076,7 +5078,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 backgroundColor: const Color(0xFF1E3A8A),
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                               ),
-                              onPressed: () {
+                              onPressed: () async {
                                 final spansToSave = workingSpans.isNotEmpty &&
                                         workingSpans.map((s) => s.text).join('') == textCtrl.text
                                     ? workingSpans
@@ -5110,8 +5112,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                   } else {
                                     _exam.questions.add(newQ);
                                   }
+                                  _isNew = false;
                                 });
-                                Navigator.pop(ctx);
+
+                                // الحفظ التلقائي الفوري في مجلد [المحرر البسيط] بالاسم القياسي (الصف_المادة_الشهر أو الفصل.exam)
+                                await ExamStorageService.saveOrUpdateExam(_exam);
+
+                                if (ctx.mounted) {
+                                  Navigator.pop(ctx);
+                                }
                                 _measurePagesHeight();
                               },
                               child: Text(
@@ -5414,7 +5423,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
-              onPressed: () {
+              onPressed: () async {
                 setState(() {
                   _exam.header.topMargin1cm = topMargin;
                   _exam.header.isMultiPage = isMulti;
@@ -5422,7 +5431,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   _exam.header.continuationText = multiCtrl.text;
                   _exam.header.teacherSignature = signCtrl.text;
                 });
-                Navigator.pop(ctx);
+                if (_exam.questions.isNotEmpty) {
+                  await ExamStorageService.saveOrUpdateExam(_exam);
+                }
+                if (ctx.mounted) Navigator.pop(ctx);
                 _measurePagesHeight();
               },
               child: const Text('حفظ الإعدادات', style: TextStyle(color: Colors.white)),
@@ -5492,7 +5504,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 setState(() {
                   _exam.header.country = cCountry.text;
                   _exam.header.ministry = cMinistry.text;
@@ -5503,7 +5515,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   _exam.header.adminFontSize = size;
                   _exam.header.adminBold = bold;
                 });
-                Navigator.pop(ctx);
+                if (_exam.questions.isNotEmpty) {
+                  await ExamStorageService.saveOrUpdateExam(_exam);
+                }
+                if (ctx.mounted) Navigator.pop(ctx);
                 _measurePagesHeight();
               },
               child: const Text('حفظ'),
@@ -5573,7 +5588,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 setState(() {
                   _exam.header.grade = cGrade.text;
                   _exam.header.subject = cSub.text;
@@ -5584,7 +5599,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   _exam.header.detailsFontSize = size;
                   _exam.header.detailsBold = bold;
                 });
-                Navigator.pop(ctx);
+                // تحديث ملف الحفظ في مجلد [المحرر البسيط] ليعكس الصف والمادة والفترة الجديدة
+                if (_exam.questions.isNotEmpty) {
+                  await ExamStorageService.saveOrUpdateExam(_exam);
+                }
+                if (ctx.mounted) Navigator.pop(ctx);
                 _measurePagesHeight();
               },
               child: const Text('حفظ'),
@@ -5647,14 +5666,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 setState(() {
                   _exam.header.examTitle = cTitle.text;
                   _exam.header.titleFont = font;
                   _exam.header.titleFontSize = size;
                   _exam.header.titleBold = bold;
                 });
-                Navigator.pop(ctx);
+                if (_exam.questions.isNotEmpty) {
+                  await ExamStorageService.saveOrUpdateExam(_exam);
+                }
+                if (ctx.mounted) Navigator.pop(ctx);
                 _measurePagesHeight();
               },
               child: const Text('حفظ'),
@@ -5725,14 +5747,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 setState(() {
                   _exam.header.basmalaText = cBasmala.text;
                   _exam.header.basmalaFont = font;
                   _exam.header.basmalaFontSize = size;
                   _exam.header.basmalaBold = bold;
                 });
-                Navigator.pop(ctx);
+                if (_exam.questions.isNotEmpty) {
+                  await ExamStorageService.saveOrUpdateExam(_exam);
+                }
+                if (ctx.mounted) Navigator.pop(ctx);
                 _measurePagesHeight();
               },
               child: const Text('حفظ'),
@@ -5759,9 +5784,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               setState(() => _exam.header.instructionText = cInst.text);
-              Navigator.pop(ctx);
+              if (_exam.questions.isNotEmpty) {
+                await ExamStorageService.saveOrUpdateExam(_exam);
+              }
+              if (ctx.mounted) Navigator.pop(ctx);
               _measurePagesHeight();
             },
             child: const Text('حفظ'),
