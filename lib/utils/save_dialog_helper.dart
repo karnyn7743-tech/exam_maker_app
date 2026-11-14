@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
@@ -15,12 +14,13 @@ Future<bool> showSaveChoiceDialog({
   required bool isNewExam,
   required Function(ExamModel updatedExam) onPerformSave,
 }) async {
-  // الاختبار الجديد: الانتقال مباشرة إلى حفظ باسم.
-  if (isNewExam) {
+  // الاختبار الجديد الذي لم يُحفظ بعد: الانتقال مباشرة إلى حفظ باسم.
+  if (isNewExam && (currentExam.filePath == null || currentExam.filePath!.trim().isEmpty)) {
     return await showSaveAsDialog(
       context: context,
       examToSave: currentExam,
       onPerformSave: onPerformSave,
+      isInitialSave: true,
     );
   }
 
@@ -89,6 +89,7 @@ Future<bool> showSaveChoiceDialog({
       context: context,
       examToSave: currentExam,
       onPerformSave: onPerformSave,
+      isInitialSave: false,
     );
   }
 
@@ -103,11 +104,16 @@ Future<bool> showSaveAsDialog({
   required BuildContext context,
   required ExamModel examToSave,
   required Function(ExamModel updatedExam) onPerformSave,
+  bool isInitialSave = false,
 }) async {
+  final defaultSuggestion = isInitialSave
+      ? ExamStorageService.computeStandardBaseName(examToSave)
+      : (examToSave.fileName.trim().isNotEmpty
+          ? '${examToSave.fileName}_نسخة'
+          : ExamStorageService.computeStandardBaseName(examToSave));
+
   final nameController = TextEditingController(
-    text: examToSave.fileName.trim().isNotEmpty
-        ? '${examToSave.fileName}_نسخة'
-        : 'اختبار_جديد',
+    text: defaultSuggestion,
   );
 
   final shouldSave = await showDialog<bool>(
@@ -153,7 +159,7 @@ Future<bool> showSaveAsDialog({
     return false;
   }
 
-  final requestedName = nameController.text.trim();
+  final requestedName = ExamStorageService.sanitizeFileName(nameController.text);
 
   nameController.dispose();
 
@@ -162,27 +168,19 @@ Future<bool> showSaveAsDialog({
   }
 
   try {
-    // إنشاء نسخة مستقلة تماماً عن الاختبار الأصلي.
-    //
-    // newId:
-    // معرّف جديد حتى لا تستبدل النسخة الأصلية في الأرشيف.
-    //
-    // newFileName:
-    // اسم جديد للنسخة.
-    //
-    // clearFilePath:
-    // إزالة مسار الملف الأصلي حتى لا تتم الكتابة فوقه.
+    // إنشاء نسخة مستقلة تماماً عن الاختبار الأصلي عند الحفظ باسم آخر.
     final duplicatedExam = examToSave.copyWith(
-      newId: const Uuid().v4(),
+      newId: isInitialSave ? examToSave.id : const Uuid().v4(),
       newFileName: requestedName,
       clearFilePath: true,
     );
 
     duplicatedExam.updatedAt = DateTime.now();
 
-    // الحفظ الفعلي في ملف مستقل.
+    // الحفظ الفعلي في ملف مستقل بالاسم الذي اختاره المستخدم تماماً.
     await ExamStorageService.saveOrUpdateExam(
       duplicatedExam,
+      preserveCustomName: true,
     );
 
     // تحديث المحرر بالنسخة الجديدة بعد نجاح الحفظ فقط.
