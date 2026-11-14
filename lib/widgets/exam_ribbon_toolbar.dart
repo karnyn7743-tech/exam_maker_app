@@ -56,14 +56,11 @@ class ExamRibbonToolbar extends StatefulWidget {
 
   final VoidCallback? onOpenTableDesigner;
   final Function(String kind)? onInsertShape;
-
+  
   final Function(double)? onLineSpacingChanged;
   final VoidCallback? onZoomIn;
   final VoidCallback? onZoomOut;
   final VoidCallback? onFitScreen;
-
-  // أداة حذف صفحة؛ اختيارية حتى لا تتأثر مواضع استخدام الشريط الأخرى.
-  final VoidCallback? onDeletePage;
 
   const ExamRibbonToolbar({
     super.key,
@@ -110,7 +107,6 @@ class ExamRibbonToolbar extends StatefulWidget {
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onFitScreen,
-    this.onDeletePage,
   });
 
   @override
@@ -120,11 +116,6 @@ class ExamRibbonToolbar extends StatefulWidget {
 class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
   RibbonTab _activeTab = RibbonTab.format;
   bool _isExpanded = true;
-
-  static const List<double> _fontSizes = [
-    8.0, 9.0, 10.0, 11.0, 12.0, 14.0, 16.0, 18.0,
-    20.0, 22.0, 24.0, 26.0, 28.0, 30.0, 32.0, 34.0, 36.0,
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -169,6 +160,7 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
               ],
             ),
           ),
+
           if (_isExpanded)
             Container(
               height: 108,
@@ -313,6 +305,7 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
   }
 
   Widget _buildFormatTab() {
+    final double clampedCurrentSize = widget.currentFontSize.clamp(8.0, 36.0).toDouble();
     return Row(
       children: [
         _buildRibbonGroup(
@@ -361,67 +354,45 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
             children: [
               _buildToolItem(icon: Icons.format_bold, label: 'عريض', isSelected: widget.isBold, onTap: widget.onToggleBold),
               _buildToolItem(icon: Icons.format_underlined, label: 'تسطير', isSelected: widget.isUnderline, onTap: widget.onToggleUnderline),
-              PopupMenuButton<double>(
-                tooltip: 'حجم الخط (8 - 36)',
-                onSelected: widget.onFontSizeChanged,
-                itemBuilder: (ctx) => _fontSizes.map((s) {
-                  final bool isCurrent = widget.currentFontSize == s;
-                  return PopupMenuItem<double>(
-                    value: s,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${s.toInt()}',
-                          style: TextStyle(
-                            fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                            color: isCurrent ? const Color(0xFF1E3A8A) : Colors.black87,
-                          ),
-                        ),
-                        if (isCurrent)
-                          const Icon(Icons.check, size: 16, color: Color(0xFF1E3A8A)),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: const Color(0xFFCBD5E1)),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '${widget.currentFontSize.toInt()}',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1E3A8A),
-                            ),
-                          ),
-                          const Icon(Icons.arrow_drop_down, size: 16, color: Color(0xFF334155)),
-                        ],
-                      ),
-                      const Text('حجم الخط', style: TextStyle(fontSize: 9.5, color: Color(0xFF334155))),
-                    ],
-                  ),
-                ),
-              ),
               _buildToolItem(
                 icon: Icons.text_increase,
                 label: 'تكبير',
-                onTap: () => widget.onFontSizeChanged?.call(widget.currentFontSize < 36 ? widget.currentFontSize + 1 : 36),
+                onTap: () => widget.onFontSizeChanged?.call((clampedCurrentSize + 1).clamp(8.0, 36.0).toDouble()),
               ),
               _buildToolItem(
                 icon: Icons.text_decrease,
                 label: 'تصغير',
-                onTap: () => widget.onFontSizeChanged?.call(widget.currentFontSize > 8 ? widget.currentFontSize - 1 : 8),
+                onTap: () => widget.onFontSizeChanged?.call((clampedCurrentSize - 1).clamp(8.0, 36.0).toDouble()),
+              ),
+              PopupMenuButton<double>(
+                tooltip: 'اختيار حجم الخط (8–36)',
+                onSelected: (size) => widget.onFontSizeChanged?.call(size.clamp(8.0, 36.0).toDouble()),
+                itemBuilder: (ctx) => List<PopupMenuEntry<double>>.generate(
+                  29,
+                  (index) {
+                    final size = (index + 8).toDouble();
+                    return PopupMenuItem<double>(
+                      value: size,
+                      child: Text('${size.toInt()}', textAlign: TextAlign.center),
+                    );
+                  },
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.format_size, size: 20, color: Color(0xFF334155)),
+                      const SizedBox(height: 2),
+                      Text(
+                        clampedCurrentSize.toStringAsFixed(
+                          clampedCurrentSize == clampedCurrentSize.roundToDouble() ? 0 : 1,
+                        ),
+                        style: const TextStyle(fontSize: 10, color: Color(0xFF334155)),
+                      ),
+                    ],
+                  ),
+                ),
               ),
               PopupMenuButton<String>(
                 tooltip: 'لون النص',
@@ -563,19 +534,6 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
               _buildToolItem(icon: Icons.fit_screen_outlined, label: 'ملاءمة الصفحة', onTap: widget.onFitScreen),
               _buildToolItem(icon: Icons.zoom_in, label: 'تكبير', onTap: widget.onZoomIn),
               _buildToolItem(icon: Icons.zoom_out, label: 'تصغير', onTap: widget.onZoomOut),
-            ],
-          ),
-        ),
-        _buildRibbonGroup(
-          title: 'إدارة الصفحات',
-          child: Row(
-            children: [
-              _buildToolItem(
-                icon: Icons.delete_outline,
-                label: 'حذف صفحة',
-                color: const Color(0xFFB91C1C),
-                onTap: widget.onDeletePage,
-              ),
             ],
           ),
         ),
