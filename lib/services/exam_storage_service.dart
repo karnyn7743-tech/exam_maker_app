@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 import 'dart:io';
 
@@ -62,9 +61,23 @@ class ExamStorageService {
   // إعداد أسماء الملفات
   // ============================================================
 
-  /// صياغة اسم ملف الاختبار القياسي:
-  /// الصف_المادة_الشهر أو الفصل.exam
-  static String buildStandardFileName(ExamModel exam) {
+  /// تنظيف اسم الملف من الرموز غير الصالحة لأنظمة الملفات.
+  static String sanitizeFileName(String rawName) {
+    final withoutExt = rawName.toLowerCase().endsWith('.exam')
+        ? rawName.substring(0, rawName.length - 5)
+        : rawName;
+
+    final cleaned = withoutExt
+        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    return cleaned.isNotEmpty ? cleaned : 'اختبار';
+  }
+
+  /// صياغة الاسم القياسي الأساسي (بدون امتداد):
+  /// الصف_المادة_الشهر أو الفصل
+  static String computeStandardBaseName(ExamModel exam) {
     final grade = exam.header.grade.trim().isNotEmpty
         ? exam.header.grade.trim()
         : 'عام';
@@ -81,14 +94,13 @@ class ExamStorageService {
           : 'اختبار';
     }
 
-    final rawName = '${grade}_${subject}_$termOrMonth';
+    return sanitizeFileName('${grade}_${subject}_$termOrMonth');
+  }
 
-    final safeName = rawName
-        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-
-    return '$safeName.exam';
+  /// صياغة اسم ملف الاختبار القياسي بامتداده:
+  /// الصف_المادة_الشهر أو الفصل.exam
+  static String buildStandardFileName(ExamModel exam) {
+    return '${computeStandardBaseName(exam)}.exam';
   }
 
   /// استخراج اسم الملف دون الامتداد.
@@ -102,58 +114,39 @@ class ExamStorageService {
     return name;
   }
 
-  /// التأكد من أن المسار يشير إلى ملف موجود.
-  static Future<bool> _fileExists(String? path) async {
-    if (path == null || path.trim().isEmpty) {
-      return false;
-    }
-
-    return File(path).exists();
-  }
-
   // ============================================================
   // تحديد مسار الحفظ
   // ============================================================
 
-  /// تحديد ملف الحفظ المناسب.
-  ///
-  /// - إذا كان الاختبار محفوظاً ولم يتغير اسمه القياسي، يحفظ في
-  ///   مساره السابق.
-  /// - إذا تغيرت بيانات الاسم القياسي، ينشئ ملفاً جديداً.
-  /// - إذا كان الاختبار نسخة جديدة بلا مسار، ينشئ ملفاً جديداً.
-  /// - لا يحذف الملف السابق في أي حالة.
-  static Future<File> _resolveTargetFile(ExamModel exam) async {
-    final standardFileName = buildStandardFileName(exam);
-    final standardBaseName =
-        _fileNameWithoutExtension(standardFileName);
-
+  /// تحديد ملف الحفظ المناسب:
+  /// - إذا كان للاختبار مسار صالح [exam.filePath] ولم يُطلب حفظ باسم جديد،
+  ///   يُحفظ في الملف الأصلي نفسه حتى لو كان اسمه مختلفاً عن الاسم القياسي.
+  /// - إذا تم تفريغ [exam.filePath] (مثل حالة "حفظ باسم" أو تغيير بيانات الترويسة)،
+  ///   يُنشأ ملف جديد في مجلد [المحرر البسيط] مع الحفاظ على الملف السابق.
+  static Future<File> _resolveTargetFile(
+    ExamModel exam, {
+    bool preserveCustomName = false,
+  }) async {
     final oldPath = exam.filePath;
 
     if (oldPath != null && oldPath.trim().isNotEmpty) {
       final oldFile = File(oldPath);
 
       if (await oldFile.exists()) {
-        final oldBaseName =
-            _fileNameWithoutExtension(oldPath);
-
-        final savedBaseName = exam.fileName.trim();
-
-        // إذا كان اسم الملف القياسي لم يتغير، نحتفظ بالمسار
-        // الأصلي حتى لو كان الملف مستورداً من خارج مجلد التطبيق.
-        if (savedBaseName.isEmpty ||
-            savedBaseName == standardBaseName) {
-          return oldFile;
-        }
-
-        // إذا تغير الصف أو المادة أو الفترة، ننتقل إلى ملف جديد.
-        // الملف القديم يبقى محفوظاً دون حذف.
+        return oldFile;
       }
     }
 
     final folder = await ensureAppFolderExists();
 
+    final String baseFileName = preserveCustomName && exam.fileName.trim().isNotEmpty
+        ? sanitizeFileName(exam.fileName)
+        : computeStandardBaseName(exam);
+
+    final String targetFileName = '$baseFileName.exam';
+
     File targetFile = File(
-      '${folder.path}/$standardFileName',
+      '${folder.path}/$targetFileName',
     );
 
     // منع استبدال اختبار آخر يحمل الاسم نفسه.
@@ -168,15 +161,11 @@ class ExamStorageService {
           );
 
           if (existingExam.id != exam.id) {
-            final base = _fileNameWithoutExtension(
-              standardFileName,
-            );
-
             int counter = 2;
 
             while (true) {
               final candidate = File(
-                '${folder.path}/${base}_$counter.exam',
+                '${folder.path}/${baseFileName}_$counter.exam',
               );
 
               if (!await candidate.exists()) {
@@ -207,15 +196,11 @@ class ExamStorageService {
         }
       } catch (_) {
         // لا نستبدل ملفاً موجوداً إذا تعذر التأكد من هويته.
-        final base = _fileNameWithoutExtension(
-          standardFileName,
-        );
-
         int counter = 2;
 
         while (true) {
           final candidate = File(
-            '${folder.path}/${base}_$counter.exam',
+            '${folder.path}/${baseFileName}_$counter.exam',
           );
 
           if (!await candidate.exists()) {
@@ -236,16 +221,14 @@ class ExamStorageService {
   // ============================================================
 
   /// حفظ الاختبار في ملف .exam.
-  ///
-  /// عند وجود مسار سابق صالح، تتم الكتابة في الملف نفسه
-  /// ما دام الاسم القياسي لم يتغير.
-  ///
-  /// عند تغيير بيانات الترويسة المؤثرة في الاسم، يتم إنشاء
-  /// ملف جديد مع الاحتفاظ بالملف السابق.
   static Future<String> saveExamToPublicFolder(
-    ExamModel exam,
-  ) async {
-    final targetFile = await _resolveTargetFile(exam);
+    ExamModel exam, {
+    bool preserveCustomName = false,
+  }) async {
+    final targetFile = await _resolveTargetFile(
+      exam,
+      preserveCustomName: preserveCustomName,
+    );
 
     final parent = targetFile.parent;
 
@@ -253,18 +236,16 @@ class ExamStorageService {
       await parent.create(recursive: true);
     }
 
-    // toJson يعيد نص JSON بالفعل، لذلك لا نستخدم jsonEncode معه.
+    // تحديث بيانات المسار والاسم داخل النموذج قبل الكتابة ليكونا متطابقين داخل JSON.
+    exam.filePath = targetFile.path;
+    exam.fileName = _fileNameWithoutExtension(targetFile.path);
+
     final jsonString = exam.toJson();
 
     await targetFile.writeAsString(
       jsonString,
       flush: true,
     );
-
-    // تحديث بيانات الملف داخل النموذج بعد نجاح الكتابة.
-    exam.filePath = targetFile.path;
-    exam.fileName =
-        _fileNameWithoutExtension(targetFile.path);
 
     return targetFile.path;
   }
@@ -311,11 +292,9 @@ class ExamStorageService {
     // الاحتفاظ بمسار الملف الأصلي.
     importedExam.filePath = file.path;
 
-    // إذا لم يكن الاسم محفوظاً داخل النموذج، نستخرجه من الملف.
-    if (importedExam.fileName.trim().isEmpty) {
-      importedExam.fileName =
-          _fileNameWithoutExtension(file.path);
-    }
+    // استخراج اسم الملف الفعلي من المسار الأصلي.
+    importedExam.fileName =
+        _fileNameWithoutExtension(file.path);
 
     // تسجيل الاختبار في قائمة التطبيق دون نقل الملف
     // أو تغيير مساره أو إنشاء نسخة أخرى منه.
@@ -329,8 +308,6 @@ class ExamStorageService {
   // ============================================================
 
   /// تحديث سجل الاختبار داخل قائمة التطبيق فقط.
-  ///
-  /// لا تنفذ هذه الدالة كتابة ملف .exam.
   static Future<void> _saveExamToPreferences(
     ExamModel exam,
   ) async {
@@ -427,11 +404,8 @@ class ExamStorageService {
         );
 
         fileExam.filePath = entity.path;
-
-        if (fileExam.fileName.trim().isEmpty) {
-          fileExam.fileName =
-              _fileNameWithoutExtension(entity.path);
-        }
+        fileExam.fileName =
+            _fileNameWithoutExtension(entity.path);
 
         final index = currentExams.indexWhere(
           (element) => element.id == fileExam.id,
@@ -516,18 +490,17 @@ class ExamStorageService {
   // ============================================================
 
   /// حفظ أو تحديث الاختبار.
-  ///
-  /// هذه الدالة لا تتجاهل أخطاء الكتابة.
-  /// إذا فشل حفظ الملف أو تحديث القائمة، ينتقل الخطأ إلى
-  /// الشاشة المستدعية حتى لا تظهر رسالة نجاح غير صحيحة.
   static Future<void> saveOrUpdateExam(
-    ExamModel exam,
-  ) async {
+    ExamModel exam, {
+    bool preserveCustomName = false,
+  }) async {
     exam.updatedAt = DateTime.now();
 
     // أولاً: حفظ ملف الاختبار فعلياً.
-    // إذا فشلت الكتابة، لن نعلن نجاح الحفظ.
-    await saveExamToPublicFolder(exam);
+    await saveExamToPublicFolder(
+      exam,
+      preserveCustomName: preserveCustomName,
+    );
 
     // ثانياً: تحديث قائمة الاختبارات داخل التطبيق.
     await _saveExamToPreferences(exam);
