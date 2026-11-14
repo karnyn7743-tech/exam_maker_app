@@ -1,5 +1,8 @@
+import 'dart:async';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:uuid/uuid.dart';
 import '../models/exam_models.dart';
 import '../services/activation_service.dart';
@@ -8,7 +11,7 @@ import 'activation_screen.dart';
 import 'exam_editor_screen.dart';
 import 'grade_scanner_screen.dart';
 import 'manual_grade_entry_screen.dart';
-import 'fetch_grades_screen.dart'; // ✅ تمت إضافة استدعاء الشاشة الجديدة
+import 'fetch_grades_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,11 +23,112 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool _isActivated = false;
   int _remainingDays = 0;
+  StreamSubscription? _intentDataStreamSubscription;
 
   @override
   void initState() {
     super.initState();
     _checkActivationStatus();
+    _initFolderAndIncomingFiles();
+  }
+
+  @override
+  void dispose() {
+    _intentDataStreamSubscription?.cancel();
+    super.dispose();
+  }
+
+  /// تهيئة مجلد [المحرر البسيط] والاستماع لفتح ملفات .exam من النظام أو التطبيقات الأخرى
+  Future<void> _initFolderAndIncomingFiles() async {
+    // 1. إنشاء مجلد [المحرر البسيط] في وحدة التخزين ومزامنة محتوياته
+    await ExamStorageService.ensureAppFolderExists();
+    await ExamStorageService.syncFolderExamsToApp();
+
+    // 2. استقبال ملفات .exam أثناء عمل التطبيق في الخلفية
+    _intentDataStreamSubscription = ReceiveSharingIntent.instance
+        .getMediaStream()
+        .listen((List<SharedMediaFile> value) {
+      if (value.isNotEmpty) {
+        _openIncomingExamFile(value.first.path);
+      }
+    }, onError: (_) {});
+
+    // 3. استقبال ملفات .exam التي تسببت في تشغيل التطبيق من وضع الإغلاق
+    ReceiveSharingIntent.instance
+        .getInitialMedia()
+        .then((List<SharedMediaFile> value) {
+      if (value.isNotEmpty) {
+        _openIncomingExamFile(value.first.path);
+        ReceiveSharingIntent.instance.reset();
+      }
+    });
+  }
+
+  /// قراءة وفتح ملف الاختبار (.exam) في شاشة المحرر مباشرة
+  Future<void> _openIncomingExamFile(String filePath) async {
+    try {
+      final importedExam = await ExamStorageService.loadExamFromFile(filePath);
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('تم فتح الاختبار: ${importedExam.fileName}'),
+          backgroundColor: const Color(0xFF1B5E20),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              ExamEditorScreen(initialExam: importedExam, isNewExam: false),
+        ),
+      ).then((_) => _checkActivationStatus());
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+                'تعذر فتح الملف؛ تأكد من أنه ملف اختبار صالح بصيغة (.exam)'),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+    }
+  }
+
+  /// اختيار ملف .exam يدوياً من مدير الملفات لفتحه وتحريره
+  Future<void> _pickAndOpenExamFileManually() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+      );
+      if (result != null && result.files.single.path != null) {
+        final path = result.files.single.path!;
+        if (!path.toLowerCase().endsWith('.exam')) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('يرجى اختيار ملف ينتهي بالامتداد (.exam)'),
+                backgroundColor: Colors.orange.shade800,
+              ),
+            );
+          }
+          return;
+        }
+        await _openIncomingExamFile(path);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تعذر استعراض الملف: $e'),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _checkActivationStatus() async {
@@ -54,7 +158,8 @@ class _HomeScreenState extends State<HomeScreen> {
           children: const [
             Icon(Icons.lock_clock, color: Colors.amber),
             SizedBox(width: 8),
-            Text('انتهت الفترة التجريبية', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text('انتهت الفترة التجريبية',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
         content: const Text(
@@ -68,7 +173,8 @@ class _HomeScreenState extends State<HomeScreen> {
             child: const Text('إلغاء'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1B5E20)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1B5E20)),
             onPressed: () {
               Navigator.pop(ctx);
               Navigator.push(
@@ -76,7 +182,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 MaterialPageRoute(builder: (_) => const ActivationScreen()),
               ).then((_) => _checkActivationStatus());
             },
-            child: const Text('إدخال مفتاح التنشيط', style: TextStyle(color: Colors.white)),
+            child: const Text('إدخال مفتاح التنشيط',
+                style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -129,7 +236,8 @@ class _HomeScreenState extends State<HomeScreen> {
             children: const [
               Icon(Icons.checklist_rtl, color: Color(0xFF1B5E20)),
               SizedBox(width: 8),
-              Text('إعدادات الاختبار المؤتمت (OMR)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text('إعدادات الاختبار المؤتمت (OMR)',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ],
           ),
           content: SingleChildScrollView(
@@ -137,14 +245,16 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('حدد عدد الفقرات لكل نمط سؤال:', style: TextStyle(fontSize: 12)),
+                const Text('حدد عدد الفقرات لكل نمط سؤال:',
+                    style: TextStyle(fontSize: 12)),
                 const SizedBox(height: 12),
                 TextField(
                   controller: tfCountCtrl,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
                     labelText: 'عدد فقرات الصح والخطأ (ص / خ)',
-                    prefixIcon: Icon(Icons.check_circle_outline, color: Color(0xFF1B5E20)),
+                    prefixIcon:
+                        Icon(Icons.check_circle_outline, color: Color(0xFF1B5E20)),
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -154,12 +264,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
                     labelText: 'عدد فقرات الاختيار من متعدد',
-                    prefixIcon: Icon(Icons.format_list_numbered, color: Color(0xFF1B5E20)),
+                    prefixIcon:
+                        Icon(Icons.format_list_numbered, color: Color(0xFF1B5E20)),
                     border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 14),
-                const Text('نوع رموز البدائل:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                const Text('نوع رموز البدائل:',
+                    style:
+                        TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 6),
                 Row(
                   children: [
@@ -169,11 +282,16 @@ class _HomeScreenState extends State<HomeScreen> {
                         selected: symbolType == ChoiceSymbolType.arabicLetters,
                         selectedColor: const Color(0xFF1B5E20),
                         labelStyle: TextStyle(
-                          color: symbolType == ChoiceSymbolType.arabicLetters ? Colors.white : Colors.black87,
+                          color: symbolType == ChoiceSymbolType.arabicLetters
+                              ? Colors.white
+                              : Colors.black87,
                           fontWeight: FontWeight.bold,
                         ),
                         onSelected: (val) {
-                          if (val) setDlgState(() => symbolType = ChoiceSymbolType.arabicLetters);
+                          if (val) {
+                            setDlgState(() =>
+                                symbolType = ChoiceSymbolType.arabicLetters);
+                          }
                         },
                       ),
                     ),
@@ -184,11 +302,16 @@ class _HomeScreenState extends State<HomeScreen> {
                         selected: symbolType == ChoiceSymbolType.numbers,
                         selectedColor: const Color(0xFF1B5E20),
                         labelStyle: TextStyle(
-                          color: symbolType == ChoiceSymbolType.numbers ? Colors.white : Colors.black87,
+                          color: symbolType == ChoiceSymbolType.numbers
+                              ? Colors.white
+                              : Colors.black87,
                           fontWeight: FontWeight.bold,
                         ),
                         onSelected: (val) {
-                          if (val) setDlgState(() => symbolType = ChoiceSymbolType.numbers);
+                          if (val) {
+                            setDlgState(
+                                () => symbolType = ChoiceSymbolType.numbers);
+                          }
                         },
                       ),
                     ),
@@ -198,16 +321,21 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('إلغاء')),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1B5E20)),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1B5E20)),
               onPressed: () {
                 final tf = int.tryParse(tfCountCtrl.text.trim()) ?? 10;
                 final mcq = int.tryParse(mcqCountCtrl.text.trim()) ?? 10;
                 Navigator.pop(ctx);
-                _generateAutomatedExam(tfCount: tf, mcqCount: mcq, symbolType: symbolType);
+                _generateAutomatedExam(
+                    tfCount: tf, mcqCount: mcq, symbolType: symbolType);
               },
-              child: const Text('توليد الاختبار', style: TextStyle(color: Colors.white)),
+              child: const Text('توليد الاختبار',
+                  style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -224,9 +352,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (tfCount > 0) {
       final buffer = StringBuffer();
-      buffer.writeln('ظلل الدائرة (ص) إذا كانت العبارة صحيحة، والدائرة (خ) إذا كانت العبارة خاطئة:');
+      buffer.writeln(
+          'ظلل الدائرة (ص) إذا كانت العبارة صحيحة، والدائرة (خ) إذا كانت العبارة خاطئة:');
       for (int i = 1; i <= tfCount; i++) {
-        buffer.writeln('$i - (   ) ................................................................');
+        buffer.writeln(
+            '$i - (   ) ................................................................');
       }
 
       generatedQuestions.add(
@@ -236,7 +366,10 @@ class _HomeScreenState extends State<HomeScreen> {
           titleOrientation: QuestionTitleOrientation.horizontal,
           mark: tfCount.toDouble(),
           spans: [
-            TextSpanModel(text: buffer.toString().trim(), fontSize: 13.0, fontFamily: 'Amiri'),
+            TextSpanModel(
+                text: buffer.toString().trim(),
+                fontSize: 13.0,
+                fontFamily: 'Amiri'),
           ],
           answerKey: '',
           isTwoColumns: false,
@@ -247,9 +380,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mcqCount > 0) {
       final buffer = StringBuffer();
       final bool isLetters = symbolType == ChoiceSymbolType.arabicLetters;
-      final choicesStr = isLetters ? '[ أ- .. | ب- .. | جـ- .. | د- .. ]' : '[ ١- .. | ٢- .. | ٣- .. | ٤- .. ]';
+      final choicesStr = isLetters
+          ? '[ أ- .. | ب- .. | جـ- .. | د- .. ]'
+          : '[ ١- .. | ٢- .. | ٣- .. | ٤- .. ]';
 
-      buffer.writeln('ظلل الدائرة التي تمثل الإجابة الصحيحة لكل فقرة من الفقرات الآتية:');
+      buffer.writeln(
+          'ظلل الدائرة التي تمثل الإجابة الصحيحة لكل فقرة من الفقرات الآتية:');
       for (int i = 1; i <= mcqCount; i++) {
         buffer.writeln('$i - ........................................ $choicesStr');
       }
@@ -261,7 +397,10 @@ class _HomeScreenState extends State<HomeScreen> {
           titleOrientation: QuestionTitleOrientation.horizontal,
           mark: mcqCount.toDouble(),
           spans: [
-            TextSpanModel(text: buffer.toString().trim(), fontSize: 13.0, fontFamily: 'Amiri'),
+            TextSpanModel(
+                text: buffer.toString().trim(),
+                fontSize: 13.0,
+                fontFamily: 'Amiri'),
           ],
           answerKey: '',
           isTwoColumns: true,
@@ -311,7 +450,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 5. جلب درجات المحصلات (جديد)
+  // 5. جلب درجات المحصلات
   void _openFetchGradesScreen() {
     Navigator.push(
       context,
@@ -327,7 +466,8 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SizedBox(
         height: MediaQuery.of(ctx).size.height * 0.75,
         child: Column(
@@ -337,15 +477,27 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('الاختبارات المحفوظة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  Text('${exams.length} اختبار', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text('الاختبارات المحفوظة',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text('مجلد الحفظ: Download/المحرر البسيط',
+                          style: TextStyle(color: Colors.green, fontSize: 11)),
+                    ],
+                  ),
+                  Text('${exams.length} اختبار',
+                      style: const TextStyle(color: Colors.grey, fontSize: 12)),
                 ],
               ),
             ),
             const Divider(height: 1),
             Expanded(
               child: exams.isEmpty
-                  ? const Center(child: Text('لا توجد اختبارات محفوظة بعد', style: TextStyle(color: Colors.grey)))
+                  ? const Center(
+                      child: Text('لا توجد اختبارات محفوظة بعد',
+                          style: TextStyle(color: Colors.grey)))
                   : ListView.builder(
                       itemCount: exams.length,
                       itemBuilder: (context, i) {
@@ -354,19 +506,29 @@ class _HomeScreenState extends State<HomeScreen> {
                           leading: CircleAvatar(
                             backgroundColor: const Color(0xFF1B5E20),
                             child: Icon(
-                              e.examType == ExamType.automated ? Icons.checklist_rtl : Icons.description,
+                              e.examType == ExamType.automated
+                                  ? Icons.checklist_rtl
+                                  : Icons.description,
                               color: Colors.white,
                               size: 18,
                             ),
                           ),
-                          title: Text(e.header.subject.isNotEmpty ? e.header.subject : 'مادة غير محددة',
-                              style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text(e.header.examTitle),
+                          title: Text(
+                              e.fileName.isNotEmpty
+                                  ? e.fileName
+                                  : (e.header.subject.isNotEmpty
+                                      ? e.header.subject
+                                      : 'مادة غير محددة'),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text(
+                              '${e.header.grade} - ${e.header.subject} | ${e.header.examTitle}'),
                           trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                            icon: const Icon(Icons.delete_outline,
+                                color: Colors.red, size: 20),
                             onPressed: () async {
                               await ExamStorageService.deleteExam(e.id);
-                              Navigator.pop(ctx);
+                              if (ctx.mounted) Navigator.pop(ctx);
                               _showSavedExamsModal();
                             },
                           ),
@@ -374,7 +536,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             Navigator.pop(ctx);
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => ExamEditorScreen(initialExam: e, isNewExam: false)),
+                              MaterialPageRoute(
+                                  builder: (_) => ExamEditorScreen(
+                                      initialExam: e, isNewExam: false)),
                             );
                           },
                         );
@@ -390,16 +554,22 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE8F5E9), // أخضر فاتح للشاشة كاملة
+      backgroundColor: const Color(0xFFE8F5E9),
       appBar: AppBar(
         title: const Text(
           'المحرر البسيط للإختبارات والأتمتة',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Colors.white),
+          style: TextStyle(
+              fontWeight: FontWeight.bold, fontSize: 17, color: Colors.white),
         ),
         centerTitle: true,
-        backgroundColor: const Color(0xFF1B5E20), // أخضر غامق للعنوان
+        backgroundColor: const Color(0xFF1B5E20),
         elevation: 2,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.file_open_outlined, color: Colors.white),
+            tooltip: 'استيراد وفتح ملف (.exam)',
+            onPressed: _pickAndOpenExamFileManually,
+          ),
           IconButton(
             icon: const Icon(Icons.folder_open, color: Colors.white),
             tooltip: 'الاختبارات المحفوظة',
@@ -426,24 +596,31 @@ class _HomeScreenState extends State<HomeScreen> {
               color: Colors.amber.shade100,
               child: Row(
                 children: [
-                  const Icon(Icons.timer_outlined, color: Colors.brown, size: 20),
+                  const Icon(Icons.timer_outlined,
+                      color: Colors.brown, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       _remainingDays > 0
                           ? 'الفترة التجريبية: متبقي لديك $_remainingDays يوماً.'
                           : 'انتهت الفترة التجريبية للاختبار المجاني.',
-                      style: const TextStyle(color: Colors.brown, fontSize: 11, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          color: Colors.brown,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
                   TextButton(
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const ActivationScreen()),
+                        MaterialPageRoute(
+                            builder: (_) => const ActivationScreen()),
                       ).then((_) => _checkActivationStatus());
                     },
-                    child: const Text('تنشيط الآن', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                    child: const Text('تنشيط الآن',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 11)),
                   ),
                 ],
               ),
@@ -451,7 +628,8 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -461,7 +639,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       title: 'تصميم اختبار شامل',
                       icon: Icons.edit_document,
                       onTap: _designTraditionalExam,
-                      backgroundColor: const Color(0xFF7E57C2), // بنفسجي
+                      backgroundColor: const Color(0xFF7E57C2),
                     ),
                     const SizedBox(height: 20),
 
@@ -470,7 +648,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       title: 'تصميم اختبار مؤتمت',
                       icon: Icons.checklist_rtl,
                       onTap: _designAutomatedExam,
-                      backgroundColor: const Color(0xFF7E57C2), // بنفسجي
+                      backgroundColor: const Color(0xFF7E57C2),
                     ),
                     const SizedBox(height: 20),
 
@@ -479,7 +657,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       title: 'إدخال درجات الطلاب من أوراق الإختبار',
                       icon: Icons.qr_code_scanner,
                       onTap: _openGradeScanner,
-                      backgroundColor: const Color(0xFF00897B), // أخضر مزرق للتمييز
+                      backgroundColor: const Color(0xFF00897B),
                     ),
                     const SizedBox(height: 20),
 
@@ -488,16 +666,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       title: 'إدخال بقية درجات أعمال السنة',
                       icon: Icons.playlist_add_check,
                       onTap: _openManualGradeEntry,
-                      backgroundColor: const Color(0xFF00897B), // أخضر مزرق للتمييز
+                      backgroundColor: const Color(0xFF00897B),
                     ),
                     const SizedBox(height: 20),
 
-                    // ✅ الزر الخامس (الجديد)
+                    // الزر الخامس
                     _buildMainActionButton(
                       title: 'جلب درجات المحصلات (م١ / م٢)',
                       icon: Icons.sync_alt,
                       onTap: _openFetchGradesScreen,
-                      backgroundColor: const Color(0xFFE65100), // برتقالي غامق لتمييزه
+                      backgroundColor: const Color(0xFFE65100),
                     ),
                   ],
                 ),
@@ -511,7 +689,8 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
             decoration: BoxDecoration(
               color: const Color(0xFFF1F8E9),
-              border: Border(top: BorderSide(color: Colors.green.shade200, width: 1)),
+              border: Border(
+                  top: BorderSide(color: Colors.green.shade200, width: 1)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -530,19 +709,27 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     InkWell(
                       onTap: () {
-                        Clipboard.setData(const ClipboardData(text: '00967778064679'));
+                        Clipboard.setData(
+                            const ClipboardData(text: '00967778064679'));
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('تم نسخ رقم الواتساب: 00967778064679'), duration: Duration(seconds: 2)),
+                          const SnackBar(
+                              content:
+                                  Text('تم نسخ رقم الواتساب: 00967778064679'),
+                              duration: Duration(seconds: 2)),
                         );
                       },
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: const [
-                          Icon(Icons.phone_android, size: 14, color: Color(0xFF1B5E20)),
+                          Icon(Icons.phone_android,
+                              size: 14, color: Color(0xFF1B5E20)),
                           SizedBox(width: 4),
                           Text(
                             'واتساب: 778064679',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87),
                           ),
                         ],
                       ),
@@ -550,19 +737,26 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(width: 20),
                     InkWell(
                       onTap: () {
-                        Clipboard.setData(const ClipboardData(text: 'https://t.me/fawaz132'));
+                        Clipboard.setData(
+                            const ClipboardData(text: 'https://t.me/fawaz132'));
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('تم نسخ رابط قناة التليجرام'), duration: Duration(seconds: 2)),
+                          const SnackBar(
+                              content: Text('تم نسخ رابط قناة التليجرام'),
+                              duration: Duration(seconds: 2)),
                         );
                       },
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: const [
-                          Icon(Icons.send_rounded, size: 14, color: Color(0xFF0284C7)),
+                          Icon(Icons.send_rounded,
+                              size: 14, color: Color(0xFF0284C7)),
                           SizedBox(width: 4),
                           Text(
                             'تليجرام: @fawaz132',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87),
                           ),
                         ],
                       ),
@@ -577,7 +771,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ويدجت زر بتصميم مائل واللون بنفسجي خفيف
   Widget _buildMainActionButton({
     required String title,
     required IconData icon,
