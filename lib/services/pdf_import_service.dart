@@ -60,7 +60,7 @@ class PdfImportService {
           final image = await page.render(
             width: renderWidth,
             height: renderHeight,
-            format: PdfPageImageFormat.PNG,
+            format: PdfPageImageFormat.png,
             cropRect: Rect.fromLTRB(
               0,
               topCrop,
