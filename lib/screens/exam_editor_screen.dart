@@ -3010,7 +3010,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
               if (isSelected) ...[
                 Positioned(
-                  top: -34,
+                  top: -46 / gestureScale,
                   child: GestureDetector(
                     onPanUpdate: (details) {
                       refreshState(() {
@@ -3019,8 +3019,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       });
                     },
                     child: Container(
-                      width: 32,
-                      height: 32,
+                      width: 36 / gestureScale,
+                      height: 36 / gestureScale,
                       decoration: const BoxDecoration(
                         color: Color(0xFF1976D2),
                         shape: BoxShape.circle,
@@ -3028,7 +3028,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))
                         ],
                       ),
-                      child: const Icon(Icons.open_with, color: Colors.white, size: 18),
+                      child: Icon(Icons.open_with, color: Colors.white, size: 20 / gestureScale),
                     ),
                   ),
                 ),
@@ -3152,8 +3152,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       child: GestureDetector(
         onPanUpdate: (details) => onPan(details.delta),
         child: Container(
-          width: 20,
-          height: 20,
+          width: 28 / gestureScale,
+          height: 28 / gestureScale,
           decoration: BoxDecoration(
             color: Colors.white,
             border: Border.all(color: const Color(0xFF1976D2), width: 1.8),
