@@ -2930,6 +2930,19 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }) {
     final bool isSelected = _selectedElementId == el.id;
     final void Function(VoidCallback) refreshState = editorSetState ?? setState;
+    final bool canResize = el.type == ElementType.image || el.type == ElementType.shape;
+
+    void changeWidth(double amount) {
+      refreshState(() {
+        el.width = (el.width + amount).clamp(50.0, 500.0).toDouble();
+      });
+    }
+
+    void changeHeight(double amount) {
+      refreshState(() {
+        el.height = (el.height + amount).clamp(30.0, 500.0).toDouble();
+      });
+    }
 
     Widget coreWidget;
     switch (el.type) {
@@ -2985,14 +2998,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               _selectedElementId = isSelected ? null : el.id;
             });
           },
-          onPanUpdate: (details) {
-            if (_selectedElementId == el.id) {
-              refreshState(() {
-                el.dx += details.delta.dx;
-                el.dy += details.delta.dy;
-              });
-            }
-          },
+          // لا نسحب العنصر من كامل مساحته؛ التحريك يتم حصراً من مقبض الأسهم
+          // حتى لا تتعارض إيماءة السحب مع أزرار تغيير الحجم.
           child: Stack(
             clipBehavior: Clip.none,
             alignment: Alignment.center,
@@ -3007,11 +3014,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 child: coreWidget,
               ),
-
               if (isSelected) ...[
                 Positioned(
                   top: -46 / gestureScale,
                   child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onPanUpdate: (details) {
                       refreshState(() {
                         el.dx += details.delta.dx;
@@ -3032,97 +3039,80 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     ),
                   ),
                 ),
-
-                _buildWordResizeHandle(
-                  gestureScale: gestureScale,
-                  top: -14 / gestureScale,
-                  left: -14 / gestureScale,
-                  onPan: (delta) {
-                    refreshState(() {
-                      el.width = (el.width - delta.dx).clamp(50.0, 500.0);
-                      el.height = (el.height - delta.dy).clamp(30.0, 400.0);
-                      el.dx += delta.dx;
-                      el.dy += delta.dy;
-                    });
-                  },
-                ),
-                _buildWordResizeHandle(
-                  gestureScale: gestureScale,
-                  top: -14 / gestureScale,
-                  right: -14 / gestureScale,
-                  onPan: (delta) {
-                    refreshState(() {
-                      el.width = (el.width + delta.dx).clamp(50.0, 500.0);
-                      el.height = (el.height - delta.dy).clamp(30.0, 400.0);
-                      el.dy += delta.dy;
-                    });
-                  },
-                ),
-                _buildWordResizeHandle(
-                  gestureScale: gestureScale,
-                  bottom: -14 / gestureScale,
-                  left: -14 / gestureScale,
-                  onPan: (delta) {
-                    refreshState(() {
-                      el.width = (el.width - delta.dx).clamp(50.0, 500.0);
-                      el.height = (el.height + delta.dy).clamp(30.0, 400.0);
-                      el.dx += delta.dx;
-                    });
-                  },
-                ),
-                _buildWordResizeHandle(
-                  gestureScale: gestureScale,
-                  bottom: -14 / gestureScale,
-                  right: -14 / gestureScale,
-                  onPan: (delta) {
-                    refreshState(() {
-                      el.width = (el.width + delta.dx).clamp(50.0, 500.0);
-                      el.height = (el.height + delta.dy).clamp(30.0, 400.0);
-                    });
-                  },
-                ),
-                // منتصف الضلع العلوي
-                _buildWordResizeHandle(
-                  gestureScale: gestureScale,
-                  top: -14 / gestureScale,
-                  onPan: (delta) {
-                    refreshState(() {
-                      el.height = (el.height - delta.dy).clamp(30.0, 400.0);
-                      el.dy += delta.dy;
-                    });
-                  },
-                ),
-                // منتصف الضلع السفلي
-                _buildWordResizeHandle(
-                  gestureScale: gestureScale,
-                  bottom: -14 / gestureScale,
-                  onPan: (delta) {
-                    refreshState(() {
-                      el.height = (el.height + delta.dy).clamp(30.0, 400.0);
-                    });
-                  },
-                ),
-                // منتصف الضلع الأيسر
-                _buildWordResizeHandle(
-                  gestureScale: gestureScale,
-                  left: -14 / gestureScale,
-                  onPan: (delta) {
-                    refreshState(() {
-                      el.width = (el.width - delta.dx).clamp(50.0, 500.0);
-                      el.dx += delta.dx;
-                    });
-                  },
-                ),
-                // منتصف الضلع الأيمن
-                _buildWordResizeHandle(
-                  gestureScale: gestureScale,
-                  right: -14 / gestureScale,
-                  onPan: (delta) {
-                    refreshState(() {
-                      el.width = (el.width + delta.dx).clamp(50.0, 500.0);
-                    });
-                  },
-                ),
+                if (canResize) ...[
+                  // شريط رأسي: تغيير الارتفاع فقط.
+                  Positioned(
+                    left: -42 / gestureScale,
+                    top: 0,
+                    bottom: 0,
+                    child: SizedBox(
+                      width: 36 / gestureScale,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildSizeStepButton(
+                            Icons.add,
+                            gestureScale,
+                            () => changeHeight(8),
+                          ),
+                          Expanded(
+                            child: Center(
+                              child: Container(
+                                width: 3 / gestureScale,
+                                margin: EdgeInsets.symmetric(vertical: 4 / gestureScale),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1976D2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                            ),
+                          ),
+                          _buildSizeStepButton(
+                            Icons.remove,
+                            gestureScale,
+                            () => changeHeight(-8),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // شريط أفقي: تغيير العرض فقط.
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: -42 / gestureScale,
+                    child: SizedBox(
+                      height: 36 / gestureScale,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildSizeStepButton(
+                            Icons.add,
+                            gestureScale,
+                            () => changeWidth(8),
+                          ),
+                          Expanded(
+                            child: Center(
+                              child: Container(
+                                height: 3 / gestureScale,
+                                margin: EdgeInsets.symmetric(horizontal: 4 / gestureScale),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1976D2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                            ),
+                          ),
+                          _buildSizeStepButton(
+                            Icons.remove,
+                            gestureScale,
+                            () => changeWidth(-8),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ],
           ),
@@ -3136,28 +3126,25 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  Widget _buildWordResizeHandle({
-    double gestureScale = 1.0,
-    double? top,
-    double? bottom,
-    double? left,
-    double? right,
-    required Function(Offset delta) onPan,
-  }) {
-    return Positioned(
-      top: top,
-      bottom: bottom,
-      left: left,
-      right: right,
-      child: GestureDetector(
-        onPanUpdate: (details) => onPan(details.delta),
-        child: Container(
-          width: 28 / gestureScale,
-          height: 28 / gestureScale,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: const Color(0xFF1976D2), width: 1.8),
-            borderRadius: BorderRadius.circular(2),
+  Widget _buildSizeStepButton(
+    IconData icon,
+    double gestureScale,
+    VoidCallback onPressed,
+  ) {
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      elevation: 3,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onPressed,
+        child: SizedBox(
+          width: 32 / gestureScale,
+          height: 32 / gestureScale,
+          child: Icon(
+            icon,
+            size: 19 / gestureScale,
+            color: const Color(0xFF1565C0),
           ),
         ),
       ),
