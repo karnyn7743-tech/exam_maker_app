@@ -1,10 +1,9 @@
 package com.fawaz.exam_maker_app
 
 import android.graphics.Bitmap
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.icu.text.ArabicShaping
+import com.ibm.icu.text.ArabicShaping
 import java.text.Bidi
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
@@ -184,11 +183,7 @@ class MainActivity : FlutterActivity() {
     private fun shapeArabic(value: String): String {
         if (value.isEmpty()) return value
         return try {
-            val shaped = if (Build.VERSION.SDK_INT >= 24) {
-                ArabicShaping(ArabicShaping.LETTERS_SHAPE).shape(value)
-            } else {
-                value
-            }
+            val shaped = ArabicShaping(ArabicShaping.LETTERS_SHAPE).shape(value)
             val bidi = Bidi(shaped, Bidi.DIRECTION_DEFAULT_RIGHT_TO_LEFT)
             val runCount = bidi.runCount
             val levels = ByteArray(runCount)
