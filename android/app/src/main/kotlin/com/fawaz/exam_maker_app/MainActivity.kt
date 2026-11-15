@@ -154,13 +154,16 @@ class MainActivity : FlutterActivity() {
                                 )
 
                                 val subjectText = subjectCode.toString()
-                                val subjectWidth = font.getStringWidth(subjectText) / 1000f * 22f
-                                val qrX = pageWidth - 20f - subjectWidth - 8f - 38f
-                                val gradeBoxX = qrX - 10f - 55f
+                                // Keep the grade box, QR, and code together at the far left.
+                                // Reading order remains Arabic: code to the right of the QR.
+                                val gradeBoxX = 20f
+                                val qrX = gradeBoxX + 55f + 10f
+                                val subjectRightX = qrX + 38f + 8f +
+                                    (font.getStringWidth(subjectText) / 1000f * 22f)
 
                                 drawRightText(
                                     stream, font, subjectText,
-                                    pageWidth - 20f, 27f, 22f
+                                    subjectRightX, 27f, 22f
                                 )
 
                                 if (secret.isNotBlank()) {
