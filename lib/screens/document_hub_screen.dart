@@ -282,9 +282,13 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
         throw Exception('لم يتم إنشاء ملف PDF الناتج.');
       }
 
+      final generatedPdf = await PdfDocument.openFile(generatedPath);
+      if (generatedPdf.pagesCount < 1) {
+        throw Exception('ملف PDF الناتج لا يحتوي على صفحات.');
+      }
       _pdfController?.dispose();
       _pdfController = PdfControllerPinch(
-        document: PdfDocument.openFile(generatedPath),
+        document: Future<PdfDocument>.value(generatedPdf),
       );
 
       if (!mounted) return;
@@ -309,7 +313,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
 
   String _buildStudentPdfName() {
     String cleanPart(String value) {
-      final cleaned = value.trim().replaceAll(RegExp(r'[\\\\/:*?"<>|]'), '-');
+      final cleaned = value.trim().replaceAll(RegExp(r'[/:*?"<>|\\]'), '-');
       return cleaned.isEmpty ? 'غير محدد' : cleaned;
     }
 
