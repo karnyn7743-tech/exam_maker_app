@@ -730,120 +730,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     String filterSubject = 'الكل';
     final subjects = {'الكل', ...bankQuestions.map((e) => e.subject)};
 
-    Widget buildQuestionEditorCanvas(StateSetter setModalState) {
-      final double availableWidth = MediaQuery.of(context).size.width - 40;
-      final double scale = (availableWidth / kA4PaperWidth).clamp(0.25, 1.0);
-      final double previewWidth = kA4PaperWidth * scale;
-      final double previewHeight = kA4PaperHeight * scale;
-
-      Widget pageText = Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            titleCtrl.text,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
-          ),
-          const Divider(color: Colors.black54, height: 22),
-          Text(
-            textCtrl.text,
-            textAlign: selectedAlignment,
-            textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
-            style: TextStyle(
-              fontSize: 19,
-              height: currentLineSpacing,
-              color: Colors.black,
-            ),
-          ),
-          ...currentElements
-              .where((el) => el.type != ElementType.image &&
-                  el.type != ElementType.shape &&
-                  el.type != ElementType.table)
-              .map((el) => Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: _buildRenderedElement(
-                      el,
-                      editorSetState: setModalState,
-                      gestureScale: scale,
-                    ),
-                  )),
-        ],
-      );
-
-      List<Widget> positionedElements(String layer) => currentElements
-                .where((el) =>
-                    el.layer == layer &&
-                    (el.type == ElementType.image ||
-                        el.type == ElementType.shape ||
-                        el.type == ElementType.table))
-                .map((el) => Positioned(
-                      left: el.dx,
-                      top: el.dy,
-                      child: _buildRenderedElement(
-                        el,
-                        applyOffset: false,
-                        editorSetState: setModalState,
-                        gestureScale: scale,
-                      ),
-                    ))
-                .toList();
-
-      return Center(
-        child: Container(
-          width: previewWidth,
-          height: previewHeight,
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: Colors.blueGrey.shade300),
-            boxShadow: const [
-              BoxShadow(color: Colors.black26, blurRadius: 7, offset: Offset(0, 3)),
-            ],
-          ),
-          child: ClipRect(
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: Transform.scale(
-                scale: scale,
-                alignment: Alignment.topLeft,
-                child: SizedBox(
-                  width: kA4PaperWidth,
-                  height: kA4PaperHeight,
-                  child: Stack(
-                    clipBehavior: Clip.hardEdge,
-                    children: [
-                      Positioned.fill(
-                        child: Padding(
-                          padding: const EdgeInsets.all(38),
-                          child: DecoratedBox(
-                            decoration: const BoxDecoration(color: Colors.white),
-                            child: const SizedBox.expand(),
-                          ),
-                        ),
-                      ),
-                      ...positionedElements('behind'),
-                      Positioned(
-                        top: 38,
-                        left: 38,
-                        right: 38,
-                        child: pageText,
-                      ),
-                      ...positionedElements('inline'),
-                      ...positionedElements('front'),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -4949,6 +4835,120 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
             _buildRenderedElement(el),
           ],
+        ),
+      );
+    }
+
+    Widget buildQuestionEditorCanvas(StateSetter setModalState) {
+      final double availableWidth = MediaQuery.of(context).size.width - 40;
+      final double scale = (availableWidth / kA4PaperWidth).clamp(0.25, 1.0);
+      final double previewWidth = kA4PaperWidth * scale;
+      final double previewHeight = kA4PaperHeight * scale;
+
+      Widget pageText = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            titleCtrl.text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+          const Divider(color: Colors.black54, height: 22),
+          Text(
+            textCtrl.text,
+            textAlign: selectedAlignment,
+            textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
+            style: TextStyle(
+              fontSize: 19,
+              height: currentLineSpacing,
+              color: Colors.black,
+            ),
+          ),
+          ...currentElements
+              .where((el) => el.type != ElementType.image &&
+                  el.type != ElementType.shape &&
+                  el.type != ElementType.table)
+              .map((el) => Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: _buildRenderedElement(
+                      el,
+                      editorSetState: setModalState,
+                      gestureScale: scale,
+                    ),
+                  )),
+        ],
+      );
+
+      List<Widget> positionedElements(String layer) => currentElements
+                .where((el) =>
+                    el.layer == layer &&
+                    (el.type == ElementType.image ||
+                        el.type == ElementType.shape ||
+                        el.type == ElementType.table))
+                .map((el) => Positioned(
+                      left: el.dx,
+                      top: el.dy,
+                      child: _buildRenderedElement(
+                        el,
+                        applyOffset: false,
+                        editorSetState: setModalState,
+                        gestureScale: scale,
+                      ),
+                    ))
+                .toList();
+
+      return Center(
+        child: Container(
+          width: previewWidth,
+          height: previewHeight,
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: Colors.blueGrey.shade300),
+            boxShadow: const [
+              BoxShadow(color: Colors.black26, blurRadius: 7, offset: Offset(0, 3)),
+            ],
+          ),
+          child: ClipRect(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Transform.scale(
+                scale: scale,
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: kA4PaperWidth,
+                  height: kA4PaperHeight,
+                  child: Stack(
+                    clipBehavior: Clip.hardEdge,
+                    children: [
+                      Positioned.fill(
+                        child: Padding(
+                          padding: const EdgeInsets.all(38),
+                          child: DecoratedBox(
+                            decoration: const BoxDecoration(color: Colors.white),
+                            child: const SizedBox.expand(),
+                          ),
+                        ),
+                      ),
+                      ...positionedElements('behind'),
+                      Positioned(
+                        top: 38,
+                        left: 38,
+                        right: 38,
+                        child: pageText,
+                      ),
+                      ...positionedElements('inline'),
+                      ...positionedElements('front'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       );
     }
