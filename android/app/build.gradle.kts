@@ -57,3 +57,9 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+
+dependencies {
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    implementation("com.google.zxing:core:3.5.3")
+}
