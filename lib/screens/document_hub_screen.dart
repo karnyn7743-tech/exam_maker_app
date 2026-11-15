@@ -6,6 +6,9 @@ import 'package:fluent_editor/services/import_docx_service.dart';
 import 'package:fluent_editor/services/export_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import '../services/student_excel_service.dart';
 import 'package:pdfx/pdfx.dart';
 import 'package:printing/printing.dart';
 
@@ -20,14 +23,25 @@ class DocumentHubScreen extends StatefulWidget {
 class _DocumentHubScreenState extends State<DocumentHubScreen> {
   String? _filePath;
   String? _fileName;
+  String? _originalPdfPath;
+  String? _excelPath;
   bool _isPdf = true;
   bool _isBusy = false;
   PdfControllerPinch? _pdfController;
   FluentDocument? _wordDocument;
+  final TextEditingController _subjectController =
+      TextEditingController(text: 'الرياضيات');
+  final TextEditingController _gradeController =
+      TextEditingController(text: 'التاسع');
+  final TextEditingController _examTitleController =
+      TextEditingController(text: 'اختبار الشهر');
 
   @override
   void dispose() {
     _pdfController?.dispose();
+    _subjectController.dispose();
+    _gradeController.dispose();
+    _examTitleController.dispose();
     super.dispose();
   }
 
@@ -75,10 +89,166 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
         _filePath = path;
         _fileName = result.files.single.name;
         _isPdf = isPdf;
+        _originalPdfPath = isPdf ? path : null;
+        _excelPath = null;
         _wordDocument = loadedWordDocument;
       });
     } catch (e) {
       _showMessage('تعذر فتح المستند: $e', isError: true);
+    }
+  }
+
+  Future<void> _pickExcel() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['xlsx', 'xlsm'],
+        withData: false,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final path = result.files.single.path;
+      if (path == null) throw Exception('تعذر الوصول إلى ملف Excel.');
+      if (!mounted) return;
+      setState(() => _excelPath = path);
+      _showMessage('تم اختيار ملف بيانات الطلاب.');
+    } catch (e) {
+      _showMessage('تعذر اختيار ملف Excel: $e', isError: true);
+    }
+  }
+
+  Future<void> _configureStudentPdf() async {
+    if (!_isPdf || _filePath == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          backgroundColor: const Color(0xFFFAF8F1),
+          title: const Text('إضافة بيانات الطلاب إلى PDF'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _subjectController,
+                  decoration: const InputDecoration(
+                    labelText: 'اسم المادة / ورقة العمل في Excel',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _gradeController,
+                  decoration: const InputDecoration(labelText: 'الصف الدراسي'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _examTitleController,
+                  decoration: const InputDecoration(labelText: 'اسم الاختبار أو الشهر'),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _pickExcel,
+                  icon: const Icon(Icons.table_view),
+                  label: Text(
+                    _excelPath == null
+                        ? 'اختيار ملف Excel للطلاب'
+                        : 'تم اختيار ملف Excel',
+                  ),
+                ),
+                if (_excelPath != null)
+                  Text(
+                    _excelPath!.split(Platform.pathSeparator).last,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF52796F)),
+                  ),
+                const SizedBox(height: 5),
+                const Text(
+                  'ستظهر بيانات كل طالب ورقم جلوسه ورمز QR وكود المادة في الصفحة الأولى من نسخته فقط.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF777568)),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('إنشاء PDF'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed == true) await _createStudentPdf();
+  }
+
+  Future<void> _createStudentPdf() async {
+    final sourcePath = _originalPdfPath ?? _filePath;
+    if (sourcePath == null || !_isPdf) return;
+
+    setState(() => _isBusy = true);
+    try {
+      StudentExcelResult? excelResult;
+      if (_excelPath != null) {
+        excelResult = await StudentExcelService.parseExcelFile(
+          _excelPath!,
+          expectedSubject: _subjectController.text.trim(),
+          targetGrade: _gradeController.text.trim(),
+          examTitle: _examTitleController.text.trim(),
+        );
+        if (excelResult.students.isEmpty) {
+          throw Exception('لم يتم العثور على طلاب مطابقين للصف والمادة المحددين.');
+        }
+      }
+
+      final directory = await getTemporaryDirectory();
+      final outputPath =
+          '\${directory.path}/student_exam_\${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final students = excelResult?.students
+              .map((student) => <String, String>{
+                    'seatNo': student.seatNo,
+                    'name': student.name,
+                    'secretCode': student.secretCode,
+                  })
+              .toList() ??
+          <Map<String, String>>[];
+
+      final generatedPath = await const MethodChannel(
+        'com.fawaz.exam_maker_app/document_pdf',
+      ).invokeMethod<String>('createStudentPdf', {
+        'sourcePath': sourcePath,
+        'outputPath': outputPath,
+        'students': students,
+        'subjectCode': excelResult?.subjectCode ?? 1,
+      });
+
+      if (generatedPath == null || !await File(generatedPath).exists()) {
+        throw Exception('لم يتم إنشاء ملف PDF الناتج.');
+      }
+
+      _pdfController?.dispose();
+      _pdfController = PdfControllerPinch(
+        document: PdfDocument.openFile(generatedPath),
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _filePath = generatedPath;
+        _fileName = 'نسخ الاختبار للطلاب.pdf';
+      });
+      _showMessage(
+        excelResult == null
+            ? 'تم تجهيز صفحات PDF بمقاس A4 مع الاحتفاظ بالمحتوى الأصلي.'
+            : 'تم تجهيز \${excelResult.students.length} نسخة، مع بيانات الطلاب في الصفحة الأولى لكل نسخة.',
+      );
+    } catch (e) {
+      _showMessage('تعذرت معالجة ملف PDF: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
     }
   }
 
@@ -154,6 +324,12 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
               tooltip: 'حفظ تعديلات Word',
               onPressed: _isBusy ? null : _saveDocx,
               icon: const Icon(Icons.save_outlined, color: Colors.white),
+            ),
+          if (hasFile && _isPdf)
+            IconButton(
+              tooltip: 'إضافة بيانات الطلاب من Excel',
+              onPressed: _isBusy ? null : _configureStudentPdf,
+              icon: const Icon(Icons.group_add_outlined, color: Colors.white),
             ),
           if (hasFile && _isPdf)
             IconButton(
