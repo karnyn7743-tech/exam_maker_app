@@ -544,6 +544,19 @@ class ExamStorageService {
       }
     }
 
+    // حذف صور صفحات PDF التابعة للاختبار بعد حذف ملفه.
+    try {
+      final documentsDirectory = await getApplicationDocumentsDirectory();
+      final importedPagesDirectory = Directory(
+        '${documentsDirectory.path}/imported_pdf/$id',
+      );
+      if (await importedPagesDirectory.exists()) {
+        await importedPagesDirectory.delete(recursive: true);
+      }
+    } catch (_) {
+      // لا نوقف حذف الاختبار إذا تعذر تنظيف الصور.
+    }
+
     exams.removeWhere(
       (element) => element.id == id,
     );
