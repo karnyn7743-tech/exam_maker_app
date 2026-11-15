@@ -293,8 +293,8 @@ class _HomeScreenState extends State<HomeScreen> {
       final countController = TextEditingController(
         text: (totalPages < 3 ? totalPages : 3).toString(),
       );
-      final topCropController = TextEditingController(text: '30');
-      final bottomCropController = TextEditingController(text: '5');
+      final topCropController = TextEditingController(text: '110');
+      final bottomCropController = TextEditingController(text: '40');
 
       final options = await showDialog<Map<String, double>>(
         context: context,
@@ -360,9 +360,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 if (first == null || count == null || top == null || bottom == null ||
                     first < 1 || count < 1 || count > 3 ||
-                    top < 0 || top > 100 || bottom < 0 || bottom > 40) {
+                    top < 0 || top > 110 || bottom < 0 || bottom > 40) {
                   ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    const SnackBar(content: Text('يرجى إدخال أرقام صحيحة. عدد الصفحات 1–3، وقص الأعلى 0–100 مم والأسفل 0–40 مم.')),
+                    const SnackBar(content: Text('يرجى إدخال أرقام صحيحة. عدد الصفحات 1–3، وقص الأعلى 0–110 مم والأسفل 0–40 مم.')),
                   );
                   return;
                 }
