@@ -193,17 +193,14 @@ class PdfExportService {
 
                   // 3. جدول ومحتوى الأسئلة
                   if (hasImportedPdfPage)
-                    pw.Container(
-                      width: double.infinity,
-                      alignment: pw.Alignment.topCenter,
-                      child: pw.Image(
-                        pw.MemoryImage(
-                          File(importedPdfPagePath!).readAsBytesSync(),
-                        ),
-                        width: double.infinity,
-                        fit: pw.BoxFit.contain,
-                        alignment: pw.Alignment.topCenter,
+                    pw.Image(
+                      pw.MemoryImage(
+                        File(importedPdfPagePath!).readAsBytesSync(),
                       ),
+                      width: PdfPageFormat.a4.width - 40.0,
+                      height: 600.0,
+                      fit: pw.BoxFit.contain,
+                      alignment: pw.Alignment.topCenter,
                     )
                   else if (isAutomated)
                     ..._buildAutomatedQuestionsList(exam, symbols, ttf, isAr)
