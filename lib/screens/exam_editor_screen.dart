@@ -1824,6 +1824,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
           final markUnit = isAr ? 'د' : 'm';
           final markText = q.mark > 0 ? (q.mark % 1 == 0 ? '${q.mark.toInt()} $markUnit' : '${q.mark} $markUnit') : '-';
+          // العناصر العائمة يجب أن تدخل في حساب ارتفاع صف السؤال؛
+          // عناصر Positioned وحدها لا توسّع Stack وقد تتداخل مع الأسئلة أو التذييل.
+          final double floatingElementsExtent = q.elements
+              .where((el) => el.layer == 'behind' || el.layer == 'front')
+              .fold<double>(
+                0.0,
+                (extent, el) => math.max(extent, el.dy + el.height + 12.0),
+              )
+              .clamp(0.0, kA4PaperHeight - 80.0)
+              .toDouble();
+
           Widget markWidget = Text(
             markText,
             textAlign: TextAlign.center,
@@ -1858,6 +1869,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
+                        // مساحة حقيقية داخل صف السؤال تستوعب العناصر العائمة
+                        // وتمنعها من الانزلاق بصرياً إلى صف السؤال التالي أو التذييل.
+                        SizedBox(height: floatingElementsExtent),
                         ...q.elements
                             .where((el) => el.layer == 'behind')
                             .map((el) => Positioned(
