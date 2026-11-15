@@ -774,9 +774,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         ],
       );
 
-      Widget positionedElements(String layer) => Stack(
-            clipBehavior: Clip.none,
-            children: currentElements
+      List<Widget> positionedElements(String layer) => currentElements
                 .where((el) =>
                     el.layer == layer &&
                     (el.type == ElementType.image ||
@@ -792,8 +790,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         gestureScale: scale,
                       ),
                     ))
-                .toList(),
-          );
+                .toList();
 
       return Center(
         child: Container(
@@ -828,15 +825,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           ),
                         ),
                       ),
-                      positionedElements('behind'),
+                      ...positionedElements('behind'),
                       Positioned(
                         top: 38,
                         left: 38,
                         right: 38,
                         child: pageText,
                       ),
-                      positionedElements('inline'),
-                      positionedElements('front'),
+                      ...positionedElements('inline'),
+                      ...positionedElements('front'),
                     ],
                   ),
                 ),
@@ -3104,7 +3101,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           },
           onPanUpdate: (details) {
             if (_selectedElementId == el.id) {
-              setState(() {
+              refreshState(() {
                 el.dx += details.delta.dx;
                 el.dy += details.delta.dy;
               });
@@ -3130,7 +3127,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   top: -34,
                   child: GestureDetector(
                     onPanUpdate: (details) {
-                      setState(() {
+                      refreshState(() {
                         el.dx += details.delta.dx;
                         el.dy += details.delta.dy;
                       });
@@ -3155,7 +3152,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   top: -6,
                   left: -6,
                   onPan: (delta) {
-                    setState(() {
+                    refreshState(() {
                       el.width = (el.width - delta.dx).clamp(50.0, 500.0);
                       el.height = (el.height - delta.dy).clamp(30.0, 400.0);
                       el.dx += delta.dx;
@@ -3164,10 +3161,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   },
                 ),
                 _buildWordResizeHandle(
+                  gestureScale: gestureScale,
                   top: -6,
                   right: -6,
                   onPan: (delta) {
-                    setState(() {
+                    refreshState(() {
                       el.width = (el.width + delta.dx).clamp(50.0, 500.0);
                       el.height = (el.height - delta.dy).clamp(30.0, 400.0);
                       el.dy += delta.dy;
@@ -3179,7 +3177,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   bottom: -6,
                   left: -6,
                   onPan: (delta) {
-                    setState(() {
+                    refreshState(() {
                       el.width = (el.width - delta.dx).clamp(50.0, 500.0);
                       el.height = (el.height + delta.dy).clamp(30.0, 400.0);
                       el.dx += delta.dx;
@@ -3187,10 +3185,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   },
                 ),
                 _buildWordResizeHandle(
+                  gestureScale: gestureScale,
                   bottom: -6,
                   right: -6,
                   onPan: (delta) {
-                    setState(() {
+                    refreshState(() {
                       el.width = (el.width + delta.dx).clamp(50.0, 500.0);
                       el.height = (el.height + delta.dy).clamp(30.0, 400.0);
                     });
@@ -3198,9 +3197,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 // منتصف الضلع العلوي
                 _buildWordResizeHandle(
+                  gestureScale: gestureScale,
                   top: -6,
                   onPan: (delta) {
-                    setState(() {
+                    refreshState(() {
                       el.height = (el.height - delta.dy).clamp(30.0, 400.0);
                       el.dy += delta.dy;
                     });
@@ -3208,9 +3208,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 // منتصف الضلع السفلي
                 _buildWordResizeHandle(
+                  gestureScale: gestureScale,
                   bottom: -6,
                   onPan: (delta) {
-                    setState(() {
+                    refreshState(() {
                       el.height = (el.height + delta.dy).clamp(30.0, 400.0);
                     });
                   },
@@ -3220,7 +3221,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   gestureScale: gestureScale,
                   left: -6,
                   onPan: (delta) {
-                    setState(() {
+                    refreshState(() {
                       el.width = (el.width - delta.dx).clamp(50.0, 500.0);
                       el.dx += delta.dx;
                     });
@@ -3231,7 +3232,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   gestureScale: gestureScale,
                   right: -6,
                   onPan: (delta) {
-                    setState(() {
+                    refreshState(() {
                       el.width = (el.width + delta.dx).clamp(50.0, 500.0);
                     });
                   },
@@ -3263,7 +3264,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       left: left,
       right: right,
       child: GestureDetector(
-        onPanUpdate: (details) => onPan(details.delta / gestureScale),
+        onPanUpdate: (details) => onPan(details.delta),
         child: Container(
           width: 20,
           height: 20,
