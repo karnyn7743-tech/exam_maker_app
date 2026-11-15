@@ -207,7 +207,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
 
       final directory = await getTemporaryDirectory();
       final outputPath =
-          '\${directory.path}/student_exam_\${DateTime.now().millisecondsSinceEpoch}.pdf';
+          '${directory.path}/student_exam_${DateTime.now().millisecondsSinceEpoch}.pdf';
       final students = excelResult?.students
               .map((student) => <String, String>{
                     'seatNo': student.seatNo,
@@ -243,7 +243,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
       _showMessage(
         excelResult == null
             ? 'تم تجهيز صفحات PDF بمقاس A4 مع الاحتفاظ بالمحتوى الأصلي.'
-            : 'تم تجهيز \${excelResult.students.length} نسخة، مع بيانات الطلاب في الصفحة الأولى لكل نسخة.',
+            : 'تم تجهيز ${excelResult.students.length} نسخة، مع بيانات الطلاب في الصفحة الأولى لكل نسخة.',
       );
     } catch (e) {
       _showMessage('تعذرت معالجة ملف PDF: $e', isError: true);
