@@ -1576,9 +1576,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
           child: Stack(
             children: [
-              UnconstrainedBox(
-                constrainedAxis: Axis.horizontal,
-                alignment: Alignment.topCenter,
+              Positioned.fill(
                 child: NotificationListener<SizeChangedLayoutNotification>(
                 onNotification: (_) {
                   _measurePagesHeight();
