@@ -1676,17 +1676,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
                             // تغليف جدول الأسئلة بالاتجاه الصحيح للاختبار
                             if (hasImportedPdfPage)
-                              Expanded(
+                              Flexible(
+                                fit: FlexFit.loose,
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(horizontal: 2.0),
                                   child: Align(
-                                    alignment: Alignment.topCenter,
+                                    alignment: Alignment.topLeft,
                                     child: Image.file(
                                       File(importedPdfPagePath!),
-                                      fit: BoxFit.contain,
-                                      alignment: Alignment.topCenter,
+                                      fit: BoxFit.fitWidth,
+                                      alignment: Alignment.topLeft,
                                       width: double.infinity,
-                                      height: double.infinity,
                                       filterQuality: FilterQuality.high,
                                       errorBuilder: (_, __, ___) => const Center(
                                         child: Text(
