@@ -1553,32 +1553,38 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(19),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 19),
-            child: Row(
-              children: [
-                Icon(icon, color: Colors.white, size: 29),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(19),
+        child: CustomPaint(
+          painter: _SoftGeometricPatternPainter(),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(19),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 19),
+                child: Row(
+                  children: [
+                    Icon(icon, color: Colors.white, size: 29),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.right,
+                      ),
                     ),
-                    textAlign: TextAlign.right,
-                  ),
+                    const SizedBox(width: 10),
+                    const Icon(Icons.arrow_back_ios_new_rounded,
+                        color: Color(0xFFECE9DF), size: 16),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                const Icon(Icons.arrow_back_ios_new_rounded,
-                    color: Color(0xFFECE9DF), size: 16),
-              ],
+              ),
             ),
           ),
         ),
@@ -1599,4 +1605,34 @@ class _ActionChoice {
     required this.icon,
     required this.onTap,
   });
+}
+
+class _SoftGeometricPatternPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.10)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    for (var i = -1; i < 5; i++) {
+      final x = size.width - 18.0 - (i * 25.0);
+      canvas.drawCircle(Offset(x, 10), 16, paint);
+      canvas.drawCircle(Offset(x, 10), 8, paint);
+    }
+
+    final path = Path()
+      ..moveTo(size.width * 0.52, 0)
+      ..lineTo(size.width * 0.72, size.height)
+      ..moveTo(size.width * 0.64, 0)
+      ..lineTo(size.width * 0.84, size.height)
+      ..moveTo(0, size.height * 0.78)
+      ..lineTo(size.width * 0.20, size.height)
+      ..moveTo(size.width * 0.80, 0)
+      ..lineTo(size.width, size.height * 0.20);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
