@@ -50,6 +50,17 @@ class PdfExportService {
       logoImage = pw.MemoryImage(bytes);
     }
 
+    // تحميل صور PDF المستوردة مرة واحدة وإعادة استخدام نفس موارد الصور
+    // في صفحات جميع الطلاب لتجنب تضمين نسخة مستقلة من الصورة لكل طالب.
+    final Map<String, pw.MemoryImage> importedPdfImages = {};
+    for (final imagePath in exam.importedPdfPagePaths) {
+      final imageFile = File(imagePath);
+      if (await imageFile.exists()) {
+        importedPdfImages[imagePath] =
+            pw.MemoryImage(await imageFile.readAsBytes());
+      }
+    }
+
     List<StudentData> studentList = [];
     int currentSubjectCode = 1;
 
@@ -192,15 +203,13 @@ class PdfExportService {
                   pw.SizedBox(height: 5),
 
                   // 3. جدول ومحتوى الأسئلة
-                  if (hasImportedPdfPage)
+                  if (hasImportedPdfPage &&
+                      importedPdfImages.containsKey(importedPdfPagePath))
                     pw.Image(
-                      pw.MemoryImage(
-                        File(importedPdfPagePath!).readAsBytesSync(),
-                      ),
+                      importedPdfImages[importedPdfPagePath]!,
                       width: PdfPageFormat.a4.width - 40.0,
-                      height: 600.0,
-                      fit: pw.BoxFit.contain,
-                      alignment: pw.Alignment.topCenter,
+                      fit: pw.BoxFit.fitWidth,
+                      alignment: pw.Alignment.topLeft,
                     )
                   else if (isAutomated)
                     ..._buildAutomatedQuestionsList(exam, symbols, ttf, isAr)
