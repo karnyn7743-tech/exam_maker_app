@@ -1306,7 +1306,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     );
                   });
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم نسخ العنصر الأخير للحافظة.')),
+                    const SnackBar(content: Text('تم نسخ العنصر المحدد إلى الحافظة.')),
                   );
                 }
               },
