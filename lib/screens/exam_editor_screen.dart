@@ -288,7 +288,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     if (!mounted) return;
     final screenWidth = MediaQuery.of(context).size.width;
     if (screenWidth > 0) {
-      final double targetScale = ((screenWidth - 20) / kA4PaperWidth).clamp(0.4, 1.0);
+      final double targetScale = ((screenWidth - 32) / kA4PaperWidth).clamp(0.35, 1.0);
       setState(() {
         _zoomLevel = targetScale;
         _transformationController.value = Matrix4.identity()..scale(targetScale);
@@ -729,6 +729,123 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     String filterSubject = 'الكل';
     final subjects = {'الكل', ...bankQuestions.map((e) => e.subject)};
+
+    Widget buildQuestionEditorCanvas(StateSetter setModalState) {
+      final double availableWidth = MediaQuery.of(context).size.width - 40;
+      final double scale = (availableWidth / kA4PaperWidth).clamp(0.25, 1.0);
+      final double previewWidth = kA4PaperWidth * scale;
+      final double previewHeight = kA4PaperHeight * scale;
+
+      Widget pageText = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            titleCtrl.text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+          const Divider(color: Colors.black54, height: 22),
+          Text(
+            textCtrl.text,
+            textAlign: selectedAlignment,
+            textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
+            style: TextStyle(
+              fontSize: 19,
+              height: currentLineSpacing,
+              color: Colors.black,
+            ),
+          ),
+          ...currentElements
+              .where((el) => el.type != ElementType.image &&
+                  el.type != ElementType.shape &&
+                  el.type != ElementType.table)
+              .map((el) => Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: _buildRenderedElement(
+                      el,
+                      editorSetState: setModalState,
+                      gestureScale: scale,
+                    ),
+                  )),
+        ],
+      );
+
+      Widget positionedElements(String layer) => Stack(
+            clipBehavior: Clip.none,
+            children: currentElements
+                .where((el) =>
+                    el.layer == layer &&
+                    (el.type == ElementType.image ||
+                        el.type == ElementType.shape ||
+                        el.type == ElementType.table))
+                .map((el) => Positioned(
+                      left: el.dx,
+                      top: el.dy,
+                      child: _buildRenderedElement(
+                        el,
+                        applyOffset: false,
+                        editorSetState: setModalState,
+                        gestureScale: scale,
+                      ),
+                    ))
+                .toList(),
+          );
+
+      return Center(
+        child: Container(
+          width: previewWidth,
+          height: previewHeight,
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: Colors.blueGrey.shade300),
+            boxShadow: const [
+              BoxShadow(color: Colors.black26, blurRadius: 7, offset: Offset(0, 3)),
+            ],
+          ),
+          child: ClipRect(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Transform.scale(
+                scale: scale,
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: kA4PaperWidth,
+                  height: kA4PaperHeight,
+                  child: Stack(
+                    clipBehavior: Clip.hardEdge,
+                    children: [
+                      Positioned.fill(
+                        child: Padding(
+                          padding: const EdgeInsets.all(38),
+                          child: DecoratedBox(
+                            decoration: const BoxDecoration(color: Colors.white),
+                            child: const SizedBox.expand(),
+                          ),
+                        ),
+                      ),
+                      positionedElements('behind'),
+                      Positioned(
+                        top: 38,
+                        left: 38,
+                        right: 38,
+                        child: pageText,
+                      ),
+                      positionedElements('inline'),
+                      positionedElements('front'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     showModalBottomSheet(
       context: context,
@@ -1494,10 +1611,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             // تغليف عرض الورقة البيضاء بـ InteractiveViewer وتثبيت أبعاد A4
             Expanded(
               child: InteractiveViewer(
+                panEnabled: false,
+                scaleEnabled: true,
+                alignment: Alignment.topCenter,
                 transformationController: _transformationController,
                 minScale: 0.35,
                 maxScale: 3.0,
-                boundaryMargin: const EdgeInsets.all(120),
+                boundaryMargin: EdgeInsets.zero,
                 onInteractionUpdate: (details) {
                   final scale = _transformationController.value.getMaxScaleOnAxis();
                   if ((scale - _zoomLevel).abs() > 0.03) {
@@ -1551,11 +1671,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         child: Container(
           margin: const EdgeInsets.only(bottom: 28.0),
           width: kA4PaperWidth,
-          constraints: const BoxConstraints(
-            minWidth: kA4PaperWidth,
-            maxWidth: kA4PaperWidth,
-            minHeight: kA4PaperHeight,
-          ),
+          height: kA4PaperHeight,
+          clipBehavior: Clip.hardEdge,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(2),
@@ -1570,7 +1687,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
           child: Stack(
             children: [
-              NotificationListener<SizeChangedLayoutNotification>(
+              UnconstrainedBox(
+                constrainedAxis: Axis.horizontal,
+                alignment: Alignment.topCenter,
+                child: NotificationListener<SizeChangedLayoutNotification>(
                 onNotification: (_) {
                   _measurePagesHeight();
                   return true;
@@ -1678,6 +1798,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       );
                     },
                   ),
+                ),
                 ),
               ),
 
@@ -2918,8 +3039,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  Widget _buildRenderedElement(InsertableElement el, {bool applyOffset = true}) {
+  Widget _buildRenderedElement(
+    InsertableElement el, {
+    bool applyOffset = true,
+    StateSetter? editorSetState,
+    double gestureScale = 1.0,
+  }) {
     final bool isSelected = _selectedElementId == el.id;
+    final void Function(VoidCallback) refreshState = editorSetState ?? setState;
 
     Widget coreWidget;
     switch (el.type) {
@@ -2971,7 +3098,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         offset: applyOffset ? Offset(el.dx, el.dy) : Offset.zero,
         child: GestureDetector(
           onTap: () {
-            setState(() {
+            refreshState(() {
               _selectedElementId = isSelected ? null : el.id;
             });
           },
@@ -3024,6 +3151,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
 
                 _buildWordResizeHandle(
+                  gestureScale: gestureScale,
                   top: -6,
                   left: -6,
                   onPan: (delta) {
@@ -3047,6 +3175,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   },
                 ),
                 _buildWordResizeHandle(
+                  gestureScale: gestureScale,
                   bottom: -6,
                   left: -6,
                   onPan: (delta) {
@@ -3088,6 +3217,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 // منتصف الضلع الأيسر
                 _buildWordResizeHandle(
+                  gestureScale: gestureScale,
                   left: -6,
                   onPan: (delta) {
                     setState(() {
@@ -3098,6 +3228,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 // منتصف الضلع الأيمن
                 _buildWordResizeHandle(
+                  gestureScale: gestureScale,
                   right: -6,
                   onPan: (delta) {
                     setState(() {
@@ -3119,6 +3250,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _buildWordResizeHandle({
+    double gestureScale = 1.0,
     double? top,
     double? bottom,
     double? left,
@@ -3131,10 +3263,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       left: left,
       right: right,
       child: GestureDetector(
-        onPanUpdate: (details) => onPan(details.delta),
+        onPanUpdate: (details) => onPan(details.delta / gestureScale),
         child: Container(
-          width: 12,
-          height: 12,
+          width: 20,
+          height: 20,
           decoration: BoxDecoration(
             color: Colors.white,
             border: Border.all(color: const Color(0xFF1976D2), width: 1.8),
@@ -5136,17 +5268,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ),
                       const SizedBox(height: 8),
 
-                      if (currentElements.isNotEmpty) ...[
-                        const Text(
-                          'العناصر والجداول المدرجة في هذا السؤال (انقر على العنصر لتحديده وتحريكه كـ Word):',
-                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
-                        ),
-                        const SizedBox(height: 4),
-                        ...currentElements.asMap().entries.map((entry) {
-                          return buildInteractiveEditorElement(entry.value, entry.key, setModalState);
-                        }),
-                        const SizedBox(height: 8),
-                      ],
+                      const Text(
+                        'مساحة تحرير السؤال على ورقة A4 — حدد الصورة أو الشكل ثم اسحب مقابضه لتغيير حجمه أو اسحبه لتحريكه:',
+                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
+                      ),
+                      buildQuestionEditorCanvas(setModalState),
+                      const SizedBox(height: 8),
 
                       Directionality(
                         textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
