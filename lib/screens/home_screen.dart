@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 import '../models/exam_models.dart';
 import '../services/activation_service.dart';
 import '../services/exam_storage_service.dart';
+import '../services/pdf_import_service.dart';
 
 import 'activation_screen.dart';
 import 'exam_editor_screen.dart';
@@ -1585,8 +1586,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
-}
-
 
 class _ActionChoice {
   final String title;
