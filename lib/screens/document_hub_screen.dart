@@ -65,7 +65,9 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
       } else {
         final bytes = await file.readAsBytes();
         final root = ImportDocxService().importFromDocx(bytes);
-        loadedWordDocument = FluentDocument()..load(root.nodes);
+        loadedWordDocument = FluentDocument()
+          ..documentLanguage = 'ar'
+          ..load(root.nodes);
       }
 
       if (!mounted) return;
