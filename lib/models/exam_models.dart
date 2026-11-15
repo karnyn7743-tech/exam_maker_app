@@ -456,6 +456,9 @@ class ExamModel {
   DateTime updatedAt;
   HeaderModel header;
   List<QuestionModel> questions;
+  /// مسارات صور صفحات PDF المستوردة، صفحة مقابل صفحة.
+  /// الحقل اختياري للتوافق مع ملفات .exam السابقة.
+  List<String> importedPdfPagePaths;
   double targetTotalMarks;
 
   ExamModel({
@@ -469,8 +472,10 @@ class ExamModel {
     required this.updatedAt,
     required this.header,
     required this.questions,
+    List<String>? importedPdfPagePaths,
     this.targetTotalMarks = 50.0,
-  }) : automatedConfig =
+  }) : importedPdfPagePaths = importedPdfPagePaths ?? <String>[],
+       automatedConfig =
             automatedConfig ?? AutomatedExamConfig();
 
   double get totalMarks =>
@@ -486,6 +491,7 @@ class ExamModel {
     AutomatedExamConfig? newAutomatedConfig,
     HeaderModel? newHeader,
     List<QuestionModel>? newQuestions,
+    List<String>? newImportedPdfPagePaths,
     double? newTargetTotalMarks,
   }) {
     return ExamModel(
@@ -501,6 +507,7 @@ class ExamModel {
       header: newHeader ?? HeaderModel.fromMap(header.toMap()),
       questions: newQuestions ??
           questions.map((q) => QuestionModel.fromMap(q.toMap())).toList(),
+      importedPdfPagePaths: newImportedPdfPagePaths ?? List<String>.from(importedPdfPagePaths),
       targetTotalMarks:
           newTargetTotalMarks ?? targetTotalMarks,
     );
@@ -517,6 +524,7 @@ class ExamModel {
         'updatedAt': updatedAt.toIso8601String(),
         'header': header.toMap(),
         'questions': questions.map((q) => q.toMap()).toList(),
+        'importedPdfPagePaths': importedPdfPagePaths,
         'targetTotalMarks': targetTotalMarks,
       };
 
@@ -532,6 +540,7 @@ class ExamModel {
     final rawConfig = map['automatedConfig'];
     final rawHeader = map['header'];
     final rawQuestions = map['questions'];
+    final rawImportedPdfPages = map['importedPdfPagePaths'];
 
     DateTime parseDate(dynamic value) {
       if (value == null) return DateTime.now();
@@ -566,6 +575,9 @@ class ExamModel {
                   ))
               .toList()
           : [],
+      importedPdfPagePaths: rawImportedPdfPages is List
+          ? rawImportedPdfPages.map((item) => item.toString()).toList()
+          : <String>[],
       targetTotalMarks:
           (map['targetTotalMarks'] as num?)?.toDouble() ?? 50.0,
     );
