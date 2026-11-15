@@ -479,68 +479,12 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
         icon: const Icon(Icons.folder_open),
         label: const Text('فتح PDF أو Word'),
       ),
-      body: Stack(
+      // Use a bounded Column/Expanded viewport. The previous Stack placed
+      // the document surface beside an unconstrained header, which could
+      // leave platform viewers with no usable layout height on Android.
+      body: Column(
         children: [
-          if (!hasFile)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(28),
-                child: Container(
-                  padding: const EdgeInsets.all(26),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFFEFA),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFFD8D1C1)),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x18000000),
-                        blurRadius: 18,
-                        offset: Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: _loadError == null
-                      ? const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.description_outlined,
-                          size: 58, color: Color(0xFF52796F)),
-                      SizedBox(height: 14),
-                      Text(
-                        'افتح مستند PDF أو Word',
-                        style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF344E41),
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'يدعم المحرر ملفات PDF الأصلية ومستندات DOCX القابلة للتحرير.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Color(0xFF6B705C),
-                          height: 1.6,
-                        ),
-                      ),
-                    ],
-                  )
-                      : Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.error_outline, size: 52, color: Colors.redAccent),
-                            const SizedBox(height: 12),
-                            const Text('تعذر عرض المستند', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                            const SizedBox(height: 8),
-                            Text(_loadError!, textAlign: TextAlign.center),
-                            const SizedBox(height: 12),
-                            const Text('يمكنك اختيار الملف مرة أخرى بعد التأكد من سلامته.', textAlign: TextAlign.center),
-                          ],
-                        ),
-                ),
-              ),
-            )
-          else ...[
+          if (hasFile)
             Container(
               width: double.infinity,
               color: const Color(0xFFE5E1D5),
@@ -556,74 +500,147 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
                 ),
               ),
             ),
-            Positioned.fill(
-              top: 42,
-              child: _isPdf
-                  ? PdfViewPinch(
-                      key: ValueKey(_filePath),
-                      controller: _pdfController!,
-                    )
-                  : (_wordDocument == null
-                      ? const Center(child: Text('تعذر تجهيز مستند Word للتحرير.'))
-                      : Directionality(
-                          textDirection: TextDirection.rtl,
-                          child: FluentEditor(
-                            key: ValueKey(_filePath),
-                            document: _wordDocument!,
-                            labels: const FluentEditorLabels(
-                              file: 'ملف',
-                              save: 'حفظ',
-                              open: 'فتح',
-                              exportAs: 'تصدير باسم',
-                              microsoftWord: 'مستند Word',
-                              pdf: 'ملف PDF',
-                              importDocx: 'استيراد Word',
-                              edit: 'تحرير',
-                              undo: 'تراجع',
-                              redo: 'إعادة',
-                              cut: 'قص',
-                              copy: 'نسخ',
-                              paste: 'لصق',
-                              selectAll: 'تحديد الكل',
-                              delete: 'حذف',
-                              wordCount: 'عدد الكلمات',
-                              characterCount: 'عدد الأحرف',
-                              insert: 'إدراج',
-                              link: 'رابط',
-                              image: 'صورة',
-                              table: 'جدول',
-                              horizontalLine: 'خط أفقي',
-                              settings: 'إعدادات',
-                              showStats: 'إظهار الإحصاءات',
-                              documentLanguage: 'لغة المستند',
-                              format: 'تنسيق',
-                              text: 'نص',
-                              bold: 'غامق',
-                              italic: 'مائل',
-                              underline: 'تسطير',
-                              strikethrough: 'يتوسطه خط',
-                              align: 'محاذاة',
-                              alignLeft: 'محاذاة لليسار',
-                              alignCenter: 'توسيط',
-                              alignRight: 'محاذاة لليمين',
-                              justify: 'ضبط النص',
-                              cancel: 'إلغاء',
-                              confirmButton: 'تأكيد',
-                              insertButton: 'إدراج',
-                              apply: 'تطبيق',
-                              done: 'تم',
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (!hasFile)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(28),
+                      child: Container(
+                        padding: const EdgeInsets.all(26),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFEFA),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: const Color(0xFFD8D1C1)),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x18000000),
+                              blurRadius: 18,
+                              offset: Offset(0, 8),
                             ),
-                          ),
-                        )),
+                          ],
+                        ),
+                        child: _loadError == null
+                            ? const Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.description_outlined,
+                                      size: 58, color: Color(0xFF52796F)),
+                                  SizedBox(height: 14),
+                                  Text(
+                                    'افتح مستند PDF أو Word',
+                                    style: TextStyle(
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF344E41),
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'يدعم المحرر ملفات PDF الأصلية ومستندات DOCX القابلة للتحرير.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Color(0xFF6B705C),
+                                      height: 1.6,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.error_outline,
+                                      size: 52, color: Colors.redAccent),
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'تعذر عرض المستند',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 18),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(_loadError!,
+                                      textAlign: TextAlign.center),
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'يمكنك اختيار الملف مرة أخرى بعد التأكد من سلامته.',
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ),
+                if (hasFile)
+                  _isPdf
+                      ? PdfViewPinch(
+                          key: ValueKey(_filePath),
+                          controller: _pdfController!,
+                        )
+                      : (_wordDocument == null
+                          ? const Center(
+                              child: Text(
+                                  'تعذر تجهيز مستند Word للتحرير.'))
+                          : Directionality(
+                              textDirection: TextDirection.rtl,
+                              child: FluentEditor(
+                                key: ValueKey(_filePath),
+                                document: _wordDocument!,
+                                labels: const FluentEditorLabels(
+                                  file: 'ملف',
+                                  save: 'حفظ',
+                                  open: 'فتح',
+                                  exportAs: 'تصدير باسم',
+                                  microsoftWord: 'مستند Word',
+                                  pdf: 'ملف PDF',
+                                  importDocx: 'استيراد Word',
+                                  edit: 'تحرير',
+                                  undo: 'تراجع',
+                                  redo: 'إعادة',
+                                  cut: 'قص',
+                                  copy: 'نسخ',
+                                  paste: 'لصق',
+                                  selectAll: 'تحديد الكل',
+                                  delete: 'حذف',
+                                  wordCount: 'عدد الكلمات',
+                                  characterCount: 'عدد الأحرف',
+                                  insert: 'إدراج',
+                                  link: 'رابط',
+                                  image: 'صورة',
+                                  table: 'جدول',
+                                  horizontalLine: 'خط أفقي',
+                                  settings: 'إعدادات',
+                                  showStats: 'إظهار الإحصاءات',
+                                  documentLanguage: 'لغة المستند',
+                                  format: 'تنسيق',
+                                  text: 'نص',
+                                  bold: 'غامق',
+                                  italic: 'مائل',
+                                  underline: 'تسطير',
+                                  strikethrough: 'يتوسطه خط',
+                                  align: 'محاذاة',
+                                  alignLeft: 'محاذاة لليسار',
+                                  alignCenter: 'توسيط',
+                                  alignRight: 'محاذاة لليمين',
+                                  justify: 'ضبط النص',
+                                  cancel: 'إلغاء',
+                                  confirmButton: 'تأكيد',
+                                  insertButton: 'إدراج',
+                                  apply: 'تطبيق',
+                                  done: 'تم',
+                                ),
+                              ),
+                            )),
+                if (_isBusy)
+                  const ColoredBox(
+                    color: Color(0x55000000),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+              ],
             ),
-          ],
-          if (_isBusy)
-            const Positioned.fill(
-              child: ColoredBox(
-                color: Color(0x55000000),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            ),
+          ),
         ],
       ),
     );
