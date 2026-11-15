@@ -1679,7 +1679,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               Expanded(
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                                  child: Center(
+                                  child: Align(
+                                    alignment: Alignment.topCenter,
                                     child: Image.file(
                                       File(importedPdfPagePath!),
                                       fit: BoxFit.contain,
