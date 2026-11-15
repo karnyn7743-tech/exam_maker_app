@@ -3035,8 +3035,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
                 _buildWordResizeHandle(
                   gestureScale: gestureScale,
-                  top: -6,
-                  left: -6,
+                  top: -14 / gestureScale,
+                  left: -14 / gestureScale,
                   onPan: (delta) {
                     refreshState(() {
                       el.width = (el.width - delta.dx).clamp(50.0, 500.0);
@@ -3048,8 +3048,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 _buildWordResizeHandle(
                   gestureScale: gestureScale,
-                  top: -6,
-                  right: -6,
+                  top: -14 / gestureScale,
+                  right: -14 / gestureScale,
                   onPan: (delta) {
                     refreshState(() {
                       el.width = (el.width + delta.dx).clamp(50.0, 500.0);
@@ -3060,8 +3060,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 _buildWordResizeHandle(
                   gestureScale: gestureScale,
-                  bottom: -6,
-                  left: -6,
+                  bottom: -14 / gestureScale,
+                  left: -14 / gestureScale,
                   onPan: (delta) {
                     refreshState(() {
                       el.width = (el.width - delta.dx).clamp(50.0, 500.0);
@@ -3072,8 +3072,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
                 _buildWordResizeHandle(
                   gestureScale: gestureScale,
-                  bottom: -6,
-                  right: -6,
+                  bottom: -14 / gestureScale,
+                  right: -14 / gestureScale,
                   onPan: (delta) {
                     refreshState(() {
                       el.width = (el.width + delta.dx).clamp(50.0, 500.0);
@@ -3084,7 +3084,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 // منتصف الضلع العلوي
                 _buildWordResizeHandle(
                   gestureScale: gestureScale,
-                  top: -6,
+                  top: -14 / gestureScale,
                   onPan: (delta) {
                     refreshState(() {
                       el.height = (el.height - delta.dy).clamp(30.0, 400.0);
@@ -3095,7 +3095,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 // منتصف الضلع السفلي
                 _buildWordResizeHandle(
                   gestureScale: gestureScale,
-                  bottom: -6,
+                  bottom: -14 / gestureScale,
                   onPan: (delta) {
                     refreshState(() {
                       el.height = (el.height + delta.dy).clamp(30.0, 400.0);
@@ -3105,7 +3105,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 // منتصف الضلع الأيسر
                 _buildWordResizeHandle(
                   gestureScale: gestureScale,
-                  left: -6,
+                  left: -14 / gestureScale,
                   onPan: (delta) {
                     refreshState(() {
                       el.width = (el.width - delta.dx).clamp(50.0, 500.0);
@@ -3116,7 +3116,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 // منتصف الضلع الأيمن
                 _buildWordResizeHandle(
                   gestureScale: gestureScale,
-                  right: -6,
+                  right: -14 / gestureScale,
                   onPan: (delta) {
                     refreshState(() {
                       el.width = (el.width + delta.dx).clamp(50.0, 500.0);
