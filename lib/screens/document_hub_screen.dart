@@ -276,6 +276,45 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
   }
 
 
+  Future<void> _savePdfCopy() async {
+    final path = _filePath;
+    if (path == null || !_isPdf) return;
+    setState(() => _isBusy = true);
+    try {
+      final bytes = await File(path).readAsBytes();
+      final saved = await FilePicker.platform.saveFile(
+        fileName: _fileName ?? 'document.pdf',
+        bytes: bytes,
+      );
+      if (saved == null) {
+        _showMessage('تم إلغاء حفظ الملف.');
+      } else {
+        _showMessage('تم حفظ ملف PDF.');
+      }
+    } catch (e) {
+      _showMessage('تعذر حفظ ملف PDF: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
+  }
+
+  Future<void> _printWordAsPdf() async {
+    final document = _wordDocument;
+    if (document == null || _isPdf) return;
+    setState(() => _isBusy = true);
+    try {
+      final bytes = await ExportService(document).exportToPdf();
+      await Printing.layoutPdf(
+        name: (_fileName ?? 'document.docx').replaceAll('.docx', '.pdf'),
+        onLayout: (_) async => bytes,
+      );
+    } catch (e) {
+      _showMessage('تعذر تحويل مستند Word إلى PDF للطباعة: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
+  }
+
   Future<void> _printPdf() async {
     final path = _filePath;
     if (path == null || !_isPdf) return;
@@ -325,11 +364,23 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
               onPressed: _isBusy ? null : _saveDocx,
               icon: const Icon(Icons.save_outlined, color: Colors.white),
             ),
+          if (hasFile && !_isPdf)
+            IconButton(
+              tooltip: 'طباعة Word عبر Wi-Fi',
+              onPressed: _isBusy ? null : _printWordAsPdf,
+              icon: const Icon(Icons.print_outlined, color: Colors.white),
+            ),
           if (hasFile && _isPdf)
             IconButton(
               tooltip: 'إضافة بيانات الطلاب من Excel',
               onPressed: _isBusy ? null : _configureStudentPdf,
               icon: const Icon(Icons.group_add_outlined, color: Colors.white),
+            ),
+          if (hasFile && _isPdf)
+            IconButton(
+              tooltip: 'حفظ نسخة PDF',
+              onPressed: _isBusy ? null : _savePdfCopy,
+              icon: const Icon(Icons.save_alt_outlined, color: Colors.white),
             ),
           if (hasFile && _isPdf)
             IconButton(
