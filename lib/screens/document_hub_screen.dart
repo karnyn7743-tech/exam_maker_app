@@ -28,6 +28,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
   String? _excelPath;
   bool _isPdf = true;
   bool _isBusy = false;
+  String? _loadError;
   PdfControllerPinch? _pdfController;
   FluentDocument? _wordDocument;
   final TextEditingController _subjectController =
@@ -47,55 +48,94 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
   }
 
   Future<void> _pickDocument() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'docx'],
+      withData: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+
+    final path = result.files.single.path;
+    if (path == null || path.trim().isEmpty) {
+      _showMessage('تعذر الوصول إلى الملف المحدد.', isError: true);
+      return;
+    }
+
+    final lower = path.toLowerCase();
+    final isPdf = lower.endsWith('.pdf');
+    if (!isPdf && !lower.endsWith('.docx')) {
+      _showMessage('الصيغ المدعومة هي PDF وDOCX فقط.', isError: true);
+      return;
+    }
+
+    setState(() {
+      _isBusy = true;
+      _filePath = null;
+      _fileName = null;
+      _wordDocument = null;
+      _originalPdfPath = null;
+      _loadError = null;
+    });
+
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const ['pdf', 'docx'],
-        withData: false,
-      );
-      if (result == null || result.files.isEmpty) return;
-
-      final path = result.files.single.path;
-      if (path == null || path.trim().isEmpty) {
-        throw Exception('تعذر الوصول إلى الملف المحدد.');
-      }
-
-      final lower = path.toLowerCase();
-      final isPdf = lower.endsWith('.pdf');
-      if (!isPdf && !lower.endsWith('.docx')) {
-        throw Exception('الصيغ المدعومة هي PDF وDOCX فقط.');
-      }
-
       final file = File(path);
-      if (!await file.exists()) throw Exception('الملف غير موجود.');
+      if (!await file.exists()) throw Exception('الملف المحدد غير موجود.');
+      if (await file.length() == 0) throw Exception('الملف المحدد فارغ.');
 
-      _pdfController?.dispose();
-      _pdfController = null;
-
+      PdfControllerPinch? newPdfController;
       FluentDocument? loadedWordDocument;
+
       if (isPdf) {
-        _pdfController = PdfControllerPinch(
-          document: PdfDocument.openFile(path),
+        // Open the PDF completely before constructing the viewer controller.
+        final openedPdf = await PdfDocument.openFile(path);
+        if (openedPdf.pagesCount < 1) {
+          throw Exception('ملف PDF لا يحتوي على صفحات قابلة للعرض.');
+        }
+        newPdfController = PdfControllerPinch(
+          document: Future<PdfDocument>.value(openedPdf),
         );
       } else {
         final bytes = await file.readAsBytes();
         final root = ImportDocxService().importFromDocx(bytes);
+        if (root.nodes.isEmpty) {
+          throw Exception('لم يتم العثور على محتوى قابل للاستيراد داخل مستند Word.');
+        }
         loadedWordDocument = FluentDocument()
           ..documentLanguage = 'ar'
           ..load(root.nodes);
+        if (loadedWordDocument.content.nodes.isEmpty) {
+          throw Exception('تم استيراد ملف Word دون إنشاء محتوى قابل للتحرير.');
+        }
       }
 
-      if (!mounted) return;
+      if (!mounted) {
+        newPdfController?.dispose();
+        loadedWordDocument?.dispose();
+        return;
+      }
+
+      _pdfController?.dispose();
       setState(() {
+        _pdfController = newPdfController;
         _filePath = path;
         _fileName = result.files.single.name;
         _isPdf = isPdf;
         _originalPdfPath = isPdf ? path : null;
         _excelPath = null;
         _wordDocument = loadedWordDocument;
+        _loadError = null;
       });
     } catch (e) {
-      _showMessage('تعذر فتح المستند: $e', isError: true);
+      if (mounted) {
+        setState(() {
+          _filePath = null;
+          _wordDocument = null;
+          _loadError = e.toString();
+        });
+      }
+      _showMessage('تعذر تحميل المستند وعرضه: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
     }
   }
 
@@ -118,14 +158,14 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
   }
 
   Future<void> _configureStudentPdf() async {
-    if (!_isPdf || _filePath == null) return;
+    if (_filePath == null) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => Directionality(
         textDirection: TextDirection.rtl,
         child: AlertDialog(
           backgroundColor: const Color(0xFFFAF8F1),
-          title: const Text('إضافة بيانات الطلاب إلى PDF'),
+          title: Text(_isPdf ? 'إضافة بيانات الطلاب إلى PDF' : 'إنشاء نسخ الطلاب من Word'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -165,7 +205,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
                   ),
                 const SizedBox(height: 5),
                 const Text(
-                  'ستظهر بيانات كل طالب ورقم جلوسه ورمز QR وكود المادة في الصفحة الأولى من نسخته فقط.',
+                  'سيتم إنشاء نسخة PDF لكل طالب، وتظهر بياناته ورقم جلوسه ورمز QR وكود المادة في الصفحة الأولى فقط. يبقى ملف Word الأصلي قابلاً للتحرير دون تغيير.',
                   style: TextStyle(fontSize: 12, color: Color(0xFF777568)),
                 ),
               ],
@@ -178,7 +218,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('إنشاء PDF'),
+              child: const Text('إنشاء نسخ الطلاب'),
             ),
           ],
         ),
@@ -188,11 +228,22 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
   }
 
   Future<void> _createStudentPdf() async {
-    final sourcePath = _originalPdfPath ?? _filePath;
-    if (sourcePath == null || !_isPdf) return;
+    final currentPath = _filePath;
+    if (currentPath == null) return;
 
     setState(() => _isBusy = true);
     try {
+      String sourcePath;
+      if (_isPdf) {
+        sourcePath = _originalPdfPath ?? currentPath;
+      } else {
+        final wordDocument = _wordDocument;
+        if (wordDocument == null) throw Exception('مستند Word غير جاهز للتحويل.');
+        final wordPdfBytes = await ExportService(wordDocument).exportToPdf();
+        final tempDirectory = await getTemporaryDirectory();
+        sourcePath = '${tempDirectory.path}/word_source_${DateTime.now().millisecondsSinceEpoch}.pdf';
+        await File(sourcePath).writeAsBytes(wordPdfBytes, flush: true);
+      }
       StudentExcelResult? excelResult;
       if (_excelPath != null) {
         excelResult = await StudentExcelService.parseExcelFile(
@@ -207,8 +258,8 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
       }
 
       final directory = await getTemporaryDirectory();
-      final outputPath =
-          '${directory.path}/student_exam_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final outputName = _buildStudentPdfName();
+      final outputPath = '${directory.path}/$outputName';
       final students = excelResult?.students
               .map((student) => <String, String>{
                     'seatNo': student.seatNo,
@@ -239,18 +290,38 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
       if (!mounted) return;
       setState(() {
         _filePath = generatedPath;
-        _fileName = 'نسخ الاختبار للطلاب.pdf';
+        _fileName = outputName;
+        _originalPdfPath = generatedPath;
+        _isPdf = true;
+        _wordDocument = null;
       });
       _showMessage(
         excelResult == null
             ? 'تم تجهيز صفحات PDF بمقاس A4 مع الاحتفاظ بالمحتوى الأصلي.'
-            : 'تم تجهيز ${excelResult.students.length} نسخة، مع بيانات الطلاب في الصفحة الأولى لكل نسخة.',
+            : 'تم تجهيز ${excelResult.students.length} نسخة باسم $outputName، مع بيانات الطلاب في الصفحة الأولى لكل نسخة.',
       );
     } catch (e) {
       _showMessage('تعذرت معالجة ملف PDF: $e', isError: true);
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
+  }
+
+  String _buildStudentPdfName() {
+    String cleanPart(String value) {
+      final cleaned = value.trim().replaceAll(RegExp(r'[\\\\/:*?"<>|]'), '-');
+      return cleaned.isEmpty ? 'غير محدد' : cleaned;
+    }
+
+    final grade = cleanPart(_gradeController.text);
+    final subject = cleanPart(_subjectController.text);
+    var period = _examTitleController.text.trim();
+    final endIndex = period.indexOf('نهاية');
+    if (endIndex >= 0) {
+      period = period.substring(endIndex + 'نهاية'.length).trim();
+    }
+    if (period.isEmpty) period = _examTitleController.text.trim();
+    return '${grade}_${subject}_${cleanPart(period)}.pdf';
   }
 
   Future<void> _saveDocx() async {
@@ -361,6 +432,12 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
         actions: [
           if (hasFile && !_isPdf)
             IconButton(
+              tooltip: 'إنشاء نسخ PDF للطلاب من Word',
+              onPressed: _isBusy ? null : _configureStudentPdf,
+              icon: const Icon(Icons.group_add_outlined, color: Colors.white),
+            ),
+          if (hasFile && !_isPdf)
+            IconButton(
               tooltip: 'حفظ تعديلات Word',
               onPressed: _isBusy ? null : _saveDocx,
               icon: const Icon(Icons.save_outlined, color: Colors.white),
@@ -418,7 +495,8 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
                       ),
                     ],
                   ),
-                  child: const Column(
+                  child: _loadError == null
+                      ? const Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.description_outlined,
@@ -442,7 +520,19 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
                         ),
                       ),
                     ],
-                  ),
+                  )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.error_outline, size: 52, color: Colors.redAccent),
+                            const SizedBox(height: 12),
+                            const Text('تعذر عرض المستند', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                            const SizedBox(height: 8),
+                            Text(_loadError!, textAlign: TextAlign.center),
+                            const SizedBox(height: 12),
+                            const Text('يمكنك اختيار الملف مرة أخرى بعد التأكد من سلامته.', textAlign: TextAlign.center),
+                          ],
+                        ),
                 ),
               ),
             )
