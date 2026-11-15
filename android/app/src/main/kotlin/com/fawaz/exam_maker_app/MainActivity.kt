@@ -1,10 +1,14 @@
 package com.fawaz.exam_maker_app
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
 import android.os.Handler
 import android.os.Looper
-import com.ibm.icu.text.ArabicShaping
-import java.text.Bidi
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
@@ -38,7 +42,8 @@ class MainActivity : FlutterActivity() {
 
                 val sourcePath = call.argument<String>("sourcePath")
                 val outputPath = call.argument<String>("outputPath")
-                val students = (call.argument<List<*>>("students") ?: emptyList()).mapNotNull { item ->
+                val students: List<Map<String, String>> =
+                    (call.argument<List<*>>("students") ?: emptyList<Any?>()).mapNotNull { item ->
                     val map = item as? Map<*, *> ?: return@mapNotNull null
                     map.entries.associate { entry ->
                         entry.key.toString() to (entry.value?.toString() ?: "")
@@ -132,13 +137,15 @@ class MainActivity : FlutterActivity() {
                                 val seat = student["seatNo"]?.toString().orEmpty()
                                 val secret = student["secretCode"]?.toString().orEmpty()
 
-                                drawRightText(
-                                    stream, font, "اسم الطالب: $name",
-                                    pageWidth - 24f, pageHeight - 23f, 10.5f
+                                drawArabicText(
+                                    output, stream, "اسم الطالب: $name",
+                                    pageWidth - 284f, pageHeight - 29f, 260f, 10.5f,
+                                    Layout.Alignment.ALIGN_NORMAL
                                 )
-                                drawLeftText(
-                                    stream, font, "رقم الجلوس: [ $seat ]",
-                                    24f, pageHeight - 23f, 10.5f
+                                drawArabicText(
+                                    output, stream, "رقم الجلوس: [ $seat ]",
+                                    24f, pageHeight - 29f, 210f, 10.5f,
+                                    Layout.Alignment.ALIGN_OPPOSITE
                                 )
 
                                 val subjectText = subjectCode.toString()
@@ -186,33 +193,54 @@ class MainActivity : FlutterActivity() {
         return bitmap
     }
 
-    private fun shapeArabic(value: String): String {
-        if (value.isEmpty()) return value
-        return try {
-            val shaped = ArabicShaping(ArabicShaping.LETTERS_SHAPE).shape(value)
-            val bidi = Bidi(shaped, Bidi.DIRECTION_DEFAULT_RIGHT_TO_LEFT)
-            val runCount = bidi.runCount
-            val levels = ByteArray(runCount)
-            val visualRuns = arrayOfNulls<String>(runCount)
+    private fun drawArabicText(
+        document: PDDocument,
+        stream: PDPageContentStream,
+        text: String,
+        x: Float,
+        y: Float,
+        width: Float,
+        fontSize: Float,
+        alignment: Layout.Alignment
+    ) {
+        if (text.isBlank()) return
 
-            for (i in 0 until runCount) {
-                val start = bidi.getRunStart(i)
-                val limit = bidi.getRunLimit(i)
-                val level = bidi.getRunLevel(i)
-                levels[i] = level.toByte()
-                val run = shaped.substring(start, limit)
-                visualRuns[i] = if ((level and 1) != 0) {
-                    StringBuilder(run).reverse().toString()
-                } else {
-                    run
-                }
-            }
-
-            Bidi.reorderVisually(levels, 0, visualRuns, 0, runCount)
-            visualRuns.filterNotNull().joinToString("")
-        } catch (_: Exception) {
-            value
+        val renderScale = 3
+        val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.BLACK
+            textSize = fontSize * renderScale
+            typeface = Typeface.createFromAsset(
+                assets,
+                "flutter_assets/assets/fonts/Amiri-Regular.ttf"
+            )
         }
+
+        val layout = StaticLayout(
+            text,
+            paint,
+            (width * renderScale).toInt().coerceAtLeast(1),
+            alignment,
+            1.0f,
+            0.0f,
+            false
+        )
+        val bitmap = Bitmap.createBitmap(
+            (width * renderScale).toInt().coerceAtLeast(1),
+            layout.height.coerceAtLeast(1),
+            Bitmap.Config.ARGB_8888
+        )
+        val canvas = Canvas(bitmap)
+        layout.draw(canvas)
+
+        val image = LosslessFactory.createFromImage(document, bitmap)
+        stream.drawImage(
+            image,
+            x,
+            y,
+            width,
+            layout.height.toFloat() / renderScale
+        )
+        bitmap.recycle()
     }
 
     private fun drawRightText(
@@ -223,20 +251,8 @@ class MainActivity : FlutterActivity() {
         y: Float,
         size: Float
     ) {
-        val shaped = shapeArabic(text)
-        val width = font.getStringWidth(shaped) / 1000f * size
-        drawText(stream, font, shaped, rightX - width, y, size)
-    }
-
-    private fun drawLeftText(
-        stream: PDPageContentStream,
-        font: PDType0Font,
-        text: String,
-        x: Float,
-        y: Float,
-        size: Float
-    ) {
-        drawText(stream, font, shapeArabic(text), x, y, size)
+        val width = font.getStringWidth(text) / 1000f * size
+        drawText(stream, font, text, rightX - width, y, size)
     }
 
     private fun drawText(
