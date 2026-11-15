@@ -1,6 +1,226 @@
 package com.fawaz.exam_maker_app
 
+import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
+import android.icu.text.ArabicShaping
+import android.icu.text.Bidi
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
+import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.pdmodel.PDPage
+import com.tom_roush.pdfbox.pdmodel.PDPageContentStream
+import com.tom_roush.pdfbox.pdmodel.common.PDRectangle
+import com.tom_roush.pdfbox.pdmodel.font.PDType0Font
+import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory
+import com.tom_roush.pdfbox.multipdf.LayerUtility
+import com.tom_roush.pdfbox.util.Matrix
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileInputStream
 
-class MainActivity : FlutterActivity()
+class MainActivity : FlutterActivity() {
+    private val channelName = "com.fawaz.exam_maker_app/document_pdf"
 
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
+            .setMethodCallHandler { call, result ->
+                if (call.method != "createStudentPdf") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+
+                val sourcePath = call.argument<String>("sourcePath")
+                val outputPath = call.argument<String>("outputPath")
+                val students = call.argument<List<Map<String, Any?>>>("students") ?: emptyList()
+                val subjectCode = call.argument<Int>("subjectCode") ?: 1
+
+                if (sourcePath.isNullOrBlank() || outputPath.isNullOrBlank()) {
+                    result.error("INVALID_ARGUMENT", "مسار ملف PDF غير صالح.", null)
+                    return@setMethodCallHandler
+                }
+
+                Thread {
+                    try {
+                        createStudentPdf(
+                            sourcePath = sourcePath,
+                            outputPath = outputPath,
+                            students = students,
+                            subjectCode = subjectCode
+                        )
+                        Handler(Looper.getMainLooper()).post {
+                            result.success(outputPath)
+                        }
+                    } catch (e: Exception) {
+                        Handler(Looper.getMainLooper()).post {
+                            result.error("PDF_PROCESSING_FAILED", e.message ?: "تعذرت معالجة ملف PDF.", null)
+                        }
+                    }
+                }.start()
+            }
+    }
+
+    private fun createStudentPdf(
+        sourcePath: String,
+        outputPath: String,
+        students: List<Map<String, Any?>>,
+        subjectCode: Int
+    ) {
+        PDFBoxResourceLoader.init(applicationContext)
+
+        val sourceFile = File(sourcePath)
+        if (!sourceFile.exists()) throw IllegalArgumentException("ملف PDF الأصلي غير موجود.")
+
+        PDDocument.load(sourceFile).use { source ->
+            if (source.numberOfPages == 0) throw IllegalArgumentException("ملف PDF لا يحتوي على صفحات.")
+
+            PDDocument().use { output ->
+                val layerUtility = LayerUtility(output)
+                val font = PDType0Font.load(
+                    output,
+                    assets.open("flutter_assets/assets/fonts/Amiri-Regular.ttf")
+                )
+
+                val copies: List<Map<String, Any?>> =
+                    if (students.isEmpty()) listOf(emptyMap()) else students
+
+                for (student in copies) {
+                    for (pageIndex in 0 until source.numberOfPages) {
+                        val sourcePage = source.getPage(pageIndex)
+                        val form = layerUtility.importPageAsForm(source, sourcePage)
+                        val page = PDPage(PDRectangle.A4)
+                        output.addPage(page)
+
+                        val pageWidth = PDRectangle.A4.width
+                        val pageHeight = PDRectangle.A4.height
+                        val hasStudentData = student.isNotEmpty() && pageIndex == 0
+
+                        val topReserve = if (hasStudentData) 34f else 0f
+                        val bottomReserve = if (hasStudentData) 62f else 0f
+                        val contentWidth = pageWidth
+                        val contentHeight = pageHeight - topReserve - bottomReserve
+
+                        val box = form.bBox ?: sourcePage.mediaBox
+                        val sourceWidth = box.width.coerceAtLeast(1f)
+                        val sourceHeight = box.height.coerceAtLeast(1f)
+                        val scale = minOf(contentWidth / sourceWidth, contentHeight / sourceHeight)
+                        val drawnWidth = sourceWidth * scale
+                        val drawnHeight = sourceHeight * scale
+                        val offsetX = (pageWidth - drawnWidth) / 2f
+                        val offsetY = bottomReserve + (contentHeight - drawnHeight) / 2f
+
+                        PDPageContentStream(output, page).use { stream ->
+                            stream.saveGraphicsState()
+                            stream.transform(Matrix(scale, 0f, 0f, scale, offsetX, offsetY))
+                            stream.drawForm(form)
+                            stream.restoreGraphicsState()
+
+                            if (hasStudentData) {
+                                val name = student["name"]?.toString().orEmpty()
+                                val seat = student["seatNo"]?.toString().orEmpty()
+                                val secret = student["secretCode"]?.toString().orEmpty()
+
+                                drawRightText(
+                                    stream, font, "اسم الطالب: $name",
+                                    pageWidth - 24f, pageHeight - 23f, 10.5f
+                                )
+                                drawLeftText(
+                                    stream, font, "رقم الجلوس: [ $seat ]",
+                                    24f, pageHeight - 23f, 10.5f
+                                )
+
+                                drawLeftText(
+                                    stream, font, subjectCode.toString(),
+                                    pageWidth - 160f, 27f, 20f
+                                )
+
+                                if (secret.isNotBlank()) {
+                                    val qrBitmap = createQrBitmap(secret)
+                                    val qrImage = LosslessFactory.createFromImage(output, qrBitmap)
+                                    stream.drawImage(qrImage, pageWidth - 105f, 12f, 40f, 40f)
+                                    qrBitmap.recycle()
+                                }
+
+                                stream.addRect(pageWidth - 53f, 10f, 42f, 44f)
+                                stream.stroke()
+                            }
+                        }
+                    }
+                }
+
+                File(outputPath).parentFile?.mkdirs()
+                output.save(File(outputPath))
+            }
+        }
+    }
+
+    private fun createQrBitmap(value: String): Bitmap {
+        val matrix = QRCodeWriter().encode(value, BarcodeFormat.QR_CODE, 240, 240)
+        val bitmap = Bitmap.createBitmap(240, 240, Bitmap.Config.ARGB_8888)
+        for (x in 0 until 240) {
+            for (y in 0 until 240) {
+                bitmap.setPixel(
+                    x,
+                    y,
+                    if (matrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+                )
+            }
+        }
+        return bitmap
+    }
+
+    private fun shapeArabic(value: String): String {
+        if (value.isEmpty()) return value
+        return try {
+            val shaped = ArabicShaping(ArabicShaping.LETTERS_SHAPE).shape(value)
+            Bidi(shaped, Bidi.DIRECTION_DEFAULT_RIGHT_TO_LEFT).writeReordered(Bidi.DO_MIRRORING)
+        } catch (_: Exception) {
+            value
+        }
+    }
+
+    private fun drawRightText(
+        stream: PDPageContentStream,
+        font: PDType0Font,
+        text: String,
+        rightX: Float,
+        y: Float,
+        size: Float
+    ) {
+        val shaped = shapeArabic(text)
+        val width = font.getStringWidth(shaped) / 1000f * size
+        drawText(stream, font, shaped, rightX - width, y, size)
+    }
+
+    private fun drawLeftText(
+        stream: PDPageContentStream,
+        font: PDType0Font,
+        text: String,
+        x: Float,
+        y: Float,
+        size: Float
+    ) {
+        drawText(stream, font, shapeArabic(text), x, y, size)
+    }
+
+    private fun drawText(
+        stream: PDPageContentStream,
+        font: PDType0Font,
+        text: String,
+        x: Float,
+        y: Float,
+        size: Float
+    ) {
+        stream.beginText()
+        stream.setFont(font, size)
+        stream.newLineAtOffset(x, y)
+        stream.showText(text)
+        stream.endText()
+    }
+}
