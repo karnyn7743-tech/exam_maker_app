@@ -10,13 +10,13 @@ import 'package:uuid/uuid.dart';
 import '../models/exam_models.dart';
 import '../services/activation_service.dart';
 import '../services/exam_storage_service.dart';
-import '../services/pdf_import_service.dart';
 
 import 'activation_screen.dart';
 import 'exam_editor_screen.dart';
 import 'grade_scanner_screen.dart';
 import 'manual_grade_entry_screen.dart';
 import 'fetch_grades_screen.dart';
+import 'document_hub_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -1103,6 +1103,123 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _openDocumentHub() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const DocumentHubScreen()),
+    );
+    if (mounted) await _checkActivationStatus();
+  }
+
+  Future<void> _showActionGroupDialog({
+    required String title,
+    required String subtitle,
+    required List<_ActionChoice> options,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+          decoration: const BoxDecoration(
+            color: Color(0xFFFAF8F1),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD4D0C5),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 15),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF344E41),
+                  fontSize: 19,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF777568), fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              for (final option in options) ...[
+                Material(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(17),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(17),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      option.onTap();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 15,
+                        vertical: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(17),
+                        border: Border.all(color: const Color(0xFFE4E0D5)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(option.icon, color: const Color(0xFF52796F), size: 27),
+                          const SizedBox(width: 13),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  option.title,
+                                  style: const TextStyle(
+                                    color: Color(0xFF344E41),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  option.subtitle,
+                                  style: const TextStyle(
+                                    color: Color(0xFF777568),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_left, color: Color(0xFF9A9A8D)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // ============================================================
   // بناء الواجهة
   // ============================================================
@@ -1110,7 +1227,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE8F5E9),
+      backgroundColor: const Color(0xFFF2F0E7),
       appBar: AppBar(
         title: const Text(
           'المحرر البسيط للإختبارات والأتمتة',
@@ -1121,7 +1238,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         centerTitle: true,
-        backgroundColor: const Color(0xFF1B5E20),
+        backgroundColor: const Color(0xFF52796F),
         elevation: 2,
         actions: [
           IconButton(
@@ -1131,11 +1248,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             tooltip: 'استيراد وفتح ملف (.exam)',
             onPressed: _pickAndOpenExamFileManually,
-          ),
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.white),
-            tooltip: 'استيراد صفحات من PDF',
-            onPressed: _pickAndImportPdf,
           ),
           IconButton(
             icon: const Icon(
@@ -1224,53 +1336,66 @@ class _HomeScreenState extends State<HomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // الزر الأول.
                     _buildMainActionButton(
-                      title: 'تصميم اختبار شامل',
+                      title: 'الاختبارات المحررة باليد',
                       icon: Icons.edit_document,
-                      onTap: _designTraditionalExam,
-                      backgroundColor:
-                          const Color(0xFF7E57C2),
+                      onTap: () => _showActionGroupDialog(
+                        title: 'الاختبارات المحررة باليد',
+                        subtitle: 'اختر نوع الاختبار الذي تريد تصميمه',
+                        options: [
+                          _ActionChoice(
+                            title: 'اختبارات شاملة',
+                            subtitle: 'تصميم اختبار تحريري تقليدي',
+                            icon: Icons.description_outlined,
+                            onTap: _designTraditionalExam,
+                          ),
+                          _ActionChoice(
+                            title: 'اختبارات مؤتمتة',
+                            subtitle: 'تصميم اختبار التظليل والتصحيح الآلي',
+                            icon: Icons.fact_check_outlined,
+                            onTap: _designAutomatedExam,
+                          ),
+                        ],
+                      ),
+                      backgroundColor: const Color(0xFF718B79),
                     ),
-                    const SizedBox(height: 20),
-
-                    // الزر الثاني.
+                    const SizedBox(height: 15),
                     _buildMainActionButton(
-                      title: 'تصميم اختبار مؤتمت',
-                      icon: Icons.checklist_rtl,
-                      onTap: _designAutomatedExam,
-                      backgroundColor:
-                          const Color(0xFF7E57C2),
+                      title: 'إدخال الدرجات',
+                      icon: Icons.assignment_turned_in_outlined,
+                      onTap: () => _showActionGroupDialog(
+                        title: 'إدخال الدرجات',
+                        subtitle: 'اختر طريقة إدخال درجات الطلاب',
+                        options: [
+                          _ActionChoice(
+                            title: 'إدخال الدرجات من أوراق الاختبارات',
+                            subtitle: 'قراءة الأكواد وإدخال درجات أوراق الإجابة',
+                            icon: Icons.qr_code_scanner,
+                            onTap: _openGradeScanner,
+                          ),
+                          _ActionChoice(
+                            title: 'إدخال بقية أعمال السنة',
+                            subtitle: 'إدخال درجات الأنشطة والأعمال الأخرى',
+                            icon: Icons.playlist_add_check,
+                            onTap: _openManualGradeEntry,
+                          ),
+                        ],
+                      ),
+                      backgroundColor: const Color(0xFF6F9290),
                     ),
-                    const SizedBox(height: 20),
-
-                    // الزر الثالث.
+                    const SizedBox(height: 15),
                     _buildMainActionButton(
-                      title: 'إدخال درجات الطلاب من أوراق الإختبار',
-                      icon: Icons.qr_code_scanner,
-                      onTap: _openGradeScanner,
-                      backgroundColor:
-                          const Color(0xFF00897B),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // الزر الرابع.
-                    _buildMainActionButton(
-                      title: 'إدخال بقية درجات أعمال السنة',
-                      icon: Icons.playlist_add_check,
-                      onTap: _openManualGradeEntry,
-                      backgroundColor:
-                          const Color(0xFF00897B),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // الزر الخامس.
-                    _buildMainActionButton(
-                      title: 'جلب درجات المحصلات (م١ / م٢)',
+                      title: 'جلب درجات أعمال السنة إلى كشوفات الرصد',
                       icon: Icons.sync_alt,
                       onTap: _openFetchGradesScreen,
-                      backgroundColor:
-                          const Color(0xFFE65100),
+                      backgroundColor: const Color(0xFFB18A62),
+                    ),
+                    const SizedBox(height: 15),
+                    _buildMainActionButton(
+                      title: 'فتح وتحرير ملفات PDF وWord',
+                      icon: Icons.article_outlined,
+                      onTap: _openDocumentHub,
+                      backgroundColor: const Color(0xFF7C829A),
                     ),
                   ],
                 ),
@@ -1286,7 +1411,7 @@ class _HomeScreenState extends State<HomeScreen> {
               horizontal: 16,
             ),
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F8E9),
+              color: const Color(0xFFEBE8DD),
               border: Border(
                 top: BorderSide(
                   color: Colors.green.shade200,
@@ -1404,51 +1529,54 @@ class _HomeScreenState extends State<HomeScreen> {
     required String title,
     required IconData icon,
     required VoidCallback onTap,
-    Color backgroundColor = const Color(0xFF7E57C2),
+    Color backgroundColor = const Color(0xFF718B79),
   }) {
     return Container(
-      height: 64,
+      height: 70,
       decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(backgroundColor, Colors.white, 0.18)!,
+            backgroundColor,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: Colors.white.withOpacity(0.65), width: 1),
         boxShadow: const [
           BoxShadow(
-            color: Colors.black26,
-            blurRadius: 6,
-            offset: Offset(0, 3),
+            color: Color(0x18000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(19),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 20,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 19),
             child: Row(
-              mainAxisAlignment:
-                  MainAxisAlignment.spaceBetween,
               children: [
+                Icon(icon, color: Colors.white, size: 29),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Text(
                     title,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 16,
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
                     ),
                     textAlign: TextAlign.right,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Icon(
-                  icon,
-                  color: Colors.white,
-                  size: 28,
-                ),
+                const SizedBox(width: 10),
+                const Icon(Icons.arrow_back_ios_new_rounded,
+                    color: Color(0xFFECE9DF), size: 16),
               ],
             ),
           ),
@@ -1456,4 +1584,20 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
+}
+
+
+class _ActionChoice {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _ActionChoice({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.onTap,
+  });
 }
