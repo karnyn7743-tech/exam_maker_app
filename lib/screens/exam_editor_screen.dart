@@ -1830,7 +1830,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               .where((el) => el.layer == 'behind' || el.layer == 'front')
               .fold<double>(
                 0.0,
-                (extent, el) => math.max(extent, el.dy + el.height + 12.0),
+                (extent, el) => math.max(extent, el.dy + el.height + 12.0).toDouble(),
               )
               .clamp(0.0, kA4PaperHeight - 80.0)
               .toDouble();
