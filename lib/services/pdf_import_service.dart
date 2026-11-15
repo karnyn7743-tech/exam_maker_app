@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart' show Rect;
+import 'dart:ui' show Rect;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart';
 
