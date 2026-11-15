@@ -38,7 +38,12 @@ class MainActivity : FlutterActivity() {
 
                 val sourcePath = call.argument<String>("sourcePath")
                 val outputPath = call.argument<String>("outputPath")
-                val students = call.argument<List<Map<String, Any?>>>("students") ?: emptyList()
+                val students = (call.argument<List<*>>("students") ?: emptyList()).mapNotNull { item ->
+                    val map = item as? Map<*, *> ?: return@mapNotNull null
+                    map.entries.associate { entry ->
+                        entry.key.toString() to (entry.value?.toString() ?: "")
+                    }
+                }
                 val subjectCode = call.argument<Int>("subjectCode") ?: 1
 
                 if (sourcePath.isNullOrBlank() || outputPath.isNullOrBlank()) {
@@ -69,7 +74,7 @@ class MainActivity : FlutterActivity() {
     private fun createStudentPdf(
         sourcePath: String,
         outputPath: String,
-        students: List<Map<String, Any?>>,
+        students: List<Map<String, String>>,
         subjectCode: Int
     ) {
         PDFBoxResourceLoader.init(applicationContext)
@@ -87,7 +92,7 @@ class MainActivity : FlutterActivity() {
                     assets.open("flutter_assets/assets/fonts/Amiri-Regular.ttf")
                 )
 
-                val copies: List<Map<String, Any?>> =
+                val copies: List<Map<String, String>> =
                     if (students.isEmpty()) listOf(emptyMap()) else students
 
                 for (student in copies) {
