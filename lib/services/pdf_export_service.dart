@@ -195,13 +195,14 @@ class PdfExportService {
                   if (hasImportedPdfPage)
                     pw.Container(
                       width: double.infinity,
-                      height: 540,
-                      alignment: pw.Alignment.center,
+                      alignment: pw.Alignment.topCenter,
                       child: pw.Image(
                         pw.MemoryImage(
                           File(importedPdfPagePath!).readAsBytesSync(),
                         ),
+                        width: double.infinity,
                         fit: pw.BoxFit.contain,
+                        alignment: pw.Alignment.topCenter,
                       ),
                     )
                   else if (isAutomated)
