@@ -1684,6 +1684,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                     child: Image.file(
                                       File(importedPdfPagePath!),
                                       fit: BoxFit.contain,
+                                      alignment: Alignment.topCenter,
                                       width: double.infinity,
                                       height: double.infinity,
                                       filterQuality: FilterQuality.high,
