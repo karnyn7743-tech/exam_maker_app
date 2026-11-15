@@ -1284,8 +1284,16 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 });
               },
               onCopy: () {
-                if (_exam.questions.isNotEmpty && _exam.questions.last.elements.isNotEmpty) {
-                  final el = _exam.questions.last.elements.last;
+                if (_exam.questions.isNotEmpty &&
+                    _exam.questions.any((q) => q.elements.isNotEmpty)) {
+                  final el = _selectedElementId == null
+                      ? _exam.questions.last.elements.last
+                      : _exam.questions
+                          .expand((q) => q.elements)
+                          .firstWhere(
+                            (e) => e.id == _selectedElementId,
+                            orElse: () => _exam.questions.last.elements.last,
+                          );
                   setState(() {
                     _copiedElement = InsertableElement(
                       id: const Uuid().v4(),
@@ -1305,7 +1313,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               onPaste: () {
                 if (_copiedElement != null && _exam.questions.isNotEmpty) {
                   setState(() {
-                    _exam.questions.last.elements.add(InsertableElement(
+                    final pastedElement = InsertableElement(
                       id: const Uuid().v4(),
                       type: _copiedElement!.type,
                       content: _copiedElement!.content,
@@ -1313,7 +1321,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       height: _copiedElement!.height,
                       dx: _copiedElement!.dx + 10,
                       dy: _copiedElement!.dy + 10,
-                    ));
+                    );
+                    _exam.questions.last.elements.add(pastedElement);
+                    _selectedElementId = pastedElement.id;
                   });
                   _measurePagesHeight();
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -2915,7 +2925,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         break;
     }
 
-    if (el.type == ElementType.shape || el.type == ElementType.table) {
+    if (el.type == ElementType.image || el.type == ElementType.shape || el.type == ElementType.table) {
       return Transform.translate(
         offset: Offset(el.dx, el.dy),
         child: GestureDetector(
@@ -2923,6 +2933,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             setState(() {
               _selectedElementId = isSelected ? null : el.id;
             });
+          },
+          onPanUpdate: (details) {
+            if (_selectedElementId == el.id) {
+              setState(() {
+                el.dx += details.delta.dx;
+                el.dy += details.delta.dy;
+              });
+            }
           },
           child: Stack(
             clipBehavior: Clip.none,
@@ -3005,6 +3023,44 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     setState(() {
                       el.width = (el.width + delta.dx).clamp(50.0, 500.0);
                       el.height = (el.height + delta.dy).clamp(30.0, 400.0);
+                    });
+                  },
+                ),
+                // منتصف الضلع العلوي
+                _buildWordResizeHandle(
+                  top: -6,
+                  onPan: (delta) {
+                    setState(() {
+                      el.height = (el.height - delta.dy).clamp(30.0, 400.0);
+                      el.dy += delta.dy;
+                    });
+                  },
+                ),
+                // منتصف الضلع السفلي
+                _buildWordResizeHandle(
+                  bottom: -6,
+                  onPan: (delta) {
+                    setState(() {
+                      el.height = (el.height + delta.dy).clamp(30.0, 400.0);
+                    });
+                  },
+                ),
+                // منتصف الضلع الأيسر
+                _buildWordResizeHandle(
+                  left: -6,
+                  onPan: (delta) {
+                    setState(() {
+                      el.width = (el.width - delta.dx).clamp(50.0, 500.0);
+                      el.dx += delta.dx;
+                    });
+                  },
+                ),
+                // منتصف الضلع الأيمن
+                _buildWordResizeHandle(
+                  right: -6,
+                  onPan: (delta) {
+                    setState(() {
+                      el.width = (el.width + delta.dx).clamp(50.0, 500.0);
                     });
                   },
                 ),
