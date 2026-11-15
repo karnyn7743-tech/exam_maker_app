@@ -1544,6 +1544,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     return pages.asMap().entries.map((entry) {
       final int pageIndex = entry.key;
       final List<QuestionModel> pageQuestions = entry.value;
+      final String? importedPdfPagePath =
+          pageIndex < _exam.importedPdfPagePaths.length
+              ? _exam.importedPdfPagePaths[pageIndex]
+              : null;
+      final bool hasImportedPdfPage = importedPdfPagePath != null &&
+          File(importedPdfPagePath).existsSync();
 
       final double consumedHeight = _pageHeights[pageIndex] ?? 0.0;
       final double fillPercentage = (consumedHeight / kA4PaperHeight).clamp(0.0, 1.5);
@@ -1600,7 +1606,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           bottom: 34.0,
                         ),
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
+                          mainAxisSize: hasImportedPdfPage
+                              ? MainAxisSize.max
+                              : MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             if (pageIndex == 0) ...[
@@ -1669,10 +1677,32 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             const SizedBox(height: 8),
 
                             // تغليف جدول الأسئلة بالاتجاه الصحيح للاختبار
-                            Directionality(
-                              textDirection: examDir,
-                              child: _buildQuestionsTableForPage(pageQuestions),
-                            ),
+                            if (hasImportedPdfPage)
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                                  child: Center(
+                                    child: Image.file(
+                                      File(importedPdfPagePath!),
+                                      fit: BoxFit.contain,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      filterQuality: FilterQuality.high,
+                                      errorBuilder: (_, __, ___) => const Center(
+                                        child: Text(
+                                          'تعذر تحميل صورة صفحة PDF المستوردة',
+                                          style: TextStyle(color: Colors.red),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              )
+                            else
+                              Directionality(
+                                textDirection: examDir,
+                                child: _buildQuestionsTableForPage(pageQuestions),
+                              ),
                             const SizedBox(height: 10),
 
                             Directionality(textDirection: TextDirection.rtl, child: _buildFooterPreview()),
