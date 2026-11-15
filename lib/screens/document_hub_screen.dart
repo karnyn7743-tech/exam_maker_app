@@ -1,6 +1,9 @@
 import 'dart:io';
 
-import 'package:docx_viewer_plus/docx_viewer_plus.dart';
+import 'package:fluent_editor/fluent_editor.dart';
+import 'package:fluent_editor/fluent_document.dart';
+import 'package:fluent_editor/services/import_docx_service.dart';
+import 'package:fluent_editor/services/export_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:pdfx/pdfx.dart';
@@ -20,8 +23,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
   bool _isPdf = true;
   bool _isBusy = false;
   PdfControllerPinch? _pdfController;
-  final GlobalKey<DocxViewerWidgetState> _docxKey =
-      GlobalKey<DocxViewerWidgetState>();
+  FluentDocument? _wordDocument;
 
   @override
   void dispose() {
@@ -55,10 +57,15 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
       _pdfController?.dispose();
       _pdfController = null;
 
+      FluentDocument? loadedWordDocument;
       if (isPdf) {
         _pdfController = PdfControllerPinch(
           document: PdfDocument.openFile(path),
         );
+      } else {
+        final bytes = await file.readAsBytes();
+        final root = ImportDocxService().importFromDocx(bytes);
+        loadedWordDocument = FluentDocument()..load(root.nodes);
       }
 
       if (!mounted) return;
@@ -66,6 +73,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
         _filePath = path;
         _fileName = result.files.single.name;
         _isPdf = isPdf;
+        _wordDocument = loadedWordDocument;
       });
     } catch (e) {
       _showMessage('تعذر فتح المستند: $e', isError: true);
@@ -73,24 +81,28 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
   }
 
   Future<void> _saveDocx() async {
-    final path = _filePath;
-    if (path == null || _isPdf) return;
+    final document = _wordDocument;
+    if (_filePath == null || _isPdf || document == null) return;
 
     setState(() => _isBusy = true);
     try {
-      final savedPath = await _docxKey.currentState?.save(
-        outputPath: path,
-      );
+      final bytes = await ExportService(document).exportToDocx();
+      final baseName = (_fileName ?? 'document.docx')
+          .replaceAll(RegExp(r'\.docx$', caseSensitive: false), '');
+      final savedPath = await ExportService(document)
+          .saveFileNative(bytes, baseName, 'docx');
       if (savedPath == null) {
-        throw Exception('لم يتمكن محرر Word من حفظ المستند.');
+        _showMessage('لم يتم اختيار مكان لحفظ مستند Word.', isError: true);
+      } else {
+        _showMessage('تم حفظ المستند المعدّل في: $savedPath');
       }
-      _showMessage('تم حفظ تعديلات مستند Word.');
     } catch (e) {
       _showMessage('تعذر حفظ مستند Word: $e', isError: true);
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
   }
+
 
   Future<void> _printPdf() async {
     final path = _filePath;
@@ -227,15 +239,9 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
                       key: ValueKey(_filePath),
                       controller: _pdfController!,
                     )
-                  : DocxViewerWidget(
-                      key: _docxKey,
-                      filePath: _filePath!,
-                      config: DocxViewerConfig(
-                        toolbarPosition: ToolbarPosition.bottom,
-                        forceTextDirection: TextDirection.rtl,
-                        strings: DocxViewerStrings.arabic,
-                      ),
-                    ),
+                  : (_wordDocument == null
+                      ? const Center(child: Text('تعذر تجهيز مستند Word للتحرير.'))
+                      : FluentEditor(document: _wordDocument!)),
             ),
           ],
           if (_isBusy)
