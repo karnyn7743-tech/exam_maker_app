@@ -96,6 +96,10 @@ class MainActivity : FlutterActivity() {
                     output,
                     assets.open("flutter_assets/assets/fonts/Amiri-Regular.ttf")
                 )
+                // Import each original PDF page once, then reuse its vector form for every student.
+                val sourceForms = (0 until source.numberOfPages).map { pageIndex ->
+                    layerUtility.importPageAsForm(source, source.getPage(pageIndex))
+                }
 
                 val copies: List<Map<String, String>> =
                     if (students.isEmpty()) listOf(emptyMap()) else students
@@ -103,7 +107,7 @@ class MainActivity : FlutterActivity() {
                 for (student in copies) {
                     for (pageIndex in 0 until source.numberOfPages) {
                         val sourcePage = source.getPage(pageIndex)
-                        val form = layerUtility.importPageAsForm(source, sourcePage)
+                        val form = sourceForms[pageIndex]
                         val page = PDPage(PDRectangle.A4)
                         output.addPage(page)
 
