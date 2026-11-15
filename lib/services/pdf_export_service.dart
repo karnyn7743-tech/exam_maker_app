@@ -111,6 +111,12 @@ class PdfExportService {
         final currentQuestions = pagesQuestions[pageIdx];
         final bool isFirstPage = pageIdx == 0;
         final bool isLastPage = pageIdx == pagesQuestions.length - 1;
+        final String? importedPdfPagePath =
+            pageIdx < exam.importedPdfPagePaths.length
+                ? exam.importedPdfPagePaths[pageIdx]
+                : null;
+        final bool hasImportedPdfPage = importedPdfPagePath != null &&
+            File(importedPdfPagePath).existsSync();
 
         pdf.addPage(
           pw.MultiPage(
@@ -186,7 +192,19 @@ class PdfExportService {
                   pw.SizedBox(height: 5),
 
                   // 3. جدول ومحتوى الأسئلة
-                  if (isAutomated)
+                  if (hasImportedPdfPage)
+                    pw.Container(
+                      width: double.infinity,
+                      height: 540,
+                      alignment: pw.Alignment.center,
+                      child: pw.Image(
+                        pw.MemoryImage(
+                          File(importedPdfPagePath!).readAsBytesSync(),
+                        ),
+                        fit: pw.BoxFit.contain,
+                      ),
+                    )
+                  else if (isAutomated)
                     ..._buildAutomatedQuestionsList(exam, symbols, ttf, isAr)
                   else
                     _buildQuestionsSubTable(currentQuestions, exam.header.instructionText, ttf, isAr),
