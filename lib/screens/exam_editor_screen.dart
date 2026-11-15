@@ -4625,6 +4625,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               height: el.height,
               dx: el.dx + 10,
               dy: el.dy + 10,
+              layer: el.layer,
             ),
           );
         });
