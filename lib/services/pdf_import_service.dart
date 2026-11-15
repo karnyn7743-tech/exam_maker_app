@@ -51,9 +51,11 @@ class PdfImportService {
           final renderWidth = page.width * 2;
           final renderHeight = page.height * 2;
           final topCrop = (cropTopMm * _pointsPerMillimeter * 2)
-              .clamp(0.0, renderHeight - 1.0);
+              .clamp(0.0, renderHeight - 1.0)
+              .toDouble();
           final bottomCrop = (cropBottomMm * _pointsPerMillimeter * 2)
-              .clamp(0.0, renderHeight - topCrop - 1.0);
+              .clamp(0.0, renderHeight - topCrop - 1.0)
+              .toDouble();
 
           final image = await page.render(
             width: renderWidth,
