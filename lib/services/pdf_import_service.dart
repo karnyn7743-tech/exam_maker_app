@@ -60,7 +60,9 @@ class PdfImportService {
           final image = await page.render(
             width: renderWidth,
             height: renderHeight,
-            format: PdfPageImageFormat.png,
+            format: PdfPageImageFormat.jpeg,
+            backgroundColor: '#FFFFFF',
+            quality: 92,
             cropRect: Rect.fromLTRB(
               0,
               topCrop,
