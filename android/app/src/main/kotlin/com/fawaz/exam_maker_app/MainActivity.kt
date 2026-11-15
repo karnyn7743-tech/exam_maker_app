@@ -1,10 +1,11 @@
 package com.fawaz.exam_maker_app
 
 import android.graphics.Bitmap
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.icu.text.ArabicShaping
-import android.icu.text.Bidi
+import java.text.Bidi
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
@@ -183,8 +184,31 @@ class MainActivity : FlutterActivity() {
     private fun shapeArabic(value: String): String {
         if (value.isEmpty()) return value
         return try {
-            val shaped = ArabicShaping(ArabicShaping.LETTERS_SHAPE).shape(value)
-            Bidi(shaped, Bidi.DIRECTION_DEFAULT_RIGHT_TO_LEFT).writeReordered(Bidi.DO_MIRRORING)
+            val shaped = if (Build.VERSION.SDK_INT >= 24) {
+                ArabicShaping(ArabicShaping.LETTERS_SHAPE).shape(value)
+            } else {
+                value
+            }
+            val bidi = Bidi(shaped, Bidi.DIRECTION_DEFAULT_RIGHT_TO_LEFT)
+            val runCount = bidi.runCount
+            val levels = ByteArray(runCount)
+            val visualRuns = arrayOfNulls<String>(runCount)
+
+            for (i in 0 until runCount) {
+                val start = bidi.getRunStart(i)
+                val limit = bidi.getRunLimit(i)
+                val level = bidi.getRunLevel(i)
+                levels[i] = level.toByte()
+                val run = shaped.substring(start, limit)
+                visualRuns[i] = if ((level and 1) != 0) {
+                    StringBuilder(run).reverse().toString()
+                } else {
+                    run
+                }
+            }
+
+            Bidi.reorderVisually(levels, 0, visualRuns, 0, runCount)
+            visualRuns.filterNotNull().joinToString("")
         } catch (_: Exception) {
             value
         }
