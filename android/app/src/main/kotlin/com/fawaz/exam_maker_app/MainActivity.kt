@@ -104,11 +104,12 @@ class MainActivity : FlutterActivity() {
 
                         val pageWidth = PDRectangle.A4.width
                         val pageHeight = PDRectangle.A4.height
-                        val hasStudentData = student.isNotEmpty() && pageIndex == 0
+                        val hasStudentData = !student["seatNo"].isNullOrBlank() && pageIndex == 0
 
                         val topReserve = if (hasStudentData) 34f else 0f
                         val bottomReserve = if (hasStudentData) 62f else 0f
-                        val contentWidth = pageWidth
+                        val sideMargin = 20f
+                        val contentWidth = pageWidth - (sideMargin * 2f)
                         val contentHeight = pageHeight - topReserve - bottomReserve
 
                         val box = form.bBox ?: sourcePage.mediaBox
@@ -117,7 +118,7 @@ class MainActivity : FlutterActivity() {
                         val scale = minOf(contentWidth / sourceWidth, contentHeight / sourceHeight)
                         val drawnWidth = sourceWidth * scale
                         val drawnHeight = sourceHeight * scale
-                        val offsetX = (pageWidth - drawnWidth) / 2f
+                        val offsetX = sideMargin + (contentWidth - drawnWidth) / 2f
                         val offsetY = bottomReserve + (contentHeight - drawnHeight) / 2f
 
                         PDPageContentStream(output, page).use { stream ->
@@ -140,19 +141,19 @@ class MainActivity : FlutterActivity() {
                                     24f, pageHeight - 23f, 10.5f
                                 )
 
-                                drawLeftText(
+                                drawRightText(
                                     stream, font, subjectCode.toString(),
-                                    pageWidth - 160f, 27f, 20f
+                                    pageWidth - 20f, 27f, 22f
                                 )
 
                                 if (secret.isNotBlank()) {
                                     val qrBitmap = createQrBitmap(secret)
                                     val qrImage = LosslessFactory.createFromImage(output, qrBitmap)
-                                    stream.drawImage(qrImage, pageWidth - 105f, 12f, 40f, 40f)
+                                    stream.drawImage(qrImage, pageWidth - 105f, 12f, 38f, 38f)
                                     qrBitmap.recycle()
                                 }
 
-                                stream.addRect(pageWidth - 53f, 10f, 42f, 44f)
+                                stream.addRect(pageWidth - 188f, 10f, 55f, 45f)
                                 stream.stroke()
                             }
                         }
