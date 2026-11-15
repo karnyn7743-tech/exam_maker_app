@@ -141,19 +141,24 @@ class MainActivity : FlutterActivity() {
                                     24f, pageHeight - 23f, 10.5f
                                 )
 
+                                val subjectText = subjectCode.toString()
+                                val subjectWidth = font.getStringWidth(subjectText) / 1000f * 22f
+                                val qrX = pageWidth - 20f - subjectWidth - 8f - 38f
+                                val gradeBoxX = qrX - 10f - 55f
+
                                 drawRightText(
-                                    stream, font, subjectCode.toString(),
+                                    stream, font, subjectText,
                                     pageWidth - 20f, 27f, 22f
                                 )
 
                                 if (secret.isNotBlank()) {
                                     val qrBitmap = createQrBitmap(secret)
                                     val qrImage = LosslessFactory.createFromImage(output, qrBitmap)
-                                    stream.drawImage(qrImage, pageWidth - 105f, 12f, 38f, 38f)
+                                    stream.drawImage(qrImage, qrX, 12f, 38f, 38f)
                                     qrBitmap.recycle()
                                 }
 
-                                stream.addRect(pageWidth - 188f, 10f, 55f, 45f)
+                                stream.addRect(gradeBoxX, 10f, 55f, 45f)
                                 stream.stroke()
                             }
                         }
