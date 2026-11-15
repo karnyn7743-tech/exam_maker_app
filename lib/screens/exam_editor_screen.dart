@@ -1303,6 +1303,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       height: el.height,
                       dx: el.dx,
                       dy: el.dy,
+                      layer: el.layer,
                     );
                   });
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1321,6 +1322,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       height: _copiedElement!.height,
                       dx: _copiedElement!.dx + 10,
                       dy: _copiedElement!.dy + 10,
+                      layer: _copiedElement!.layer,
                     );
                     _exam.questions.last.elements.add(pastedElement);
                     _selectedElementId = pastedElement.id;
@@ -1849,13 +1851,29 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   onTap: () => _openQuestionDialog(questionIndex: indexInMainList),
                   child: Padding(
                     padding: const EdgeInsets.all(6.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                    child: Stack(
+                      clipBehavior: Clip.none,
                       children: [
-                        _buildQuestionContent(q),
-                        if (q.elements.isNotEmpty) const SizedBox(height: 6),
-                        ...q.elements.map((el) => _buildRenderedElement(el)),
-                        if (_showAnswerKeyMode && q.answerKey.trim().isNotEmpty) ...[
+                        ...q.elements
+                            .where((el) => el.layer == 'behind')
+                            .map((el) => Positioned(
+                                  left: el.dx,
+                                  top: el.dy,
+                                  child: _buildRenderedElement(
+                                    el,
+                                    applyOffset: false,
+                                  ),
+                                )),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildQuestionContent(q),
+                            if (q.elements.any((el) => el.layer == 'inline'))
+                              const SizedBox(height: 6),
+                            ...q.elements
+                                .where((el) => el.layer == 'inline')
+                                .map((el) => _buildRenderedElement(el)),
+                            if (_showAnswerKeyMode && q.answerKey.trim().isNotEmpty) ...[
                           const SizedBox(height: 6),
                           Container(
                             padding: const EdgeInsets.all(6),
@@ -1883,7 +1901,19 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               ],
                             ),
                           ),
-                        ],
+                            ],
+                          ],
+                        ),
+                        ...q.elements
+                            .where((el) => el.layer == 'front')
+                            .map((el) => Positioned(
+                                  left: el.dx,
+                                  top: el.dy,
+                                  child: _buildRenderedElement(
+                                    el,
+                                    applyOffset: false,
+                                  ),
+                                )),
                       ],
                     ),
                   ),
@@ -2888,7 +2918,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  Widget _buildRenderedElement(InsertableElement el) {
+  Widget _buildRenderedElement(InsertableElement el, {bool applyOffset = true}) {
     final bool isSelected = _selectedElementId == el.id;
 
     Widget coreWidget;
@@ -2938,7 +2968,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     if (el.type == ElementType.image || el.type == ElementType.shape || el.type == ElementType.table) {
       return Transform.translate(
-        offset: Offset(el.dx, el.dy),
+        offset: applyOffset ? Offset(el.dx, el.dy) : Offset.zero,
         child: GestureDetector(
           onTap: () {
             setState(() {
@@ -4617,6 +4647,23 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               tooltip: 'تحريك لأسفل',
               onPressed: elementIndex < currentElements.length - 1 ? moveElementDown : null,
             ),
+            if (el.type == ElementType.image || el.type == ElementType.shape) ...[
+              IconButton(
+                icon: const Icon(Icons.vertical_align_top, size: 18, color: Colors.deepPurple),
+                tooltip: 'وضع أمام النص',
+                onPressed: () => setModalState(() => el.layer = 'front'),
+              ),
+              IconButton(
+                icon: const Icon(Icons.vertical_align_bottom, size: 18, color: Colors.brown),
+                tooltip: 'وضع خلف النص',
+                onPressed: () => setModalState(() => el.layer = 'behind'),
+              ),
+              IconButton(
+                icon: const Icon(Icons.format_line_spacing, size: 18, color: Colors.blueGrey),
+                tooltip: 'إرجاعه ضمن النص',
+                onPressed: () => setModalState(() => el.layer = 'inline'),
+              ),
+            ],
             IconButton(
               icon: const Icon(Icons.copy_outlined, size: 17, color: Color(0xFF1E3A8A)),
               tooltip: 'نسخ للحافظة',
