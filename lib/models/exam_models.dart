@@ -48,6 +48,7 @@ class InsertableElement {
   double dx;
   double dy;
   bool isFloating;
+  String layer;
 
   InsertableElement({
     required this.id,
@@ -59,6 +60,7 @@ class InsertableElement {
     this.dx = 0.0,
     this.dy = 0.0,
     this.isFloating = false,
+    this.layer = 'inline',
   });
 
   Map<String, dynamic> toMap() => {
@@ -71,6 +73,7 @@ class InsertableElement {
         'dx': dx,
         'dy': dy,
         'isFloating': isFloating,
+        'layer': layer,
       };
 
   factory InsertableElement.fromMap(Map<String, dynamic> map) {
@@ -91,6 +94,7 @@ class InsertableElement {
       dx: (map['dx'] as num?)?.toDouble() ?? 0.0,
       dy: (map['dy'] as num?)?.toDouble() ?? 0.0,
       isFloating: map['isFloating'] as bool? ?? false,
+      layer: map['layer']?.toString() ?? 'inline',
     );
   }
 }
