@@ -1133,6 +1133,11 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: _pickAndOpenExamFileManually,
           ),
           IconButton(
+            icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.white),
+            tooltip: 'استيراد صفحات من PDF',
+            onPressed: _pickAndImportPdf,
+          ),
+          IconButton(
             icon: const Icon(
               Icons.folder_open,
               color: Colors.white,
