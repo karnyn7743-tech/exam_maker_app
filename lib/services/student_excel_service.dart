@@ -214,46 +214,21 @@ class StudentExcelService {
 
   static int _extractMonthOrderFromTitle(String examTitle, Sheet sheet, int totalMonths) {
     final title = _normalizeArabic(examTitle);
-
     final dynamicMonths = extractMonthsFromSheet(sheet, totalMonths: totalMonths);
+
+    // The monthly code must come from the month sequence in row 2 of the
+    // selected Excel worksheet; never substitute a hard-coded calendar order.
     for (int i = 0; i < dynamicMonths.length; i++) {
       final cleanMonthName = _normalizeArabic(dynamicMonths[i]);
-      if (cleanMonthName.isNotEmpty && (title.contains(cleanMonthName) || cleanMonthName.contains(title))) {
+      if (cleanMonthName.isNotEmpty &&
+          (title.contains(cleanMonthName) || cleanMonthName.contains(title))) {
         return i + 1;
       }
     }
 
-    const hijriMonths = {
-      'محرم': 1, 'صفر': 2, 'ربيعالاول': 3, 'ربيعاول': 3, 'ربيعثاني': 4, 'ربيعالثاني': 4,
-      'جماديالاولي': 5, 'جماديالاول': 5, 'جماديالاخره': 6, 'جماديالثانيه': 6,
-      'رجب': 7, 'شعبان': 8, 'رمضان': 9, 'شوال': 10, 'ذوالقعده': 11, 'ذوالحجه': 12,
-    };
-    for (final entry in hijriMonths.entries) {
-      if (title.contains(entry.key)) {
-        return entry.value;
-      }
-    }
-
-    const gregorianMonths = {
-      'سبتمبر': 1, 'اكتوبر': 2, 'نوفمبر': 3, 'ديسمبر': 4,
-      'يناير': 5, 'فبراير': 6, 'مارس': 7, 'ابريل': 8, 'مايو': 9,
-    };
-    for (final entry in gregorianMonths.entries) {
-      if (title.contains(entry.key)) {
-        return entry.value;
-      }
-    }
-
-    final match = RegExp(r'شهر\s*([1-8١-٨])').firstMatch(title);
-    if (match != null) {
-      final d = match.group(1)!;
-      return int.tryParse(d
-          .replaceAll('١', '1').replaceAll('٢', '2').replaceAll('٣', '3')
-          .replaceAll('٤', '4').replaceAll('٥', '5').replaceAll('٦', '6')
-          .replaceAll('٧', '7').replaceAll('٨', '8')) ?? 1;
-    }
-
-    return 1;
+    throw Exception(
+      'لم يتم العثور على اسم الشهر في عنوان الاختبار ضمن أسماء الأشهر في الصف الثاني من ورقة Excel المحددة. راجع عنوان الاختبار وورقة المادة.',
+    );
   }
 
   static int resolveSmartQrCodeNumberDynamic({
@@ -263,28 +238,35 @@ class StudentExcelService {
     int? totalMonths,
   }) {
     final title = _normalizeArabic(examTitle);
-    final sheet = excel.tables.values.first;
-    final int resolvedTotal = totalMonths ?? detectTotalMonths(sheet);
+    final sheets = excel.tables.keys.toList();
 
     int subjectSheetOrder = 1;
-    final sheets = excel.tables.keys.toList();
+    String selectedSheetName = sheets.isNotEmpty ? sheets.first : '';
     final cleanSubject = _normalizeArabic(subjectName);
 
     for (int i = 0; i < sheets.length; i++) {
       final cleanSheet = _normalizeArabic(sheets[i]);
-      if (cleanSheet == cleanSubject || cleanSheet.contains(cleanSubject) || cleanSubject.contains(cleanSheet)) {
+      if (cleanSheet == cleanSubject ||
+          cleanSheet.contains(cleanSubject) ||
+          cleanSubject.contains(cleanSheet)) {
         subjectSheetOrder = i + 1;
+        selectedSheetName = sheets[i];
         break;
       }
     }
 
-    if (title.contains('شهر')) {
-      return _extractMonthOrderFromTitle(examTitle, sheet, resolvedTotal);
+    final selectedSheet = excel.tables[selectedSheetName] ?? excel.tables.values.first;
+    final int resolvedTotal = totalMonths ?? detectTotalMonths(selectedSheet);
+
+    // A semester/final-term title uses the physical order of the subject sheet.
+    if (title.contains('فصل')) {
+      return subjectSheetOrder;
     }
 
-    if (title.contains('فصل1') || title.contains('فصلالاول') ||
-        title.contains('فصل2') || title.contains('فصلالثاني')) {
-      return subjectSheetOrder;
+    // A title marked as "نهاية" with a month, or an explicitly monthly title,
+    // is numbered from the month names in row 2 of the selected subject sheet.
+    if (title.contains('نهاية') || title.contains('شهر')) {
+      return _extractMonthOrderFromTitle(examTitle, selectedSheet, resolvedTotal);
     }
 
     return subjectSheetOrder;
