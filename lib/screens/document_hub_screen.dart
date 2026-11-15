@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:fluent_editor/fluent_editor.dart';
 import 'package:fluent_editor/fluent_document.dart';
+import 'package:fluent_editor/localization/fluent_editor_labels.dart';
 import 'package:fluent_editor/services/import_docx_service.dart';
 import 'package:fluent_editor/services/export_service.dart';
 import 'package:file_picker/file_picker.dart';
@@ -470,7 +471,56 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
                     )
                   : (_wordDocument == null
                       ? const Center(child: Text('تعذر تجهيز مستند Word للتحرير.'))
-                      : FluentEditor(document: _wordDocument!)),
+                      : Directionality(
+                          textDirection: TextDirection.rtl,
+                          child: FluentEditor(
+                            key: ValueKey(_filePath),
+                            document: _wordDocument!,
+                            labels: const FluentEditorLabels(
+                              file: 'ملف',
+                              save: 'حفظ',
+                              open: 'فتح',
+                              exportAs: 'تصدير باسم',
+                              microsoftWord: 'مستند Word',
+                              pdf: 'ملف PDF',
+                              importDocx: 'استيراد Word',
+                              edit: 'تحرير',
+                              undo: 'تراجع',
+                              redo: 'إعادة',
+                              cut: 'قص',
+                              copy: 'نسخ',
+                              paste: 'لصق',
+                              selectAll: 'تحديد الكل',
+                              delete: 'حذف',
+                              wordCount: 'عدد الكلمات',
+                              characterCount: 'عدد الأحرف',
+                              insert: 'إدراج',
+                              link: 'رابط',
+                              image: 'صورة',
+                              table: 'جدول',
+                              horizontalLine: 'خط أفقي',
+                              settings: 'إعدادات',
+                              showStats: 'إظهار الإحصاءات',
+                              documentLanguage: 'لغة المستند',
+                              format: 'تنسيق',
+                              text: 'نص',
+                              bold: 'غامق',
+                              italic: 'مائل',
+                              underline: 'تسطير',
+                              strikethrough: 'يتوسطه خط',
+                              align: 'محاذاة',
+                              alignLeft: 'محاذاة لليسار',
+                              alignCenter: 'توسيط',
+                              alignRight: 'محاذاة لليمين',
+                              justify: 'ضبط النص',
+                              cancel: 'إلغاء',
+                              confirmButton: 'تأكيد',
+                              insertButton: 'إدراج',
+                              apply: 'تطبيق',
+                              done: 'تم',
+                            ),
+                          ),
+                        )),
             ),
           ],
           if (_isBusy)
