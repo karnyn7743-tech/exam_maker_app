@@ -40,16 +40,17 @@ class MainActivity : FlutterActivity() {
                     return@setMethodCallHandler
                 }
 
-                val sourcePath = call.argument<String>("sourcePath")
-                val outputPath = call.argument<String>("outputPath")
-                val students: List<Map<String, String>> =
-                    (call.argument<List<*>>("students") ?: emptyList<Any?>()).mapNotNull { item ->
+                val arguments = call.arguments as? Map<*, *> ?: emptyMap<Any?, Any?>()
+                val sourcePath = arguments["sourcePath"] as? String
+                val outputPath = arguments["outputPath"] as? String
+                val rawStudents = arguments["students"] as? List<*> ?: emptyList<Any?>()
+                val students: List<Map<String, String>> = rawStudents.mapNotNull { item ->
                     val map = item as? Map<*, *> ?: return@mapNotNull null
                     map.entries.associate { entry ->
                         entry.key.toString() to (entry.value?.toString() ?: "")
                     }
                 }
-                val subjectCode = call.argument<Int>("subjectCode") ?: 1
+                val subjectCode = (arguments["subjectCode"] as? Number)?.toInt() ?: 1
 
                 if (sourcePath.isNullOrBlank() || outputPath.isNullOrBlank()) {
                     result.error("INVALID_ARGUMENT", "مسار ملف PDF غير صالح.", null)
