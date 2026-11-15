@@ -1286,14 +1286,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               onCopy: () {
                 if (_exam.questions.isNotEmpty &&
                     _exam.questions.any((q) => q.elements.isNotEmpty)) {
+                  final allElements =
+                      _exam.questions.expand((q) => q.elements).toList();
                   final el = _selectedElementId == null
-                      ? _exam.questions.last.elements.last
-                      : _exam.questions
-                          .expand((q) => q.elements)
-                          .firstWhere(
-                            (e) => e.id == _selectedElementId,
-                            orElse: () => _exam.questions.last.elements.last,
-                          );
+                      ? allElements.last
+                      : allElements.firstWhere(
+                          (e) => e.id == _selectedElementId,
+                          orElse: () => allElements.last,
+                        );
                   setState(() {
                     _copiedElement = InsertableElement(
                       id: const Uuid().v4(),
@@ -1332,8 +1332,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 }
               },
               onCut: () {
-                if (_exam.questions.isNotEmpty && _exam.questions.last.elements.isNotEmpty) {
-                  final el = _exam.questions.last.elements.removeLast();
+                final allElements =
+                    _exam.questions.expand((q) => q.elements).toList();
+                if (allElements.isNotEmpty) {
+                  final el = _selectedElementId == null
+                      ? allElements.last
+                      : allElements.firstWhere(
+                          (e) => e.id == _selectedElementId,
+                          orElse: () => allElements.last,
+                        );
                   setState(() {
                     _copiedElement = InsertableElement(
                       id: const Uuid().v4(),
@@ -1344,10 +1351,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       dx: el.dx,
                       dy: el.dy,
                     );
+                    for (final question in _exam.questions) {
+                      question.elements.removeWhere((item) => item.id == el.id);
+                    }
+                    _selectedElementId = null;
                   });
                   _measurePagesHeight();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم قص العنصر إلى الحافظة.')),
+                    const SnackBar(content: Text('تم قص العنصر المحدد إلى الحافظة.')),
                   );
                 }
               },
