@@ -231,6 +231,49 @@ class StudentExcelService {
     );
   }
 
+  /// يميز أوراق المواد من أوراق البيانات والإعدادات اعتماداً على
+  /// ترويسة كشف الطلاب الموجودة في الصف الثالث (الفهرس 2).
+  static bool _isSubjectSheet(Sheet sheet) {
+    if (sheet.maxRows < 4 || sheet.maxColumns < 2) return false;
+
+    final seatHeader = _normalizeArabic(_extractCleanText(
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 2)),
+    ));
+    final nameHeader = _normalizeArabic(_extractCleanText(
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 2)),
+    ));
+
+    final hasSeatHeader =
+        seatHeader.contains('جلوس') || seatHeader == 'رقم' ||
+        seatHeader.contains('رقمالجلوس');
+    final hasNameHeader =
+        nameHeader.contains('اسم') || nameHeader.contains('طالب');
+
+    if (!hasSeatHeader || !hasNameHeader) return false;
+
+    // لا نعد ورقة فارغة أو ورقة إعدادات ورقة مادة لمجرد وجود عنوان مشابه.
+    for (int row = 3; row < sheet.maxRows && row < 12; row++) {
+      final seat = _extractCleanText(
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row)),
+      );
+      final name = _extractCleanText(
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row)),
+      );
+      if (seat.isNotEmpty || name.isNotEmpty) return true;
+    }
+    return false;
+  }
+
+  static bool _isSemesterTitle(String normalizedTitle) {
+    final hasSemesterPhrase = normalizedTitle.contains('فصلدراسي');
+    final hasFirstOrSecond =
+        normalizedTitle.contains('اول') ||
+        normalizedTitle.contains('ثاني') ||
+        normalizedTitle.contains('الاول') ||
+        normalizedTitle.contains('الثاني');
+    return hasSemesterPhrase && hasFirstOrSecond;
+  }
+
   static int resolveSmartQrCodeNumberDynamic({
     required String examTitle,
     required String subjectName,
@@ -238,38 +281,45 @@ class StudentExcelService {
     int? totalMonths,
   }) {
     final title = _normalizeArabic(examTitle);
-    final sheets = excel.tables.keys.toList();
-
-    int subjectSheetOrder = 1;
-    String selectedSheetName = sheets.isNotEmpty ? sheets.first : '';
     final cleanSubject = _normalizeArabic(subjectName);
 
-    for (int i = 0; i < sheets.length; i++) {
-      final cleanSheet = _normalizeArabic(sheets[i]);
+    if (cleanSubject.isEmpty) {
+      throw Exception('يرجى تحديد اسم المادة أولاً.');
+    }
+
+    // الترتيب يحسب بين أوراق المواد فقط، مع تجاهل أوراق البيانات والإعدادات.
+    final subjectSheets = excel.tables.entries
+        .where((entry) => _isSubjectSheet(entry.value))
+        .toList();
+
+    int selectedSubjectIndex = -1;
+    for (int i = 0; i < subjectSheets.length; i++) {
+      final cleanSheet = _normalizeArabic(subjectSheets[i].key);
       if (cleanSheet == cleanSubject ||
           cleanSheet.contains(cleanSubject) ||
           cleanSubject.contains(cleanSheet)) {
-        subjectSheetOrder = i + 1;
-        selectedSheetName = sheets[i];
+        selectedSubjectIndex = i;
         break;
       }
     }
 
-    final selectedSheet = excel.tables[selectedSheetName] ?? excel.tables.values.first;
+    if (selectedSubjectIndex < 0) {
+      throw Exception(
+        'لم يتم العثور على ورقة المادة المحددة ضمن أوراق المواد في ملف Excel. تحقق من اسم المادة وترويسة ورقة الطلاب.',
+      );
+    }
+
+    final selectedSheet = subjectSheets[selectedSubjectIndex].value;
+    final subjectSheetOrder = selectedSubjectIndex + 1;
     final int resolvedTotal = totalMonths ?? detectTotalMonths(selectedSheet);
 
-    // A semester/final-term title uses the physical order of the subject sheet.
-    if (title.contains('فصل')) {
+    // الفصل الدراسي الأول أو الثاني: رقم ترتيب المادة بين أوراق المواد فقط.
+    if (_isSemesterTitle(title)) {
       return subjectSheetOrder;
     }
 
-    // A title marked as "نهاية" with a month, or an explicitly monthly title,
-    // is numbered from the month names in row 2 of the selected subject sheet.
-    if (title.contains('نهاية') || title.contains('شهر')) {
-      return _extractMonthOrderFromTitle(examTitle, selectedSheet, resolvedTotal);
-    }
-
-    return subjectSheetOrder;
+    // بقية العناوين الشهرية تطابق اسم الشهر في الصف الثاني من ورقة المادة.
+    return _extractMonthOrderFromTitle(examTitle, selectedSheet, resolvedTotal);
   }
 
   static int calculateWrittenExamColumn({
