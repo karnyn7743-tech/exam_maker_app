@@ -474,7 +474,7 @@ class _RichQuestionInlineEditorState extends State<RichQuestionInlineEditor> {
             color: const Color(0xFFEAF0FA),
             child: Row(
               children: [
-                const Icon(Icons.edit_document, size: 17, color: Color(0xFF1E3A8A)),
+                const Icon(Icons.edit, size: 17, color: Color(0xFF1E3A8A)),
                 const SizedBox(width: 6),
                 const Expanded(
                   child: Text(
