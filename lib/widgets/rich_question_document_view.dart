@@ -183,7 +183,9 @@ class RichQuestionDocumentView extends StatelessWidget {
     } catch (_) {
       child = const Icon(Icons.broken_image);
     }
-    return Padding(
+    return Transform.translate(
+      offset: image.isFloating ? Offset(image.offsetX, image.offsetY) : Offset.zero,
+      child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Align(
         alignment: image.textAlign == 'center'
@@ -192,6 +194,7 @@ class RichQuestionDocumentView extends StatelessWidget {
                 ? Alignment.centerRight
                 : Alignment.centerLeft,
         child: child,
+      ),
       ),
     );
   }
