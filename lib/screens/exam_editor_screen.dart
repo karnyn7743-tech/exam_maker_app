@@ -1620,7 +1620,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           top: _exam.header.topMargin1cm ? 8.5 : 12.0,
                           left: 12.0,
                           right: 12.0,
-                          bottom: 34.0,
+                          // مساحة الأسئلة تتغير حسب وضع بيانات الطلاب:
+                          // 3 سم عند تفعيل بيانات الطلاب، و1 سم في الورق العادي.
+                          bottom: (pageIndex == 0 &&
+                                  _exam.header.studentDataMode != 'none')
+                              ? (3.0 * 96.0 / 2.54) + (6.0 * 96.0 / 25.4)
+                              : (1.0 * 96.0 / 2.54) + (6.0 * 96.0 / 25.4),
                         ),
                         child: Column(
                           mainAxisSize: hasImportedPdfPage
@@ -1723,14 +1728,33 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 child: _buildQuestionsTableForPage(pageQuestions),
                               ),
                             const SizedBox(height: 10),
-
-                            Directionality(textDirection: TextDirection.rtl, child: _buildFooterPreview()),
                           ],
                         ),
                       );
                     },
                   ),
                 ),
+                ),
+              ),
+
+              // التذييل ثابت أسفل الورقة، مع حجز المساحة المطلوبة للأسئلة.
+              Positioned(
+                bottom: 6.0 * 96.0 / 25.4,
+                left: 18,
+                right: 18,
+                height: (pageIndex == 0 &&
+                        _exam.header.studentDataMode != 'none')
+                    ? 3.0 * 96.0 / 2.54
+                    : 1.0 * 96.0 / 2.54,
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Directionality(
+                    textDirection: TextDirection.rtl,
+                    child: _buildFooterPreview(
+                      showQrPlaceholder: pageIndex == 0 &&
+                          _exam.header.studentDataMode == 'namesAndQr',
+                    ),
+                  ),
                 ),
               ),
 
@@ -3479,12 +3503,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     return const SizedBox.shrink();
   }
 
-  Widget _buildFooterPreview() {
+  Widget _buildFooterPreview({bool showQrPlaceholder = false}) {
     final isAr = _isArabicExam;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+    return SizedBox(
+      width: double.infinity,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             _showAnswerKeyMode
@@ -3492,18 +3517,56 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 : (_exam.header.isMultiPage
                     ? (_exam.header.continuationText.isNotEmpty ? _exam.header.continuationText : (isAr ? 'يتبع في الصفحة التالية...' : 'To be continued on next page...'))
                     : (_exam.header.singlePageFooterText.isNotEmpty ? _exam.header.singlePageFooterText : (isAr ? 'انتهت الأسئلة مع تمنياتنا بالتوفيق' : 'End of Questions - Good Luck'))),
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
             textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 3),
-          Align(
-            alignment: isAr ? Alignment.centerLeft : Alignment.centerRight,
-            child: Text(
-              _showAnswerKeyMode
-                  ? (isAr ? 'المصحح / المراجع: ......................' : 'Examiner: ......................')
-                  : _exam.header.teacherSignature,
-              style: const TextStyle(fontSize: 11),
-            ),
+          const SizedBox(height: 2),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Flexible(
+                child: Text(
+                  _showAnswerKeyMode
+                      ? (isAr ? 'المصحح / المراجع: ......................' : 'Examiner: ......................')
+                      : _exam.header.teacherSignature,
+                  style: const TextStyle(fontSize: 10),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (showQrPlaceholder)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      _exam.header.subjectCode.toString(),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      width: 38,
+                      height: 38,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.black54, width: 0.8),
+                      ),
+                      child: const Icon(Icons.qr_code_2, size: 32, color: Colors.black87),
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      width: 55,
+                      height: 45,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.black54, width: 0.8),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
           ),
         ],
       ),
