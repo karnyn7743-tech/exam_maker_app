@@ -1137,15 +1137,27 @@ class PdfExportService {
         bytes = File(image.src).readAsBytesSync();
       }
       if (bytes == null) return null;
+      // Fluent Editor stores image dimensions and drag offsets in Flutter
+      // logical pixels (96 dpi), while PDF layout uses points (72 dpi).
+      // Convert both size and position so the exported image matches the
+      // editor's on-screen geometry.
+      const double logicalPixelToPdfPoint = 72.0 / 96.0;
       final renderedImage = pw.Image(
         pw.MemoryImage(bytes),
-        width: image.width,
-        height: image.height,
+        width: image.width == null
+            ? null
+            : image.width! * logicalPixelToPdfPoint,
+        height: image.height == null
+            ? null
+            : image.height! * logicalPixelToPdfPoint,
         fit: pw.BoxFit.contain,
       );
       if (image.isFloating) {
         return pw.Transform.translate(
-          offset: PdfPoint(image.offsetX, image.offsetY),
+          offset: PdfPoint(
+            image.offsetX * logicalPixelToPdfPoint,
+            image.offsetY * logicalPixelToPdfPoint,
+          ),
           child: renderedImage,
         );
       }
