@@ -2,7 +2,7 @@ name: exam_maker_app
 description: "تطبيق صانع ومحرر الاختبارات المدرسية المؤتمتة والشاملة - إعداد وتطوير أ. فواز سنان البعيثي"
 publish_to: "none"
 
-version: 1.0.4+5
+version: 1.0.4+6
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
