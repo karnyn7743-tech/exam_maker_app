@@ -12,6 +12,7 @@ on:
       - 'assets/**'
       - 'pubspec.yaml'
       - 'pubspec.lock'
+      - 'tool/**'
 
 permissions:
   contents: read
@@ -51,6 +52,9 @@ jobs:
 
       - name: Get Dependencies
         run: flutter pub get
+
+      - name: Patch Fluent Editor Touch Selection
+        run: dart run tool/patch_fluent_editor.dart
 
       - name: Build Release APK
         run: flutter build apk --release --verbose
