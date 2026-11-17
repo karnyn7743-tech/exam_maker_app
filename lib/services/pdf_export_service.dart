@@ -425,6 +425,25 @@ class PdfExportService {
     pw.MemoryImage? logoImage,
     bool isAr,
   ) {
+    // استخدم إعدادات الخط المحفوظة لكل منطقة من مناطق الترويسة.
+    final adminFont = _resolvePdfFont(exam.header.adminFont, ttf);
+    final basmalaFont = _resolvePdfFont(exam.header.basmalaFont, ttf);
+    final detailsFont = _resolvePdfFont(exam.header.detailsFont, ttf);
+    final titleFont = _resolvePdfFont(exam.header.titleFont, ttf);
+
+    final adminWeight = exam.header.adminBold
+        ? pw.FontWeight.bold
+        : pw.FontWeight.normal;
+    final detailsWeight = exam.header.detailsBold
+        ? pw.FontWeight.bold
+        : pw.FontWeight.normal;
+    final basmalaWeight = exam.header.basmalaBold
+        ? pw.FontWeight.bold
+        : pw.FontWeight.normal;
+    final titleWeight = exam.header.titleBold
+        ? pw.FontWeight.bold
+        : pw.FontWeight.normal;
+
     return pw.Container(
       decoration: pw.BoxDecoration(
         border: pw.Border.all(color: PdfColors.black, width: 1.5),
@@ -440,23 +459,51 @@ class PdfExportService {
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
-                    pw.Text(exam.header.country,
-                        style: pw.TextStyle(
-                            font: ttf, fontSize: 10, fontWeight: pw.FontWeight.bold),
-                        textAlign: pw.TextAlign.center),
-                    pw.Text(exam.header.ministry,
-                        style: pw.TextStyle(font: ttf, fontSize: 8.5),
-                        textAlign: pw.TextAlign.center),
-                    pw.Text(exam.header.governorate,
-                        style: pw.TextStyle(font: ttf, fontSize: 8),
-                        textAlign: pw.TextAlign.center),
-                    pw.Text(exam.header.directorate,
-                        style: pw.TextStyle(font: ttf, fontSize: 8),
-                        textAlign: pw.TextAlign.center),
-                    pw.Text(exam.header.school,
-                        style: pw.TextStyle(
-                            font: ttf, fontSize: 8.5, fontWeight: pw.FontWeight.bold),
-                        textAlign: pw.TextAlign.center),
+                    pw.Text(
+                      exam.header.country,
+                      style: pw.TextStyle(
+                        font: adminFont,
+                        fontSize: exam.header.adminFontSize + 1.5,
+                        fontWeight: adminWeight,
+                      ),
+                      textAlign: pw.TextAlign.center,
+                    ),
+                    pw.Text(
+                      exam.header.ministry,
+                      style: pw.TextStyle(
+                        font: adminFont,
+                        fontSize: exam.header.adminFontSize,
+                        fontWeight: adminWeight,
+                      ),
+                      textAlign: pw.TextAlign.center,
+                    ),
+                    pw.Text(
+                      exam.header.governorate,
+                      style: pw.TextStyle(
+                        font: adminFont,
+                        fontSize: exam.header.adminFontSize - 0.5,
+                        fontWeight: adminWeight,
+                      ),
+                      textAlign: pw.TextAlign.center,
+                    ),
+                    pw.Text(
+                      exam.header.directorate,
+                      style: pw.TextStyle(
+                        font: adminFont,
+                        fontSize: exam.header.adminFontSize - 0.5,
+                        fontWeight: adminWeight,
+                      ),
+                      textAlign: pw.TextAlign.center,
+                    ),
+                    pw.Text(
+                      exam.header.school,
+                      style: pw.TextStyle(
+                        font: adminFont,
+                        fontSize: exam.header.adminFontSize,
+                        fontWeight: adminWeight,
+                      ),
+                      textAlign: pw.TextAlign.center,
+                    ),
                   ],
                 ),
               ),
@@ -464,10 +511,15 @@ class PdfExportService {
                 child: pw.Column(
                   mainAxisAlignment: pw.MainAxisAlignment.center,
                   children: [
-                    pw.Text(exam.header.basmalaText,
-                        style: pw.TextStyle(
-                            font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold),
-                        textAlign: pw.TextAlign.center),
+                    pw.Text(
+                      exam.header.basmalaText,
+                      style: pw.TextStyle(
+                        font: basmalaFont,
+                        fontSize: exam.header.basmalaFontSize,
+                        fontWeight: basmalaWeight,
+                      ),
+                      textAlign: pw.TextAlign.center,
+                    ),
                     pw.SizedBox(height: 4),
                     if (logoImage != null)
                       pw.Image(logoImage, height: 45, fit: pw.BoxFit.contain)
@@ -481,18 +533,46 @@ class PdfExportService {
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text('الصف : ${exam.header.grade}',
-                        style: pw.TextStyle(
-                            font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
-                    pw.Text('المادة : ${exam.header.subject}',
-                        style: pw.TextStyle(
-                            font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
-                    pw.Text('التاريخ: ${exam.header.examDate}',
-                        style: pw.TextStyle(font: ttf, fontSize: 8.5)),
-                    pw.Text('الزمن: ${exam.header.examTime}',
-                        style: pw.TextStyle(font: ttf, fontSize: 8.5)),
-                    pw.Text('الفترة: ${exam.header.period}',
-                        style: pw.TextStyle(font: ttf, fontSize: 8.5)),
+                    pw.Text(
+                      'الصف : ${exam.header.grade}',
+                      style: pw.TextStyle(
+                        font: detailsFont,
+                        fontSize: exam.header.detailsFontSize,
+                        fontWeight: detailsWeight,
+                      ),
+                    ),
+                    pw.Text(
+                      'المادة : ${exam.header.subject}',
+                      style: pw.TextStyle(
+                        font: detailsFont,
+                        fontSize: exam.header.detailsFontSize,
+                        fontWeight: detailsWeight,
+                      ),
+                    ),
+                    pw.Text(
+                      'التاريخ: ${exam.header.examDate}',
+                      style: pw.TextStyle(
+                        font: detailsFont,
+                        fontSize: exam.header.detailsFontSize - 1,
+                        fontWeight: detailsWeight,
+                      ),
+                    ),
+                    pw.Text(
+                      'الزمن: ${exam.header.examTime}',
+                      style: pw.TextStyle(
+                        font: detailsFont,
+                        fontSize: exam.header.detailsFontSize - 1,
+                        fontWeight: detailsWeight,
+                      ),
+                    ),
+                    pw.Text(
+                      'الفترة: ${exam.header.period}',
+                      style: pw.TextStyle(
+                        font: detailsFont,
+                        fontSize: exam.header.detailsFontSize - 1,
+                        fontWeight: detailsWeight,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -507,7 +587,10 @@ class PdfExportService {
               exam.header.examTitle,
               textAlign: pw.TextAlign.center,
               style: pw.TextStyle(
-                  font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                font: titleFont,
+                fontSize: exam.header.titleFontSize,
+                fontWeight: titleWeight,
+              ),
             ),
           ),
         ],
