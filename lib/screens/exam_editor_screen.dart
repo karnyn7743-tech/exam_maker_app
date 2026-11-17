@@ -3070,7 +3070,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               ? (controlSize * 2 + 18 / safeScale)
               : el.height);
       final double outerHeight = verticalRailHeight + bottomRailHeight;
-      final double outerWidth = el.width;
+      final double outerWidth = canResize\n          ? math.max(el.width, railWidth + controlSize + 4 / safeScale)\n          : el.width;
 
       void moveBy(Offset delta) {
         refreshState(() {
@@ -3122,7 +3122,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               if (isSelected) ...[
                 // مقبض التحريك في أعلى العنصر، داخل مساحة اللمس المحجوزة.
                 Positioned(
-                  left: (el.width / 2) - (controlSize / 2),
+                  left: outerWidth - controlSize,
                   top: 2 / safeScale,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
