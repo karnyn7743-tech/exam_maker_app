@@ -14,6 +14,44 @@ import '../models/exam_models.dart';
 import 'student_excel_service.dart';
 
 class PdfExportService {
+  static const Map<String, String> _fontAssetPaths = {
+    'Amiri': 'assets/fonts/Amiri-Regular.ttf',
+    'Hafs': 'assets/fonts/hafs_v22.ttf',
+    'Thuluth': 'assets/fonts/Thuluth.ttf',
+    'Almarai': 'assets/fonts/Almarai.ttf',
+    'Changa': 'assets/fonts/Changa.ttf',
+    'Kufam': 'assets/fonts/Kufam.ttf',
+    'Rubik': 'assets/fonts/Rubik-Medium.ttf',
+    'Arial': 'assets/fonts/Arial.ttf',
+    'ElHijaz': 'assets/fonts/ElHijaz-Normal.ttf',
+    'ElSHijazAdorn': 'assets/fonts/ElS-Hijaz-Adorn.ttf',
+    'ElourQuraaKufi': 'assets/fonts/Elour-Quraa-Kufi.ttf',
+    'ElghAnSrame': 'assets/fonts/Elgh-an-Srame.ttf',
+    'ElAfrica': 'assets/fonts/ElAfrica-V2.ttf',
+    'SultanCtangle': 'assets/fonts/Sultan-ctangle.ttf',
+    'Tahrir': 'assets/fonts/Tahrir-mob3.ttf',
+    'DTUTH': 'assets/fonts/DTUTH-II-1.ttf',
+    'Lishposter': 'assets/fonts/Lishposter.ttf',
+    'Axdf': 'assets/fonts/Axdf.ttf',
+    'Banyeh': 'assets/fonts/Banyeh.ttf',
+    'Meshref': 'assets/fonts/meshref.ttf',
+    'Minder': 'assets/fonts/minder.ttf',
+    'Mobv2': 'assets/fonts/mobv2-regular.ttf',
+    'GSoon': 'assets/fonts/gSoon-Regular.ttf',
+    'DeApple': 'assets/fonts/deApple-Regular.ttf',
+    'JsMath': 'assets/fonts/jsMath-cmbx10.ttf',
+    'Satisfy': 'assets/fonts/Satisfy-Regular.ttf',
+    'Schoolbell': 'assets/fonts/Schoolbell-Regular.ttf',
+    'Caps': 'assets/fonts/Caps-Regular.ttf',
+    'Chewy': 'assets/fonts/Chewy-Regular.ttf',
+    'Crushed': 'assets/fonts/Crushed-Regular.ttf',
+    'Girls': 'assets/fonts/Girls-Regular.ttf',
+    'Grover': 'assets/fonts/Grover-Regular.ttf',
+    'RSwanky': 'assets/fonts/rSwanky-Regular.ttf',
+    'SMono': 'assets/fonts/sMono.ttf',
+  };
+  static final Map<String, pw.Font> _pdfFontByFamily = {};
+
   static const double cm = 28.3465;
   static const double mm = 2.83465;
 
@@ -45,6 +83,17 @@ class PdfExportService {
       }
     }
     final ttf = pw.Font.ttf(fontData);
+    _pdfFontByFamily.clear();
+    for (final entry in _fontAssetPaths.entries) {
+      try {
+        final data = await rootBundle.load(entry.value);
+        _pdfFontByFamily[entry.key] = pw.Font.ttf(data);
+      } catch (_) {
+        // A missing optional font falls back to the document's base font.
+      }
+    }
+    _pdfFontByFamily.putIfAbsent('Arial', () => ttf);
+    _pdfFontByFamily.putIfAbsent('Amiri', () => ttf);
 
     pw.MemoryImage? logoImage;
     if (exam.header.logoImagePath != null &&
@@ -882,7 +931,11 @@ class PdfExportService {
               ttf,
               fontSize: s.fontSize,
               isBold: s.isBold,
+              isItalic: s.isItalic,
+              isUnderline: s.isUnderline,
+              isStrikethrough: s.isStrikethrough,
               textColor: spanColor,
+              highlightColor: s.highlightHex == null ? null : _parsePdfColor(s.highlightHex),
               lineSpacing: 2,
               textAlign: chosenAlign,
               isAr: isAr,
@@ -908,7 +961,11 @@ class PdfExportService {
               ttf,
               fontSize: s.fontSize,
               isBold: s.isBold,
+              isItalic: s.isItalic,
+              isUnderline: s.isUnderline,
+              isStrikethrough: s.isStrikethrough,
               textColor: spanColor,
+              highlightColor: s.highlightHex == null ? null : _parsePdfColor(s.highlightHex),
               lineSpacing: 2,
               textAlign: chosenAlign,
               isAr: isAr,
@@ -1124,7 +1181,7 @@ class PdfExportService {
       decoration = pw.TextDecoration.lineThrough;
     }
     return pw.TextStyle(
-      font: font,
+      font: _pdfFontByFamily[fragment.fontFamily] ?? font,
       fontSize: fragment.fontSize,
       color: color,
       fontWeight: styles.contains('bold') || paragraphStyles.contains('bold')
@@ -1274,7 +1331,11 @@ class PdfExportService {
     pw.Font ttf, {
     double fontSize = 11,
     bool isBold = false,
+    bool isItalic = false,
+    bool isUnderline = false,
+    bool isStrikethrough = false,
     PdfColor textColor = PdfColors.black,
+    PdfColor? highlightColor,
     double lineSpacing = 1.5,
     pw.TextAlign? textAlign,
     bool isAr = true,
@@ -1292,6 +1353,15 @@ class PdfExportService {
           fontSize: fontSize,
           color: textColor,
           fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
+          fontStyle: isItalic ? pw.FontStyle.italic : pw.FontStyle.normal,
+          decoration: [
+            if (isUnderline) pw.TextDecoration.underline,
+            if (isStrikethrough) pw.TextDecoration.lineThrough,
+          ].isEmpty ? null : pw.TextDecoration.combine([
+            if (isUnderline) pw.TextDecoration.underline,
+            if (isStrikethrough) pw.TextDecoration.lineThrough,
+          ]),
+          background: highlightColor == null ? null : pw.BoxDecoration(color: highlightColor),
           lineSpacing: lineSpacing,
         ),
       );
