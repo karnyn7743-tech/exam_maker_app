@@ -106,6 +106,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   String? _selectedElementId;
   String? _activeRichEditorQuestionId;
   FluentDocument? _activeRichDocument;
+  double? _zoomBeforeRichEdit;
 
   // الحالات النشطة لتنسيق الشريط المبوب الرئيسي
   bool _isBold = false;
@@ -326,6 +327,34 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
   void _fitScreen() {
     _fitScreenToA4();
+  }
+
+  void _activateRichEditor(String questionId) {
+    final previousZoom = _zoomBeforeRichEdit ?? _zoomLevel;
+    setState(() {
+      _zoomBeforeRichEdit = previousZoom;
+      _activeRichEditorQuestionId = questionId;
+      _activeRichDocument = null;
+      // Keep the editing surface readable even when the A4 page was fitted
+      // to a small phone screen.
+      _zoomLevel = math.max(_zoomLevel, 1.0).clamp(0.35, 3.0).toDouble();
+      _transformationController.value = Matrix4.identity()..scale(_zoomLevel);
+    });
+  }
+
+  void _closeRichEditor() {
+    if (_activeRichEditorQuestionId == null && _activeRichDocument == null) return;
+    setState(() {
+      _activeRichEditorQuestionId = null;
+      _activeRichDocument = null;
+      final restoreZoom = _zoomBeforeRichEdit;
+      if (restoreZoom != null) {
+        _zoomLevel = restoreZoom;
+        _transformationController.value = Matrix4.identity()..scale(restoreZoom);
+      }
+      _zoomBeforeRichEdit = null;
+    });
+    _measurePagesHeight();
   }
 
   bool get _isArabicExam => _exam.isArabic;
@@ -1534,7 +1563,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             // تغليف عرض الورقة البيضاء بـ InteractiveViewer وتثبيت أبعاد A4
             Expanded(
               child: InteractiveViewer(
-                panEnabled: false,
+                panEnabled: _activeRichEditorQuestionId != null,
                 scaleEnabled: true,
                 alignment: Alignment.topCenter,
                 transformationController: _transformationController,
@@ -1969,12 +1998,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 verticalAlignment: TableCellVerticalAlignment.middle,
                 child: InkWell(
                   onTap: () {
-                    if (_activeRichEditorQuestionId != null) {
-                      setState(() {
-                        _activeRichEditorQuestionId = null;
-                        _activeRichDocument = null;
-                      });
-                    }
+                    _closeRichEditor();
                     _openQuestionDialog(questionIndex: indexInMainList);
                   },
                   child: Padding(
@@ -2006,22 +2030,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               if (!mounted || _activeRichEditorQuestionId != q.id) return;
                               setState(() => _activeRichDocument = document);
                             },
-                            onClose: () {
-                              setState(() {
-                                _activeRichEditorQuestionId = null;
-                                _activeRichDocument = null;
-                              });
-                              _measurePagesHeight();
-                            },
+                            onClose: _closeRichEditor,
                           ),
                         )
                       : InkWell(
-                          onTap: () {
-                            setState(() {
-                              _activeRichEditorQuestionId = q.id;
-                              _activeRichDocument = null;
-                            });
-                          },
+                          onTap: () => _activateRichEditor(q.id),
                           child: Stack(
                             clipBehavior: Clip.none,
                             children: [
@@ -2100,12 +2113,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 verticalAlignment: TableCellVerticalAlignment.middle,
                 child: InkWell(
                   onTap: () {
-                    if (_activeRichEditorQuestionId != null) {
-                      setState(() {
-                        _activeRichEditorQuestionId = null;
-                        _activeRichDocument = null;
-                      });
-                    }
+                    _closeRichEditor();
                     _openQuestionDialog(questionIndex: indexInMainList);
                   },
                   child: Padding(
