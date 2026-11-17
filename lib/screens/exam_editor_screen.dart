@@ -25,6 +25,10 @@ import '../widgets/exam_ribbon_toolbar.dart';
 import '../widgets/rich_question_editor_dialog.dart';
 import '../widgets/rich_question_document_view.dart';
 
+// A4 page dimensions in logical points.
+const double kA4PaperWidth = 595.28;
+const double kA4PaperHeight = 841.89;
+
 // Shared font catalog used by the ribbon and rich editor.
 class ExamEditorScreen extends StatefulWidget {
   final ExamModel initialExam;
