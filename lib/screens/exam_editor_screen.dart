@@ -18,6 +18,7 @@ import '../services/direct_print_service.dart';
 import 'omr_scanner_screen.dart';
 import '../widgets/exam_custom_keyboard.dart';
 import '../widgets/exam_ribbon_toolbar.dart';
+import '../widgets/rich_question_editor_dialog.dart';
 
 typedef FontItem = Map<String, String>;
 
@@ -3790,6 +3791,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     GradeTextOrientation gradeOrient = q.gradeOrientation;
     bool isTwoCols = q.isTwoColumns;
     List<InsertableElement> currentElements = List.from(q.elements);
+    String? richDocumentJson = q.richDocumentJson;
 
     TextAlign selectedAlignment = q.alignment ?? _activeAlignment;
     bool isInputArabic = _isArabicInput;
@@ -5369,6 +5371,49 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ),
                       const SizedBox(height: 8),
 
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.description_outlined, color: Color(0xFF1E3A8A)),
+                          label: const Text(
+                            'فتح محرر Word المتقدم (إدراج الصور داخل النص)',
+                            style: TextStyle(
+                              color: Color(0xFF1E3A8A),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                          onPressed: () async {
+                            final result = await showDialog<Map<String, String>>(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (_) => Dialog.fullscreen(
+                                child: RichQuestionEditorDialog(
+                                  initialDocumentJson: richDocumentJson,
+                                  initialSpans: workingSpans,
+                                  initialText: textCtrl.text,
+                                ),
+                              ),
+                            );
+                            if (result == null) return;
+                            setModalState(() {
+                              richDocumentJson = result['json'];
+                              final updatedText = result['text'] ?? '';
+                              textCtrl.value = TextEditingValue(
+                                text: updatedText,
+                                selection: TextSelection.collapsed(
+                                  offset: updatedText.length,
+                                ),
+                              );
+                              syncWorkingSpansWithText();
+                              lastSelection = textCtrl.selection;
+                              activeFieldController = textCtrl;
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+
                       Directionality(
                         textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
                         child: TextField(
@@ -5382,6 +5427,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           style: TextStyle(height: currentLineSpacing),
                           onChanged: (val) {
                             setModalState(() {
+                              richDocumentJson = null;
                               syncWorkingSpansWithText();
                               lastSelection = textCtrl.selection;
                               isTextSelected = textCtrl.selection.isValid && !textCtrl.selection.isCollapsed;
@@ -5555,6 +5601,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 mark: double.tryParse(markCtrl.text) ?? 5.0,
                                 spans: [TextSpanModel(text: textCtrl.text)],
                                 elements: currentElements,
+                                richDocumentJson: richDocumentJson,
                                 answerKey: answerCtrl.text.trim(),
                                 alignment: selectedAlignment,
                               );
@@ -5650,6 +5697,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                   mark: double.tryParse(markCtrl.text) ?? 0.0,
                                   spans: spansToSave,
                                   elements: currentElements,
+                                  richDocumentJson: richDocumentJson,
                                   answerKey: answerCtrl.text.trim(),
                                   isTwoColumns: isTwoCols,
                                   alignment: selectedAlignment,
