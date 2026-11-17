@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,29 +18,21 @@ class ExamStorageService {
 
   /// إنشاء وتجهيز مجلد [المحرر البسيط] في مساحة التخزين.
   static Future<Directory> ensureAppFolderExists() async {
-    if (Platform.isAndroid) {
-      final manageStatus = await Permission.manageExternalStorage.status;
-
-      if (manageStatus.isDenied) {
-        await Permission.manageExternalStorage.request();
-      }
-
-      final storageStatus = await Permission.storage.status;
-
-      if (storageStatus.isDenied) {
-        await Permission.storage.request();
-      }
-    }
-
     Directory baseDir;
 
     if (Platform.isAndroid) {
-      final publicDownloads =
-          Directory('/storage/emulated/0/Download');
+      // لا نطلب أي إذن هنا؛ هذه الدالة تُستدعى أيضاً عند بدء التطبيق.
+      // نستخدم مجلد Download فقط إذا كانت صلاحية الوصول المناسبة ممنوحة مسبقاً.
+      final androidInfo = await DeviceInfoPlugin().androidInfo;
+      final hasPublicStorageAccess = androidInfo.version.sdkInt >= 30
+          ? await Permission.manageExternalStorage.isGranted
+          : await Permission.storage.isGranted;
 
-      if (await publicDownloads.exists()) {
+      final publicDownloads = Directory('/storage/emulated/0/Download');
+      if (hasPublicStorageAccess && await publicDownloads.exists()) {
         baseDir = publicDownloads;
       } else {
+        // بديل آمن لا يحتاج إذن تخزين عام، مع إبقاء ملفات التطبيق وبياناته.
         baseDir = (await getExternalStorageDirectory()) ??
             await getApplicationDocumentsDirectory();
       }
