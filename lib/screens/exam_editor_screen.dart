@@ -3716,7 +3716,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         spans: [
                           TextSpanModel(
                             text: t['content'] as String,
-                            fontSize: 14.0,
+                            fontSize: _activeFontSize,
                             fontFamily: isAr ? 'Amiri' : 'Arial',
                           )
                         ],
@@ -3784,15 +3784,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     bool isTwoCols = q.isTwoColumns;
     List<InsertableElement> currentElements = List.from(q.elements);
 
-    TextAlign selectedAlignment = q.alignment ?? (isAr ? TextAlign.right : TextAlign.left);
-    bool isInputArabic = isAr;
+    TextAlign selectedAlignment = q.alignment ?? _activeAlignment;
+    bool isInputArabic = _isArabicInput;
 
     bool showCustomKeyboard = true;
     bool useSystemKeyboard = false;
     TextEditingController activeFieldController = textCtrl;
     bool showQuestionSettings = true;
 
-    final defaultFont = isAr ? 'Amiri' : 'Arial';
+    final defaultFont = _activeFont.isNotEmpty ? _activeFont : (isAr ? 'Amiri' : 'Arial');
     List<TextSpanModel> workingSpans = q.spans.isNotEmpty
         ? q.spans.map((s) => TextSpanModel(
               text: s.text,
@@ -3807,15 +3807,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               text: textCtrl.text,
               fontSize: 14.0,
               fontFamily: defaultFont,
-              colorHex: '#000000',
+              colorHex: _activeColor,
+              isBold: _isBold,
+              isUnderline: _isUnderline,
             )
           ];
 
     String currentFont = q.spans.isNotEmpty ? q.spans.first.fontFamily : defaultFont;
-    double currentFontSize = (q.spans.isNotEmpty ? q.spans.first.fontSize : 14.0).clamp(8.0, 36.0).toDouble();
-    bool isBoldActive = false;
-    bool isUnderlineActive = false;
-    String currentColor = '#000000';
+    double currentFontSize = (q.spans.isNotEmpty ? q.spans.first.fontSize : _activeFontSize).clamp(8.0, 36.0).toDouble();
+    bool isBoldActive = _isBold;
+    bool isUnderlineActive = _isUnderline;
+    String currentColor = _activeColor;
 
     // حافظ على معاينة النص المنسق متزامنة مع النص الجاري تحريره.
     // وعند تغيير النص بالكامل نستخدم نمط الإدخال النشط، مثل سلوك الحفظ الحالي.
