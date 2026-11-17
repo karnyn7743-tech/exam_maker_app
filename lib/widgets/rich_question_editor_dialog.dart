@@ -246,6 +246,31 @@ class RichQuestionEditorDialogState extends State<RichQuestionEditorDialog> {
     return paragraphs.join('\n').trimRight();
   }
 
+  List<TextSpanModel> _extractStyledSpans() {
+    final spans = <TextSpanModel>[];
+    for (final node in _document.content.nodes) {
+      if (node is! Paragraph) continue;
+      for (final fragment in node.fragments) {
+        if (fragment is! Fragment || fragment is FluentImage) continue;
+        final value = fragment.text.replaceAll('\u200B', '');
+        if (value.isEmpty) continue;
+        final styles = fragment.styles ?? const <String>[];
+        spans.add(TextSpanModel(
+          text: value,
+          isBold: styles.contains('bold'),
+          isItalic: styles.contains('italic'),
+          isUnderline: styles.contains('underline'),
+          isStrikethrough: styles.contains('strikethrough'),
+          fontFamily: fragment.fontFamily,
+          fontSize: fragment.fontSize,
+          colorHex: fragment.color ?? '#000000',
+          highlightHex: fragment.highlightColor,
+        ));
+      }
+    }
+    return spans;
+  }
+
   void _finish() {
     Navigator.of(context).pop(<String, String>{
       'json': _document.toJson(),
@@ -448,50 +473,6 @@ class _RichQuestionInlineEditorState extends State<RichQuestionInlineEditor> {
       visit(node);
     }
     return paragraphs.join('\n').trimRight();
-  }
-
-  List<TextSpanModel> _extractStyledSpans() {
-    final spans = <TextSpanModel>[];
-    void visit(FNode node) {
-      if (node is Paragraph) {
-        for (final fragment in node.fragments) {
-          if (fragment is! Fragment || fragment is FluentImage) continue;
-          if (fragment.text.isEmpty || fragment.text == '\u200B') continue;
-          final styles = fragment.styles ?? const <String>[];
-          spans.add(TextSpanModel(
-            text: fragment.text.replaceAll('\u200B', ''),
-            isBold: styles.contains('bold'),
-            isItalic: styles.contains('italic'),
-            isUnderline: styles.contains('underline'),
-            isStrikethrough: styles.contains('strikethrough'),
-            fontFamily: fragment.fontFamily,
-            fontSize: fragment.fontSize,
-            colorHex: fragment.color ?? '#000000',
-            highlightHex: fragment.highlightColor,
-          ));
-        }
-        return;
-      }
-      if (node is FluentList) {
-        for (final item in node.items) {
-          for (final child in item.children) { visit(child); }
-        }
-        return;
-      }
-      if (node is FluentTable) {
-        for (final row in node.rows) {
-          for (final cell in row.cells) {
-            for (final child in cell.children) { visit(child); }
-          }
-        }
-        return;
-      }
-      if (node is ListItem || node is FluentCell) {
-        for (final child in (node as InlineContainerNode).getChildren()) { visit(child); }
-      }
-    }
-    for (final node in _document.content.nodes) { visit(node); }
-    return spans;
   }
 
   List<TextSpanModel> _extractStyledSpans() {
