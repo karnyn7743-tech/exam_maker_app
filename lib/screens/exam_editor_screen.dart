@@ -1569,6 +1569,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               : null;
       final bool hasImportedPdfPage = importedPdfPagePath != null &&
           File(importedPdfPagePath).existsSync();
+      final bool hasStudentDataSource = pageIndex == 0 &&
+          _exam.header.topMargin1cm &&
+          _exam.header.studentDataMode != 'none' &&
+          _exam.header.excelFilePath != null &&
+          File(_exam.header.excelFilePath!).existsSync();
 
       final double consumedHeight = _pageHeights[pageIndex] ?? 0.0;
       final double fillPercentage = (consumedHeight / kA4PaperHeight).clamp(0.0, 1.5);
@@ -1622,9 +1627,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           right: 12.0,
                           // مساحة الأسئلة تتغير حسب وضع بيانات الطلاب:
                           // 3 سم عند تفعيل بيانات الطلاب، و1 سم في الورق العادي.
-                          bottom: (pageIndex == 0 &&
-                                  _exam.header.topMargin1cm &&
-                                  _exam.header.studentDataMode != 'none')
+                          bottom: hasStudentDataSource
                               ? (3.0 * 96.0 / 2.54) + (6.0 * 96.0 / 25.4)
                               : (1.0 * 96.0 / 2.54) + (6.0 * 96.0 / 25.4),
                         ),
@@ -1743,9 +1746,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 bottom: 6.0 * 96.0 / 25.4,
                 left: 20.0 * 96.0 / 72.0,
                 right: 20.0 * 96.0 / 72.0,
-                height: (pageIndex == 0 &&
-                        _exam.header.topMargin1cm &&
-                        _exam.header.studentDataMode != 'none')
+                height: hasStudentDataSource
                     ? 3.0 * 96.0 / 2.54
                     : 1.0 * 96.0 / 2.54,
                 child: Align(
@@ -1753,8 +1754,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   child: Directionality(
                     textDirection: TextDirection.rtl,
                     child: _buildFooterPreview(
-                      showQrPlaceholder: pageIndex == 0 &&
-                          _exam.header.topMargin1cm &&
+                      showQrPlaceholder: hasStudentDataSource &&
                           _exam.examType != ExamType.automated &&
                           _exam.header.studentDataMode == 'namesAndQr',
                     ),
