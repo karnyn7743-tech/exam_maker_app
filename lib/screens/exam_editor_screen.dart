@@ -1910,6 +1910,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                   child: _buildRenderedElement(
                                     el,
                                     applyOffset: false,
+                                    gestureScale: _zoomLevel,
                                   ),
                                 )),
                         Column(
@@ -1920,7 +1921,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               const SizedBox(height: 6),
                             ...q.elements
                                 .where((el) => el.layer == 'inline')
-                                .map((el) => _buildRenderedElement(el)),
+                                .map((el) => _buildRenderedElement(el, gestureScale: _zoomLevel)),
                             if (_showAnswerKeyMode && q.answerKey.trim().isNotEmpty) ...[
                           const SizedBox(height: 6),
                           Container(
@@ -1960,6 +1961,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                   child: _buildRenderedElement(
                                     el,
                                     applyOffset: false,
+                                    gestureScale: _zoomLevel,
                                   ),
                                 )),
                       ],
@@ -4919,6 +4921,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       child: _buildRenderedElement(
                         el,
                         applyOffset: false,
+                                    gestureScale: _zoomLevel,
                         editorSetState: setModalState,
                         gestureScale: scale,
                       ),
