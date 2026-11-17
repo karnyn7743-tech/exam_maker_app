@@ -1265,7 +1265,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               currentFontSize: _activeFontSize,
               isArabicInput: _isArabicInput,
               showQuestionSettings: true,
-              onToggleQuestionSettings: () => _openQuestionDialog(\n                questionIndex: _exam.questions.isEmpty ? null : _exam.questions.length - 1,\n              ),
+              onToggleQuestionSettings: () => _openQuestionDialog(questionIndex: _exam.questions.isEmpty ? null : _exam.questions.length - 1),
               isTextSelected: _selectedElementId != null,
               hasClipboardContent: _copiedElement != null,
               currentLineSpacing: 1.5,
@@ -3049,8 +3049,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       final double safeScale = gestureScale.clamp(0.25, 3.0);
       // أحجام المقابض ثابتة تقريباً على الشاشة مهما تغيّر تكبير الصفحة.
       final double controlSize = 44 / safeScale;
-      final double railWidth = 52 / safeScale;
-      final double bottomRailHeight = 52 / safeScale;
+      final double railWidth = canResize ? 52 / safeScale : 0;
+      final double bottomRailHeight = canResize ? 52 / safeScale : 0;
       // عند قصر العنصر نمد مساحة مقبض الارتفاع حتى لا يتلاصق زرا (+) و(-).
       final double verticalRailHeight =
           el.height < (controlSize * 2 + 18 / safeScale)
