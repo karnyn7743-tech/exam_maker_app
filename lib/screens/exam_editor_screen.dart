@@ -4921,7 +4921,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       child: _buildRenderedElement(
                         el,
                         applyOffset: false,
-                                    gestureScale: _zoomLevel,
                         editorSetState: setModalState,
                         gestureScale: scale,
                       ),
