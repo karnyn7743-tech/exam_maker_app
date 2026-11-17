@@ -61,7 +61,9 @@ class RichQuestionEditorDialogState extends State<RichQuestionEditorDialog> {
       if (span.text.isEmpty) continue;
       final styles = <String>[];
       if (span.isBold) styles.add('bold');
+      if (span.isItalic) styles.add('italic');
       if (span.isUnderline) styles.add('underline');
+      if (span.isStrikethrough) styles.add('strikethrough');
       fragments.add(
         Fragment(
           span.text,
@@ -69,6 +71,7 @@ class RichQuestionEditorDialogState extends State<RichQuestionEditorDialog> {
           fontFamily: span.fontFamily,
           fontSize: span.fontSize,
           color: span.colorHex,
+          highlightColor: span.highlightHex,
         ),
       );
     }
@@ -247,6 +250,7 @@ class RichQuestionEditorDialogState extends State<RichQuestionEditorDialog> {
     Navigator.of(context).pop(<String, String>{
       'json': _document.toJson(),
       'text': _extractPlainText(),
+      'spans': jsonEncode(_extractStyledSpans().map((span) => span.toMap()).toList()),
     });
   }
 
@@ -386,7 +390,9 @@ class _RichQuestionInlineEditorState extends State<RichQuestionInlineEditor> {
       if (span.text.isEmpty) continue;
       final styles = <String>[];
       if (span.isBold) styles.add('bold');
+      if (span.isItalic) styles.add('italic');
       if (span.isUnderline) styles.add('underline');
+      if (span.isStrikethrough) styles.add('strikethrough');
       fragments.add(
         Fragment(
           span.text,
@@ -394,6 +400,7 @@ class _RichQuestionInlineEditorState extends State<RichQuestionInlineEditor> {
           fontFamily: span.fontFamily,
           fontSize: span.fontSize,
           color: span.colorHex,
+          highlightColor: span.highlightHex,
         ),
       );
     }
@@ -441,6 +448,50 @@ class _RichQuestionInlineEditorState extends State<RichQuestionInlineEditor> {
       visit(node);
     }
     return paragraphs.join('\n').trimRight();
+  }
+
+  List<TextSpanModel> _extractStyledSpans() {
+    final spans = <TextSpanModel>[];
+    void visit(FNode node) {
+      if (node is Paragraph) {
+        for (final fragment in node.fragments) {
+          if (fragment is! Fragment || fragment is FluentImage) continue;
+          if (fragment.text.isEmpty || fragment.text == '\u200B') continue;
+          final styles = fragment.styles ?? const <String>[];
+          spans.add(TextSpanModel(
+            text: fragment.text.replaceAll('\u200B', ''),
+            isBold: styles.contains('bold'),
+            isItalic: styles.contains('italic'),
+            isUnderline: styles.contains('underline'),
+            isStrikethrough: styles.contains('strikethrough'),
+            fontFamily: fragment.fontFamily,
+            fontSize: fragment.fontSize,
+            colorHex: fragment.color ?? '#000000',
+            highlightHex: fragment.highlightColor,
+          ));
+        }
+        return;
+      }
+      if (node is FluentList) {
+        for (final item in node.items) {
+          for (final child in item.children) { visit(child); }
+        }
+        return;
+      }
+      if (node is FluentTable) {
+        for (final row in node.rows) {
+          for (final cell in row.cells) {
+            for (final child in cell.children) { visit(child); }
+          }
+        }
+        return;
+      }
+      if (node is ListItem || node is FluentCell) {
+        for (final child in (node as InlineContainerNode).getChildren()) { visit(child); }
+      }
+    }
+    for (final node in _document.content.nodes) { visit(node); }
+    return spans;
   }
 
   void _handleDocumentChanged() {
