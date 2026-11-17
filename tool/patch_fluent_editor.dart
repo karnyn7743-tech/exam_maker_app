@@ -135,14 +135,16 @@ Future<void> patchTouchSelection(Uri rootUri) async {
       return;
     }
     source = source.replaceFirst(buildAnchor, buildReplacement);
-    const closingAnchor = '''        ),
+    const closingAnchor = '''          },
+        ),
       ),
     );
   }
 }
 
 /// Tracks whether a top-level''';
-    const closingReplacement = '''        ),
+    const closingReplacement = '''          },
+        ),
       ),
       ),
     );
