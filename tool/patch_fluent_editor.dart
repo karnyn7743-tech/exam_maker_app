@@ -23,7 +23,7 @@ Future<void> main() async {
 
   final rootUri = Uri.parse(package['rootUri'] as String);
   await patchTouchSelection(rootUri);
-  await patchImageDragging(rootUri);
+  await patchImageFloating(rootUri);
 }
 
 Future<void> patchTouchSelection(Uri rootUri) async {
@@ -164,7 +164,64 @@ Future<void> patchTouchSelection(Uri rootUri) async {
   stdout.writeln('Applied gesture-arena-aware long-press text selection patch.');
 }
 
-Future<void> patchImageDragging(Uri rootUri) async {
+Future<void> patchImageFloating(Uri rootUri) async {
+  final modelUri = rootUri.resolve('lib/factories.dart');
+  final modelFile = File.fromUri(modelUri);
+  if (!await modelFile.exists()) {
+    stderr.writeln('Fluent Editor factories source was not found: $modelUri');
+    exitCode = 1;
+    return;
+  }
+
+  var model = await modelFile.readAsString();
+  const modelAnchor = "  String textAlign = 'left';";
+  const modelReplacement = """  String textAlign = 'left';
+
+  /// When true, the image is painted over document text rather than occupying
+  /// a normal block position. Offsets are persisted in document coordinates.
+  bool isFloating = false;
+  double offsetX = 0;
+  double offsetY = 0;""";
+  if (!model.contains(modelReplacement)) {
+    if (!model.contains(modelAnchor)) {
+      stderr.writeln('FluentImage model insertion point was not found.');
+      exitCode = 1;
+      return;
+    }
+    model = model.replaceFirst(modelAnchor, modelReplacement);
+  }
+
+  const fromJsonAnchor = "    img.textAlign = (json['textAlign'] as String?) ?? 'left';";
+  const fromJsonReplacement = """    img.textAlign = (json['textAlign'] as String?) ?? 'left';
+    img.isFloating = json['isFloating'] as bool? ?? false;
+    img.offsetX = (json['offsetX'] as num?)?.toDouble() ?? 0;
+    img.offsetY = (json['offsetY'] as num?)?.toDouble() ?? 0;""";
+  if (!model.contains(fromJsonReplacement)) {
+    if (!model.contains(fromJsonAnchor)) {
+      stderr.writeln('FluentImage JSON decoder insertion point was not found.');
+      exitCode = 1;
+      return;
+    }
+    model = model.replaceFirst(fromJsonAnchor, fromJsonReplacement);
+  }
+
+  const toJsonAnchor = "    if (height != null) json['height'] = height;";
+  const toJsonReplacement = """    if (height != null) json['height'] = height;
+    if (isFloating) {
+      json['isFloating'] = true;
+      json['offsetX'] = offsetX;
+      json['offsetY'] = offsetY;
+    }""";
+  if (!model.contains(toJsonReplacement)) {
+    if (!model.contains(toJsonAnchor)) {
+      stderr.writeln('FluentImage JSON encoder insertion point was not found.');
+      exitCode = 1;
+      return;
+    }
+    model = model.replaceFirst(toJsonAnchor, toJsonReplacement);
+  }
+  await modelFile.writeAsString(model);
+
   final imageUri = rootUri.resolve('lib/widgets/nodes/fluent_image_widget.dart');
   final imageFile = File.fromUri(imageUri);
   if (!await imageFile.exists()) {
@@ -177,73 +234,99 @@ Future<void> patchImageDragging(Uri rootUri) async {
   const panAnchor = '''          onLongPressStart: (details) => _showContextMenu(details.globalPosition),
           child: LayoutBuilder(''';
   const panReplacement = '''          onLongPressStart: (details) => _showContextMenu(details.globalPosition),
-          // Dragging the image body moves it; the eight child resize handles
-          // retain their own more-specific pan recognizers.
+          // Drag the image body freely in front of the text. Child resize
+          // handles keep their own pan recognizers and remain independent.
           onPanStart: (_) {
-            if (widget.document.isResizingImage) return;
-            widget.document.saveState(description: 'Move image', forceNewAction: true);
+            if (_isResizeMode || widget.document.isResizingImage) return;
+            widget.document.saveState(description: 'Move floating image', forceNewAction: true);
             _isDragging = true;
+            widget.node.isFloating = true;
           },
           onPanUpdate: (details) {
-            if (!_isDragging || widget.document.isResizingImage) return;
-            _moveBlockImageTo(details.globalPosition);
+            if (!_isDragging || _isResizeMode || widget.document.isResizingImage) return;
+            widget.node.offsetX += details.delta.dx;
+            widget.node.offsetY += details.delta.dy;
+            setState(() {});
           },
           onPanEnd: (_) {
-            if (!_isDragging) return;
+            if (!_isDragging || _isResizeMode) return;
             _isDragging = false;
             widget.document.updateContent();
           },
           child: LayoutBuilder(''';
   if (!source.contains(panReplacement)) {
     if (!source.contains(panAnchor)) {
-      stderr.writeln('Expected image gesture insertion point was not found; refusing unsafe image-drag patch.');
+      stderr.writeln('Expected image gesture insertion point was not found.');
       exitCode = 1;
       return;
     }
     source = source.replaceFirst(panAnchor, panReplacement);
   }
 
-  const methodAnchor = '''  Widget _buildImage(String src) {''';
-  const moveMethod = '''  /// Reorders a block image vertically among top-level document blocks.
-  /// This intentionally does not pretend to provide arbitrary x/y positioning.
-  void _moveBlockImageTo(Offset globalPosition) {
-    final blocks = widget.document.content.nodes;
-    final currentIndex = blocks.indexWhere((item) => item.id == widget.node.id);
-    if (currentIndex < 0) return;
-
-    final remaining = List<FNode>.from(blocks)..removeAt(currentIndex);
-    var targetIndex = 0;
-    for (final block in remaining) {
-      final renderObject = widget.document
-          .getKeyForNode(block.id)
-          .currentContext
-          ?.findRenderObject();
-      if (renderObject is RenderBox && renderObject.hasSize) {
-        final centerY = renderObject.localToGlobal(
-          Offset(0, renderObject.size.height / 2),
-        ).dy;
-        if (globalPosition.dy < centerY) break;
-      }
-      targetIndex++;
-    }
-
-    if (targetIndex == currentIndex) return;
-    blocks
-      ..removeAt(currentIndex)
-      ..insert(targetIndex, widget.node);
-    widget.document.updateContent();
-  }
-
-  Widget _buildImage(String src) {''';
-  if (!source.contains(moveMethod)) {
-    if (!source.contains(methodAnchor)) {
-      stderr.writeln('Expected image helper insertion point was not found; refusing unsafe image-drag patch.');
+  const contextAnchor = '''      items: [
+        FluentContextMenuItem(
+          icon: Icons.image,''';
+  const contextReplacement = '''      items: [
+        FluentContextMenuItem(
+          icon: Icons.layers,
+          label: widget.node.isFloating ? 'إرجاع الصورة ضمن النص' : 'وضع أمام النص',
+          onPressed: () {
+            widget.document.saveState(description: 'Change image text wrapping', forceNewAction: true);
+            widget.node.isFloating = !widget.node.isFloating;
+            if (!widget.node.isFloating) {
+              widget.node.offsetX = 0;
+              widget.node.offsetY = 0;
+            }
+            widget.document.updateContent();
+          },
+        ),
+        FluentContextMenuItem(
+          icon: Icons.image,''';
+  if (!source.contains(contextReplacement)) {
+    if (!source.contains(contextAnchor)) {
+      stderr.writeln('Image context-menu insertion point was not found.');
       exitCode = 1;
       return;
     }
-    source = source.replaceFirst(methodAnchor, moveMethod);
+    source = source.replaceFirst(contextAnchor, contextReplacement);
+  }
+
+  const buildAnchor = '''    return Padding(
+      padding: EdgeInsets.symmetric(''';
+  const buildReplacement = '''    return Align(
+      alignment: Alignment.topLeft,
+      heightFactor: image.isFloating ? 1 : 1,
+      child: Transform.translate(
+        offset: image.isFloating ? Offset(image.offsetX, image.offsetY) : Offset.zero,
+        child: Padding(
+      padding: EdgeInsets.symmetric(''';
+  if (!source.contains(buildReplacement)) {
+    if (!source.contains(buildAnchor)) {
+      stderr.writeln('Image widget build insertion point was not found.');
+      exitCode = 1;
+      return;
+    }
+    source = source.replaceFirst(buildAnchor, buildReplacement);
+    const closingAnchor = '''    ),
+    );
+  }
+
+  Widget _buildImage(String src) {''';
+    const closingReplacement = '''    ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImage(String src) {''';
+    if (!source.contains(closingAnchor)) {
+      stderr.writeln('Image widget closing structure was not found.');
+      exitCode = 1;
+      return;
+    }
+    source = source.replaceFirst(closingAnchor, closingReplacement);
   }
 
   await imageFile.writeAsString(source);
-  stdout.writeln('Applied image-body drag/reorder patch; resize handles remain independent.');
+  stdout.writeln('Applied persisted free-drag image overlay patch (x/y) with independent resize handles.');
 }
