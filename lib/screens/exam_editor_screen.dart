@@ -3064,12 +3064,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       final double railWidth = canResize ? 52 / safeScale : 0;
       final double bottomRailHeight = canResize ? 52 / safeScale : 0;
       // عند قصر العنصر نمد مساحة مقبض الارتفاع حتى لا يتلاصق زرا (+) و(-).
-      final double verticalRailHeight =
-          el.height < (controlSize * 2 + 18 / safeScale)
+      final double verticalRailHeight = !canResize
+          ? el.height
+          : (el.height < (controlSize * 2 + 18 / safeScale)
               ? (controlSize * 2 + 18 / safeScale)
-              : el.height;
+              : el.height);
       final double outerHeight = verticalRailHeight + bottomRailHeight;
-      final double outerWidth = el.width + railWidth;
+      final double outerWidth = el.width;
 
       void moveBy(Offset delta) {
         refreshState(() {
@@ -3082,7 +3083,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         // نحجز مساحة للمقابض يسار وأسفل العنصر، ثم نعيد جسم العنصر
         // إلى إحداثياته الأصلية حتى لا يتغير موضعه عند تحديده.
         offset: Offset(
-          (applyOffset ? el.dx : 0) - railWidth,
+          applyOffset ? el.dx : 0,
           applyOffset ? el.dy : 0,
         ),
         child: SizedBox(
@@ -3121,7 +3122,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               if (isSelected) ...[
                 // مقبض التحريك في أعلى العنصر، داخل مساحة اللمس المحجوزة.
                 Positioned(
-                  left: railWidth + (el.width / 2) - (controlSize / 2),
+                  left: (el.width / 2) - (controlSize / 2),
                   top: 2 / safeScale,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
