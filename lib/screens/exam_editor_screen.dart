@@ -4138,10 +4138,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             newSpans.add(TextSpanModel(
               text: fullText.substring(spanStart, selStart),
               isBold: span.isBold,
+              isItalic: span.isItalic,
               isUnderline: span.isUnderline,
+              isStrikethrough: span.isStrikethrough,
               fontSize: span.fontSize,
               fontFamily: span.fontFamily,
               colorHex: span.colorHex,
+              highlightHex: span.highlightHex,
             ));
           }
 
@@ -4151,20 +4154,26 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           newSpans.add(TextSpanModel(
             text: fullText.substring(overlapStart, overlapEnd),
             isBold: bold ?? span.isBold,
+            isItalic: span.isItalic,
             isUnderline: underline ?? span.isUnderline,
+            isStrikethrough: span.isStrikethrough,
             fontSize: clampedSize ?? span.fontSize,
             fontFamily: font ?? span.fontFamily,
             colorHex: color ?? span.colorHex,
+            highlightHex: span.highlightHex,
           ));
 
           if (spanEnd > selEnd) {
             newSpans.add(TextSpanModel(
               text: fullText.substring(selEnd, spanEnd),
               isBold: span.isBold,
+              isItalic: span.isItalic,
               isUnderline: span.isUnderline,
+              isStrikethrough: span.isStrikethrough,
               fontSize: span.fontSize,
               fontFamily: span.fontFamily,
               colorHex: span.colorHex,
+              highlightHex: span.highlightHex,
             ));
           }
         }
