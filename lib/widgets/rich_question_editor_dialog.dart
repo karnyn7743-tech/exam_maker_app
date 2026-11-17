@@ -246,7 +246,7 @@ class RichQuestionEditorDialogState extends State<RichQuestionEditorDialog> {
     return paragraphs.join('\n').trimRight();
   }
 
-  List<TextSpanModel> _extractStyledSpans() {
+  List<TextSpanModel> _extractDialogStyledSpans() {
     final spans = <TextSpanModel>[];
     for (final node in _document.content.nodes) {
       if (node is! Paragraph) continue;
@@ -275,7 +275,7 @@ class RichQuestionEditorDialogState extends State<RichQuestionEditorDialog> {
     Navigator.of(context).pop(<String, String>{
       'json': _document.toJson(),
       'text': _extractPlainText(),
-      'spans': jsonEncode(_extractStyledSpans().map((span) => span.toMap()).toList()),
+      'spans': jsonEncode(_extractDialogStyledSpans().map((span) => span.toMap()).toList()),
     });
   }
 
