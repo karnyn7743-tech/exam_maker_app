@@ -1,73 +1,67 @@
 import 'dart:io';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-Future<void> requestPermissionsStepByStep(BuildContext context, VoidCallback onFinished) async {
-  // 1. طلب إذن التخزين مع شرح توضيحي
-  await showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (ctx) => AlertDialog(
-      title: Row(
-        children: const [
-          Icon(Icons.folder_shared, color: Color(0xFF1E3A8A)),
-          SizedBox(width: 8),
-          Text('إذن التخزين وحفظ الملفات', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-        ],
-      ),
-      content: const Text(
-        'يحتاج التطبيق إلى صلاحية الوصول للتخزين ليتمكن من حفظ ملفات الاختبارات بصيغة PDF وتصدير أوراق الأسئلة وكشوفات الطلاب لجهازك.',
-        style: TextStyle(fontSize: 13),
-      ),
-      actions: [
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
-          onPressed: () async {
-            Navigator.pop(ctx);
-            if (Platform.isAndroid) {
-              if (await Permission.manageExternalStorage.status.isDenied) {
-                await Permission.manageExternalStorage.request();
-              }
-              await Permission.storage.request();
-            }
-          },
-          child: const Text('منح إذن التخزين', style: TextStyle(color: Colors.white)),
-        ),
-      ],
-    ),
-  );
+/// إخفاء لوحة المفاتيح قبل فتح أي نافذة نظام للأذونات.
+Future<void> _hideKeyboardBeforePermission(BuildContext context) async {
+  FocusManager.instance.primaryFocus?.unfocus();
+  await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+  await Future<void>.delayed(const Duration(milliseconds: 300));
+}
 
-  // 2. طلب إذن الكاميرا مع شرح توضيحي
-  if (context.mounted) {
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: Row(
-          children: const [
-            Icon(Icons.camera_alt, color: Color(0xFF0F766E)),
-            SizedBox(width: 8),
-            Text('إذن الكاميرا (تصحيح OMR)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-        ],
-      ),
-      content: const Text(
-        'يحتاج التطبيق لصلاحية الكاميرا لمسح وتصحيح نماذج إجابة الطلاب المؤتمتة (ورقة التظليل) وقراءة النتائج آلياً.',
-        style: TextStyle(fontSize: 13),
-      ),
-      actions: [
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F766E)),
-          onPressed: () async {
-            Navigator.pop(ctx);
-            await Permission.camera.request();
-          },
-          child: const Text('منح إذن الكاميرا', style: TextStyle(color: Colors.white)),
-        ),
-      ],
-    ),
-  );
+/// طلب صلاحية التخزين المناسبة لإصدار Android.
+/// Android 11+ يستخدم صفحة الوصول الخاص لإدارة جميع الملفات؛
+/// Android 10 وما دونه يستخدم نافذة إذن التخزين المعتادة.
+Future<void> requestStoragePermissionIfNeeded() async {
+  if (!Platform.isAndroid) return;
+
+  final androidInfo = await DeviceInfoPlugin().androidInfo;
+  if (androidInfo.version.sdkInt >= 30) {
+    final status = await Permission.manageExternalStorage.status;
+    if (!status.isGranted && !status.isPermanentlyDenied) {
+      await Permission.manageExternalStorage.request();
+    }
+  } else {
+    final status = await Permission.storage.status;
+    if (!status.isGranted && !status.isPermanentlyDenied) {
+      await Permission.storage.request();
+    }
+  }
+}
+
+/// طلب إذن الكاميرا من Android مباشرة دون نافذة شرح مخصصة.
+/// لا يعاد الطلب إذا كان ممنوحاً أو رُفض نهائياً.
+Future<void> requestCameraPermissionIfNeeded(BuildContext context) async {
+  if (!Platform.isAndroid || !context.mounted) return;
+
+  final status = await Permission.camera.status;
+  if (status.isGranted || status.isPermanentlyDenied || status.isRestricted) {
+    return;
   }
 
-  // انتهاء الإعداد والانتقال
-  onFinished();
+  await _hideKeyboardBeforePermission(context);
+  if (!context.mounted) return;
+  await Permission.camera.request();
+}
+
+/// تنفيذ طلبات الأذونات بالتتابع ثم متابعة الانتقال إلى الشاشة الرئيسية.
+Future<void> requestAppPermissions(
+  BuildContext context,
+  VoidCallback onFinished,
+) async {
+  if (!Platform.isAndroid) {
+    if (context.mounted) onFinished();
+    return;
+  }
+
+  await _hideKeyboardBeforePermission(context);
+  if (!context.mounted) return;
+
+  await requestStoragePermissionIfNeeded();
+  if (!context.mounted) return;
+
+  await requestCameraPermissionIfNeeded(context);
+  if (context.mounted) onFinished();
 }
