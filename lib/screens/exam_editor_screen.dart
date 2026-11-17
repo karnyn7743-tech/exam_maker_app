@@ -1875,8 +1875,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       _selectedElementId == el.id &&
                       (el.type == ElementType.image ||
                           el.type == ElementType.shape);
+                  final double safeScale =
+                      _zoomLevel.clamp(0.25, 3.0).toDouble();
                   final double controlsBottom = showResizeControls
-                      ? math.max(el.height, 106.0) + 52.0
+                      ? math.max(el.height, 106.0 / safeScale) +
+                          52.0 / safeScale
                       : el.height;
                   return math.max(
                     extent,
@@ -3082,8 +3085,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       }
 
       return Transform.translate(
-        // نحجز مساحة للمقابض يسار وأسفل العنصر، ثم نعيد جسم العنصر
-        // إلى إحداثياته الأصلية حتى لا يتغير موضعه عند تحديده.
+        // نثبت موضع العنصر الأصلي ونبقي جميع مقابضه داخل مساحة اللمس.
         offset: Offset(
           applyOffset ? el.dx : 0,
           applyOffset ? el.dy : 0,
