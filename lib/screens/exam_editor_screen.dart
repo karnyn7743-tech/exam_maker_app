@@ -3805,7 +3805,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         : [
             TextSpanModel(
               text: textCtrl.text,
-              fontSize: 14.0,
+              fontSize: _activeFontSize,
               fontFamily: defaultFont,
               colorHex: _activeColor,
               isBold: _isBold,
