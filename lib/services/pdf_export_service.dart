@@ -225,7 +225,7 @@ class PdfExportService {
                             )
                           else
                             pw.Text(
-                              'صفحة \${pageIdx + 1} من \${pagesQuestions.length}',
+                              'صفحة ' + (pageIdx + 1).toString() + ' من ' + pagesQuestions.length.toString(),
                               style: pw.TextStyle(font: ttf, fontSize: 8.5),
                             ),
                         ],
