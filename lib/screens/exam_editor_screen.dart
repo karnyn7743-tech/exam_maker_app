@@ -1998,9 +1998,22 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             initialText: q.spans.map((span) => span.text).join(),
                             onChanged: (result) {
                               q.richDocumentJson = result['json'];
-                              q.spans = [
-                                TextSpanModel(text: result['text'] ?? ''),
-                              ];
+                              final rawSpans = result['spans'];
+                              if (rawSpans != null && rawSpans.isNotEmpty) {
+                                try {
+                                  final decodedSpans = jsonDecode(rawSpans) as List<dynamic>;
+                                  q.spans = decodedSpans
+                                      .whereType<Map>()
+                                      .map((item) => TextSpanModel.fromMap(
+                                            Map<String, dynamic>.from(item),
+                                          ))
+                                      .toList();
+                                } catch (_) {
+                                  // Keep the last valid styled spans if a malformed payload arrives.
+                                }
+                              } else {
+                                q.spans = [TextSpanModel(text: result['text'] ?? '')];
+                              }
                             },
                             onDocumentReady: (document) {
                               if (!mounted || _activeRichEditorQuestionId != q.id) return;
