@@ -16,6 +16,10 @@ workflows:
         script: |
           flutter pub get
 
+      - name: Patch Fluent Editor Touch Selection and Floating Images
+        script: |
+          dart run tool/patch_fluent_editor.dart
+
       - name: Flutter Build Release APK
         script: |
           flutter build apk --release --android-skip-build-dependency-validation
