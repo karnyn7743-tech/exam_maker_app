@@ -1265,8 +1265,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               currentFontSize: _activeFontSize,
               isArabicInput: _isArabicInput,
               showQuestionSettings: true,
-              onToggleQuestionSettings: () {},
-              isTextSelected: false,
+              onToggleQuestionSettings: () {
+                final lastQuestionIndex =
+                    _exam.questions.lastIndexWhere(_isActualQuestion);
+                _openQuestionDialog(
+                  questionIndex:
+                      lastQuestionIndex >= 0 ? lastQuestionIndex : null,
+                );
+              },
+              isTextSelected: _selectedElementId != null,
               hasClipboardContent: _copiedElement != null,
               currentLineSpacing: 1.5,
               currentZoom: _zoomLevel,
@@ -1284,88 +1291,98 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 });
               },
               onCopy: () {
-                if (_exam.questions.isNotEmpty &&
-                    _exam.questions.any((q) => q.elements.isNotEmpty)) {
-                  final allElements =
-                      _exam.questions.expand((q) => q.elements).toList();
-                  final el = _selectedElementId == null
-                      ? allElements.last
-                      : allElements.firstWhere(
-                          (e) => e.id == _selectedElementId,
-                          orElse: () => allElements.last,
-                        );
-                  setState(() {
-                    _copiedElement = InsertableElement(
-                      id: const Uuid().v4(),
-                      type: el.type,
-                      content: el.content,
-                      width: el.width,
-                      height: el.height,
-                      dx: el.dx,
-                      dy: el.dy,
-                      layer: el.layer,
-                    );
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم نسخ العنصر المحدد إلى الحافظة.')),
+                final selectedId = _selectedElementId;
+                if (selectedId == null) return;
+                final matches = _exam.questions
+                    .expand((question) => question.elements)
+                    .where((element) => element.id == selectedId)
+                    .toList();
+                if (matches.isEmpty) return;
+
+                final el = matches.first;
+                setState(() {
+                  _copiedElement = InsertableElement(
+                    id: const Uuid().v4(),
+                    type: el.type,
+                    content: el.content,
+                    width: el.width,
+                    height: el.height,
+                    dx: el.dx,
+                    dy: el.dy,
+                    layer: el.layer,
                   );
-                }
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('تم نسخ العنصر المحدد إلى الحافظة.')),
+                );
               },
               onPaste: () {
-                if (_copiedElement != null && _exam.questions.isNotEmpty) {
-                  setState(() {
-                    final pastedElement = InsertableElement(
-                      id: const Uuid().v4(),
-                      type: _copiedElement!.type,
-                      content: _copiedElement!.content,
-                      width: _copiedElement!.width,
-                      height: _copiedElement!.height,
-                      dx: _copiedElement!.dx + 10,
-                      dy: _copiedElement!.dy + 10,
-                      layer: _copiedElement!.layer,
-                    );
-                    _exam.questions.last.elements.add(pastedElement);
-                    _selectedElementId = pastedElement.id;
-                  });
-                  _measurePagesHeight();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم لصق العنصر في السؤال الأخير.')),
+                if (_copiedElement == null || _exam.questions.isEmpty) return;
+
+                final selectedQuestion = _exam.questions.where(
+                  (question) => question.elements.any(
+                    (element) => element.id == _selectedElementId,
+                  ),
+                );
+                final targetQuestion = selectedQuestion.isNotEmpty
+                    ? selectedQuestion.first
+                    : _exam.questions.last;
+
+                setState(() {
+                  final pastedElement = InsertableElement(
+                    id: const Uuid().v4(),
+                    type: _copiedElement!.type,
+                    content: _copiedElement!.content,
+                    width: _copiedElement!.width,
+                    height: _copiedElement!.height,
+                    dx: _copiedElement!.dx + 10,
+                    dy: _copiedElement!.dy + 10,
+                    layer: _copiedElement!.layer,
                   );
-                }
+                  targetQuestion.elements.add(pastedElement);
+                  _selectedElementId = pastedElement.id;
+                });
+                _measurePagesHeight();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('تم لصق العنصر في السؤال المحدد.')),
+                );
               },
               onCut: () {
-                final allElements =
-                    _exam.questions.expand((q) => q.elements).toList();
-                if (allElements.isNotEmpty) {
-                  final el = _selectedElementId == null
-                      ? allElements.last
-                      : allElements.firstWhere(
-                          (e) => e.id == _selectedElementId,
-                          orElse: () => allElements.last,
-                        );
-                  setState(() {
-                    _copiedElement = InsertableElement(
-                      id: const Uuid().v4(),
-                      type: el.type,
-                      content: el.content,
-                      width: el.width,
-                      height: el.height,
-                      dx: el.dx,
-                      dy: el.dy,
-                    );
-                    for (final question in _exam.questions) {
-                      question.elements.removeWhere((item) => item.id == el.id);
-                    }
-                    _selectedElementId = null;
-                  });
-                  _measurePagesHeight();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم قص العنصر المحدد إلى الحافظة.')),
+                final selectedId = _selectedElementId;
+                if (selectedId == null) return;
+
+                final matches = _exam.questions
+                    .expand((question) => question.elements)
+                    .where((element) => element.id == selectedId)
+                    .toList();
+                if (matches.isEmpty) return;
+
+                final el = matches.first;
+                setState(() {
+                  _copiedElement = InsertableElement(
+                    id: const Uuid().v4(),
+                    type: el.type,
+                    content: el.content,
+                    width: el.width,
+                    height: el.height,
+                    dx: el.dx,
+                    dy: el.dy,
+                    layer: el.layer,
                   );
-                }
+                  for (final question in _exam.questions) {
+                    question.elements.removeWhere(
+                      (item) => item.id == selectedId,
+                    );
+                  }
+                  _selectedElementId = null;
+                });
+                _measurePagesHeight();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('تم قص العنصر المحدد إلى الحافظة.')),
+                );
               },
               onShare: null,
-              onSelectAll: () {},
+              onSelectAll: null,
               onDeleteSelected: () {
                 if (_selectedElementId != null) {
                   setState(() {
@@ -1860,7 +1877,25 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               .where((el) => el.layer == 'behind' || el.layer == 'front')
               .fold<double>(
                 0.0,
-                (extent, el) => math.max(extent, el.dy + el.height + 12.0).toDouble(),
+                (extent, el) {
+                  final bool showResizeControls =
+                      _selectedElementId == el.id &&
+                      (el.type == ElementType.image ||
+                          el.type == ElementType.shape);
+                  final double safeScale =
+                      _zoomLevel.clamp(0.25, 3.0).toDouble();
+                  final double controlsBottom = showResizeControls
+                      ? math.max(
+                              el.height,
+                              106.0 / safeScale,
+                            ).toDouble() +
+                          52.0 / safeScale
+                      : el.height;
+                  return math.max(
+                    extent,
+                    el.dy + controlsBottom + 12.0,
+                  ).toDouble();
+                },
               )
               .clamp(0.0, kA4PaperHeight - 80.0)
               .toDouble();
@@ -3037,118 +3072,169 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     if (el.type == ElementType.image || el.type == ElementType.shape || el.type == ElementType.table) {
       final double safeScale = gestureScale.clamp(0.25, 3.0);
-      final double controlSize = 34 / safeScale;
+      // أحجام المقابض ثابتة تقريباً على الشاشة مهما تغيّر تكبير الصفحة.
+      final double controlSize = 44 / safeScale;
+      final double railWidth = canResize ? 52 / safeScale : 0;
+      final double bottomRailHeight = canResize ? 52 / safeScale : 0;
+      // عند قصر العنصر نمد مساحة مقبض الارتفاع حتى لا يتلاصق زرا (+) و(-).
+      final double verticalRailHeight = !canResize
+          ? el.height
+          : (el.height < (controlSize * 2 + 18 / safeScale)
+              ? (controlSize * 2 + 18 / safeScale)
+              : el.height);
+      final double outerHeight = verticalRailHeight + bottomRailHeight;
+      final double outerWidth = canResize
+          ? math.max(
+              el.width,
+              railWidth + controlSize + 4 / safeScale,
+            ).toDouble()
+          : el.width;
+
+      void moveBy(Offset delta) {
+        refreshState(() {
+          el.dx += delta.dx / safeScale;
+          el.dy += delta.dy / safeScale;
+        });
+      }
 
       return Transform.translate(
-        offset: applyOffset ? Offset(el.dx, el.dy) : Offset.zero,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () {
-            refreshState(() {
-              _selectedElementId = isSelected ? null : el.id;
-            });
-          },
+        // نثبت موضع العنصر الأصلي ونبقي جميع مقابضه داخل مساحة اللمس.
+        offset: Offset(
+          applyOffset ? el.dx : 0,
+          applyOffset ? el.dy : 0,
+        ),
+        child: SizedBox(
+          width: outerWidth,
+          height: outerHeight,
           child: Stack(
-            // مهم: يجب أن تقع مقابض اللمس داخل حدود Stack نفسها.
-            // المقابض الموضوعة خارج الحدود قد تظهر بصرياً لكنها لا تستقبل اللمس.
             clipBehavior: Clip.none,
-            alignment: Alignment.center,
             children: [
-              Container(
+              Positioned(
+                left: 0,
+                top: 0,
                 width: el.width,
-                height: el.type == ElementType.shape ? el.height : null,
-                decoration: BoxDecoration(
-                  border: isSelected
-                      ? Border.all(color: const Color(0xFF1976D2), width: 1.5)
-                      : null,
+                height: el.height,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    refreshState(() {
+                      _selectedElementId = isSelected ? null : el.id;
+                    });
+                  },
+                  child: Container(
+                    width: el.width,
+                    height: el.height,
+                    decoration: BoxDecoration(
+                      border: isSelected
+                          ? Border.all(
+                              color: const Color(0xFF1976D2),
+                              width: 1.5,
+                            )
+                          : null,
+                    ),
+                    child: coreWidget,
+                  ),
                 ),
-                child: coreWidget,
               ),
               if (isSelected) ...[
-                // مقبض التحريك داخل أعلى العنصر حتى يكون قابلاً للمس فعلياً.
+                // مقبض التحريك في أعلى العنصر، داخل مساحة اللمس المحجوزة.
                 Positioned(
+                  left: outerWidth - controlSize,
                   top: 2 / safeScale,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onPanUpdate: (details) {
-                        refreshState(() {
-                          el.dx += details.delta.dx / safeScale;
-                          el.dy += details.delta.dy / safeScale;
-                        });
-                      },
-                      child: Container(
-                        width: controlSize,
-                        height: controlSize,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF1976D2),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))
-                          ],
-                        ),
-                        child: Icon(Icons.open_with, color: Colors.white, size: 20 / safeScale),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onPanUpdate: (details) => moveBy(details.delta),
+                    child: Container(
+                      width: controlSize,
+                      height: controlSize,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF1976D2),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.open_with,
+                        color: Colors.white,
+                        size: 24 / safeScale,
                       ),
                     ),
                   ),
                 ),
                 if (canResize) ...[
-                  // شريط رأسي داخل الحافة اليسرى لتغيير الارتفاع.
+                  // مقبض الطول: مساحة لمس عريضة وزران متباعدان رأسياً.
                   Positioned(
-                    left: 2 / safeScale,
-                    top: controlSize + (5 / safeScale),
-                    bottom: 2 / safeScale,
-                    child: SizedBox(
-                      width: controlSize,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildSizeStepButton(Icons.add, safeScale, () => changeHeight(8)),
-                          Expanded(
-                            child: Center(
-                              child: Container(
-                                width: 3 / safeScale,
-                                margin: EdgeInsets.symmetric(vertical: 4 / safeScale),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1976D2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
+                    left: 0,
+                    top: 0,
+                    width: railWidth,
+                    height: verticalRailHeight,
+                    child: Column(
+                      children: [
+                        _buildSizeStepButton(
+                          Icons.add,
+                          safeScale,
+                          () => changeHeight(8),
+                        ),
+                        Expanded(
+                          child: Center(
+                            child: Container(
+                              width: 4 / safeScale,
+                              margin: EdgeInsets.symmetric(
+                                vertical: 6 / safeScale,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1976D2),
+                                borderRadius: BorderRadius.circular(4),
                               ),
                             ),
                           ),
-                          _buildSizeStepButton(Icons.remove, safeScale, () => changeHeight(-8)),
-                        ],
-                      ),
+                        ),
+                        _buildSizeStepButton(
+                          Icons.remove,
+                          safeScale,
+                          () => changeHeight(-8),
+                        ),
+                      ],
                     ),
                   ),
-                  // شريط أفقي داخل الحافة السفلية لتغيير العرض.
+                  // مقبض العرض: شريط سفلي مستقل عن مقبض الطول.
                   Positioned(
-                    left: controlSize + (5 / safeScale),
-                    right: 2 / safeScale,
-                    bottom: 2 / safeScale,
-                    child: SizedBox(
-                      height: controlSize,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildSizeStepButton(Icons.add, safeScale, () => changeWidth(8)),
-                          Expanded(
-                            child: Center(
-                              child: Container(
-                                height: 3 / safeScale,
-                                margin: EdgeInsets.symmetric(horizontal: 4 / safeScale),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1976D2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
+                    left: railWidth,
+                    right: 0,
+                    top: verticalRailHeight,
+                    height: bottomRailHeight,
+                    child: Row(
+                      children: [
+                        _buildSizeStepButton(
+                          Icons.remove,
+                          safeScale,
+                          () => changeWidth(-8),
+                        ),
+                        Expanded(
+                          child: Center(
+                            child: Container(
+                              height: 4 / safeScale,
+                              margin: EdgeInsets.symmetric(
+                                horizontal: 6 / safeScale,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1976D2),
+                                borderRadius: BorderRadius.circular(4),
                               ),
                             ),
                           ),
-                          _buildSizeStepButton(Icons.remove, safeScale, () => changeWidth(-8)),
-                        ],
-                      ),
+                        ),
+                        _buildSizeStepButton(
+                          Icons.add,
+                          safeScale,
+                          () => changeWidth(8),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -3178,11 +3264,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         customBorder: const CircleBorder(),
         onTap: onPressed,
         child: SizedBox(
-          width: 32 / gestureScale,
-          height: 32 / gestureScale,
+          width: 44 / gestureScale,
+          height: 44 / gestureScale,
           child: Icon(
             icon,
-            size: 19 / gestureScale,
+            size: 22 / gestureScale,
             color: const Color(0xFF1565C0),
           ),
         ),
@@ -3637,7 +3723,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         spans: [
                           TextSpanModel(
                             text: t['content'] as String,
-                            fontSize: 14.0,
+                            fontSize: _activeFontSize,
                             fontFamily: isAr ? 'Amiri' : 'Arial',
                           )
                         ],
@@ -3705,15 +3791,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     bool isTwoCols = q.isTwoColumns;
     List<InsertableElement> currentElements = List.from(q.elements);
 
-    TextAlign selectedAlignment = q.alignment ?? (isAr ? TextAlign.right : TextAlign.left);
-    bool isInputArabic = isAr;
+    TextAlign selectedAlignment = q.alignment ?? _activeAlignment;
+    bool isInputArabic = _isArabicInput;
 
     bool showCustomKeyboard = true;
     bool useSystemKeyboard = false;
     TextEditingController activeFieldController = textCtrl;
     bool showQuestionSettings = true;
 
-    final defaultFont = isAr ? 'Amiri' : 'Arial';
+    final defaultFont = _activeFont.isNotEmpty ? _activeFont : (isAr ? 'Amiri' : 'Arial');
     List<TextSpanModel> workingSpans = q.spans.isNotEmpty
         ? q.spans.map((s) => TextSpanModel(
               text: s.text,
@@ -3726,17 +3812,36 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         : [
             TextSpanModel(
               text: textCtrl.text,
-              fontSize: 14.0,
+              fontSize: _activeFontSize,
               fontFamily: defaultFont,
-              colorHex: '#000000',
+              colorHex: _activeColor,
+              isBold: _isBold,
+              isUnderline: _isUnderline,
             )
           ];
 
     String currentFont = q.spans.isNotEmpty ? q.spans.first.fontFamily : defaultFont;
-    double currentFontSize = (q.spans.isNotEmpty ? q.spans.first.fontSize : 14.0).clamp(8.0, 36.0).toDouble();
-    bool isBoldActive = false;
-    bool isUnderlineActive = false;
-    String currentColor = '#000000';
+    double currentFontSize = (q.spans.isNotEmpty ? q.spans.first.fontSize : _activeFontSize).clamp(8.0, 36.0).toDouble();
+    bool isBoldActive = q.spans.isNotEmpty ? q.spans.first.isBold : _isBold;
+    bool isUnderlineActive = q.spans.isNotEmpty ? q.spans.first.isUnderline : _isUnderline;
+    String currentColor = q.spans.isNotEmpty ? q.spans.first.colorHex : _activeColor;
+
+    // حافظ على معاينة النص المنسق متزامنة مع النص الجاري تحريره.
+    // وعند تغيير النص بالكامل نستخدم نمط الإدخال النشط، مثل سلوك الحفظ الحالي.
+    void syncWorkingSpansWithText() {
+      final value = textCtrl.text;
+      if (workingSpans.map((span) => span.text).join() == value) return;
+      workingSpans = [
+        TextSpanModel(
+          text: value,
+          colorHex: currentColor,
+          fontFamily: currentFont,
+          fontSize: currentFontSize.clamp(8.0, 36.0).toDouble(),
+          isBold: isBoldActive,
+          isUnderline: isUnderlineActive,
+        ),
+      ];
+    }
 
     void _rebuildSpansWithInsertedText(int offset, String inserted, TextSpanModel template) {
       if (textCtrl.text.isEmpty) {
@@ -4884,15 +4989,33 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           ),
           const Divider(color: Colors.black54, height: 22),
-          Text(
-            textCtrl.text,
-            textAlign: selectedAlignment,
-            textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
-            style: TextStyle(
-              fontSize: 19,
-              height: currentLineSpacing,
-              color: Colors.black,
+          Text.rich(
+            TextSpan(
+              children: workingSpans.map((span) {
+                Color spanColor = Colors.black87;
+                try {
+                  spanColor = Color(
+                    int.parse(span.colorHex.replaceFirst('#', '0xFF')),
+                  );
+                } catch (_) {}
+
+                final spanStyle = TextStyle(
+                  fontFamily: span.fontFamily,
+                  fontSize: span.fontSize,
+                  fontWeight:
+                      span.isBold ? FontWeight.bold : FontWeight.normal,
+                  decoration: span.isUnderline
+                      ? TextDecoration.underline
+                      : TextDecoration.none,
+                  color: spanColor,
+                  height: currentLineSpacing,
+                );
+                return _buildInlineSpanWithFractions(span.text, spanStyle);
+              }).toList(),
             ),
+            textAlign: selectedAlignment,
+            textDirection:
+                isInputArabic ? TextDirection.rtl : TextDirection.ltr,
           ),
           ...currentElements
               .where((el) => el.type != ElementType.image &&
@@ -5134,6 +5257,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             await Clipboard.setData(ClipboardData(text: selectedText));
                             textCtrl.text = textCtrl.text.replaceRange(start, end, '');
                             textCtrl.selection = TextSelection.collapsed(offset: start);
+                            syncWorkingSpansWithText();
                             lastSelection = textCtrl.selection;
                             setModalState(() {
                               isTextSelected = false;
@@ -5156,6 +5280,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             setModalState(() {
                               textCtrl.text = textCtrl.text.replaceRange(pos, end, clipText);
                               textCtrl.selection = TextSelection.collapsed(offset: pos + clipText.length);
+                              syncWorkingSpansWithText();
                               lastSelection = textCtrl.selection;
                               isTextSelected = false;
                             });
@@ -5188,6 +5313,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             setModalState(() {
                               textCtrl.text = textCtrl.text.replaceRange(start, end, '');
                               textCtrl.selection = TextSelection.collapsed(offset: start);
+                              syncWorkingSpansWithText();
                               lastSelection = textCtrl.selection;
                               isTextSelected = false;
                             });
@@ -5249,11 +5375,19 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           readOnly: false,
                           showCursor: true,
                           enableInteractiveSelection: true,
+                          onSelectionChanged: (selection, cause) {
+                            setModalState(() {
+                              lastSelection = selection;
+                              isTextSelected =
+                                  selection.isValid && !selection.isCollapsed;
+                            });
+                          },
                           keyboardType: useSystemKeyboard ? TextInputType.multiline : TextInputType.none,
                           maxLines: 4,
                           style: TextStyle(height: currentLineSpacing),
                           onChanged: (val) {
                             setModalState(() {
+                              syncWorkingSpansWithText();
                               lastSelection = textCtrl.selection;
                               isTextSelected = textCtrl.selection.isValid && !textCtrl.selection.isCollapsed;
                             });
