@@ -1878,7 +1878,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   final double safeScale =
                       _zoomLevel.clamp(0.25, 3.0).toDouble();
                   final double controlsBottom = showResizeControls
-                      ? math.max(el.height, 106.0 / safeScale) +
+                      ? math.max(
+                              el.height,
+                              106.0 / safeScale,
+                            ).toDouble() +
                           52.0 / safeScale
                       : el.height;
                   return math.max(
