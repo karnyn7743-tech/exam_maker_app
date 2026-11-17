@@ -894,12 +894,84 @@ class PdfExportService {
     }
   }
 
+  /// يستخدم بيانات التنسيق المحفوظة في TextSpanModel مباشرة عند كون المستند
+  /// نصياً خالصاً؛ فهذا يمنع اختلاف تفسير خصائص Fluent بين المعاينة وPDF.
+  static pw.Widget _buildPdfStoredStyledSpans(
+    QuestionModel question,
+    pw.Font fallbackFont,
+    bool isAr,
+  ) {
+    final align = _convertTextAlign(question.alignment, isAr);
+    final spans = <pw.InlineSpan>[];
+    for (final item in question.spans) {
+      if (item.text.isEmpty) continue;
+      final family = item.fontFamily.trim().toLowerCase();
+      pw.Font selectedFont = fallbackFont;
+      for (final entry in _pdfFontByFamily.entries) {
+        if (entry.key.toLowerCase() == family) {
+          selectedFont = entry.value;
+          break;
+        }
+      }
+      final decorations = <pw.TextDecoration>[
+        if (item.isUnderline) pw.TextDecoration.underline,
+        if (item.isStrikethrough) pw.TextDecoration.lineThrough,
+      ];
+      spans.add(pw.TextSpan(
+        text: item.text.replaceAll('[فاصل_صفحة]', ''),
+        style: pw.TextStyle(
+          font: selectedFont,
+          fontSize: item.fontSize,
+          color: _parsePdfColor(item.colorHex),
+          fontWeight: item.isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
+          fontStyle: item.isItalic ? pw.FontStyle.italic : pw.FontStyle.normal,
+          decoration: decorations.isEmpty
+              ? null
+              : pw.TextDecoration.combine(decorations),
+          background: item.highlightHex == null
+              ? null
+              : pw.BoxDecoration(color: _parsePdfColor(item.highlightHex)),
+        ),
+      ));
+    }
+    return pw.Directionality(
+      textDirection: (align == pw.TextAlign.left || !isAr)
+          ? pw.TextDirection.ltr
+          : pw.TextDirection.rtl,
+      child: pw.RichText(
+        textAlign: align,
+        text: pw.TextSpan(
+          style: pw.TextStyle(font: fallbackFont, lineSpacing: 1.15),
+          children: spans,
+        ),
+      ),
+    );
+  }
+
+  static bool _isSimplePdfTextDocument(FluentDocument document) {
+    if (document.content.nodes.isEmpty) return false;
+    for (final node in document.content.nodes) {
+      if (node is! Paragraph) return false;
+      for (final fragment in node.fragments) {
+        if (fragment is! Fragment) return false;
+      }
+    }
+    return true;
+  }
+
   static pw.Widget _buildPdfQuestionContent(QuestionModel q, pw.Font ttf, bool isAr) {
     if (q.richDocumentJson != null && q.richDocumentJson!.isNotEmpty) {
       try {
         final decoded = jsonDecode(q.richDocumentJson!);
         if (decoded is Map<String, dynamic>) {
           final document = FluentDocument.fromJson(decoded);
+          // في المستند النصي الخالص نعتمد قائمة التنسيقات التي استخرجها
+          // المحرر وحفظها داخل ملف .exam، لضمان تطابق الخط واللون والزخرفة.
+          if (q.spans.isNotEmpty && _isSimplePdfTextDocument(document)) {
+            return _buildPdfStoredStyledSpans(q, ttf, isAr);
+          }
+          // المستندات التي تحتوي صوراً أو جداول أو قوائم تبقى على مسار
+          // تصيير الشجرة الغنية حتى لا نفقد العناصر غير النصية.
           return pw.Directionality(
             textDirection: isAr ? pw.TextDirection.rtl : pw.TextDirection.ltr,
             child: pw.Column(
