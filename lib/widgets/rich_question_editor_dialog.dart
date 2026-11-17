@@ -359,6 +359,8 @@ class _RichQuestionInlineEditorState extends State<RichQuestionInlineEditor> {
     _document.pendingLineHeight = 1.15;
     _document.pendingSpacingBefore = 0;
     _document.pendingSpacingAfter = 4;
+    _document.labels = RichQuestionEditorDialogState.arabicLabels;
+    _document.registry.attach(_document);
     _lastContentVersion = _document.contentVersion;
     _document.addListener(_handleDocumentChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -454,6 +456,7 @@ class _RichQuestionInlineEditorState extends State<RichQuestionInlineEditor> {
   @override
   void dispose() {
     _document.removeListener(_handleDocumentChanged);
+    _document.registry.detach(_document);
     _document.dispose();
     super.dispose();
   }
