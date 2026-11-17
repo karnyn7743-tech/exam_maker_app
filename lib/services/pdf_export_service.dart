@@ -204,15 +204,18 @@ class PdfExportService {
                                   ),
                                 ),
                                 pw.SizedBox(width: 8),
-                                pw.Container(
-                                  width: 38,
-                                  height: 38,
-                                  child: pw.BarcodeWidget(
-                                    barcode: Barcode.qrCode(),
-                                    data: student.secretCode,
-                                    drawText: false,
-                                  ),
-                                ),
+                                if (student.secretCode.isNotEmpty)
+                                  pw.Container(
+                                    width: 38,
+                                    height: 38,
+                                    child: pw.BarcodeWidget(
+                                      barcode: Barcode.qrCode(),
+                                      data: student.secretCode,
+                                      drawText: false,
+                                    ),
+                                  )
+                                else
+                                  pw.SizedBox(width: 38, height: 38),
                                 pw.SizedBox(width: 10),
                                 pw.Container(
                                   width: 55,
