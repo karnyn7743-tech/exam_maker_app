@@ -934,6 +934,7 @@ class PdfExportService {
               isItalic: s.isItalic,
               isUnderline: s.isUnderline,
               isStrikethrough: s.isStrikethrough,
+              fontOverride: _pdfFontByFamily[s.fontFamily],
               textColor: spanColor,
               highlightColor: s.highlightHex == null ? null : _parsePdfColor(s.highlightHex),
               lineSpacing: 2,
@@ -964,6 +965,7 @@ class PdfExportService {
               isItalic: s.isItalic,
               isUnderline: s.isUnderline,
               isStrikethrough: s.isStrikethrough,
+              fontOverride: _pdfFontByFamily[s.fontFamily],
               textColor: spanColor,
               highlightColor: s.highlightHex == null ? null : _parsePdfColor(s.highlightHex),
               lineSpacing: 2,
@@ -1334,12 +1336,14 @@ class PdfExportService {
     bool isItalic = false,
     bool isUnderline = false,
     bool isStrikethrough = false,
+    pw.Font? fontOverride,
     PdfColor textColor = PdfColors.black,
     PdfColor? highlightColor,
     double lineSpacing = 1.5,
     pw.TextAlign? textAlign,
     bool isAr = true,
   }) {
+    final effectiveFont = fontOverride ?? ttf;
     final effectiveTextAlign = textAlign ?? (isAr ? pw.TextAlign.right : pw.TextAlign.left);
     final regExp = RegExp(r'(\[(?:كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):.*?\]|✔|✘|✓|✗)');
     final matches = regExp.allMatches(text);
@@ -1349,7 +1353,7 @@ class PdfExportService {
         text,
         textAlign: effectiveTextAlign,
         style: pw.TextStyle(
-          font: ttf,
+          font: effectiveFont,
           fontSize: fontSize,
           color: textColor,
           fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
@@ -1416,9 +1420,9 @@ class PdfExportService {
                 child: pw.Column(
                   mainAxisSize: pw.MainAxisSize.min,
                   children: [
-                    pw.Text(num, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.85, color: textColor, fontWeight: pw.FontWeight.bold)),
+                    pw.Text(num, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.85, color: textColor, fontWeight: pw.FontWeight.bold)),
                     pw.Container(width: lineWidth, height: 0.8, color: textColor),
-                    pw.Text(den, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.85, color: textColor, fontWeight: pw.FontWeight.bold)),
+                    pw.Text(den, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.85, color: textColor, fontWeight: pw.FontWeight.bold)),
                   ],
                 ),
               ),
@@ -1436,7 +1440,7 @@ class PdfExportService {
                 child: _drawPdfRadical(
                   pw.Text(
                     radicand,
-                    style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.95, color: textColor, fontWeight: pw.FontWeight.bold),
+                    style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.95, color: textColor, fontWeight: pw.FontWeight.bold),
                   ),
                   degree,
                   ttf,
@@ -1467,7 +1471,7 @@ class PdfExportService {
                         pw.Text(
                           label,
                           style: pw.TextStyle(
-                            font: ttf,
+                            font: effectiveFont,
                             fontSize: fontSize * 1.05,
                             color: textColor,
                             fontWeight: pw.FontWeight.bold,
@@ -1481,7 +1485,7 @@ class PdfExportService {
                             pw.Text(
                               v,
                               style: pw.TextStyle(
-                                font: ttf,
+                                font: effectiveFont,
                                 fontSize: fontSize * 0.7,
                                 color: textColor,
                                 fontWeight: pw.FontWeight.bold,
@@ -1508,7 +1512,7 @@ class PdfExportService {
                             pw.Text(
                               t,
                               style: pw.TextStyle(
-                                font: ttf,
+                                font: effectiveFont,
                                 fontSize: fontSize * 0.7,
                                 color: textColor,
                                 fontWeight: pw.FontWeight.bold,
@@ -1523,7 +1527,7 @@ class PdfExportService {
                       pw.Text(
                         fn,
                         style: pw.TextStyle(
-                          font: ttf,
+                          font: effectiveFont,
                           fontSize: fontSize,
                           color: textColor,
                           fontWeight: pw.FontWeight.bold,
@@ -1551,12 +1555,12 @@ class PdfExportService {
                   children: [
                     pw.Padding(
                       padding: const pw.EdgeInsets.only(bottom: 6),
-                      child: pw.Text(n, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.75, color: textColor, fontWeight: pw.FontWeight.bold)),
+                      child: pw.Text(n, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.75, color: textColor, fontWeight: pw.FontWeight.bold)),
                     ),
-                    pw.Text(sym, style: pw.TextStyle(font: ttf, fontSize: fontSize * 1.25, color: textColor, fontWeight: pw.FontWeight.bold)),
+                    pw.Text(sym, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 1.25, color: textColor, fontWeight: pw.FontWeight.bold)),
                     pw.Padding(
                       padding: const pw.EdgeInsets.only(top: 6),
-                      child: pw.Text(r, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.75, color: textColor, fontWeight: pw.FontWeight.bold)),
+                      child: pw.Text(r, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.75, color: textColor, fontWeight: pw.FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -1579,14 +1583,14 @@ class PdfExportService {
                     pw.Column(
                       mainAxisSize: pw.MainAxisSize.min,
                       children: [
-                        pw.Text(to, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.65, color: textColor, fontWeight: pw.FontWeight.bold)),
-                        pw.Text(sym, style: pw.TextStyle(font: ttf, fontSize: fontSize * 1.2, color: textColor, fontWeight: pw.FontWeight.bold)),
-                        pw.Text(from, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.65, color: textColor, fontWeight: pw.FontWeight.bold)),
+                        pw.Text(to, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.65, color: textColor, fontWeight: pw.FontWeight.bold)),
+                        pw.Text(sym, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 1.2, color: textColor, fontWeight: pw.FontWeight.bold)),
+                        pw.Text(from, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.65, color: textColor, fontWeight: pw.FontWeight.bold)),
                       ],
                     ),
                     if (body.isNotEmpty) ...[
                       pw.SizedBox(width: 3),
-                      pw.Text(body, style: pw.TextStyle(font: ttf, fontSize: fontSize, color: textColor, fontWeight: pw.FontWeight.bold)),
+                      pw.Text(body, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize, color: textColor, fontWeight: pw.FontWeight.bold)),
                     ],
                   ],
                 ),
@@ -1600,8 +1604,8 @@ class PdfExportService {
               child: pw.Column(
                 mainAxisSize: pw.MainAxisSize.min,
                 children: [
-                  pw.Text('→', style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.75, color: textColor, fontWeight: pw.FontWeight.bold)),
-                  pw.Text(s, style: pw.TextStyle(font: ttf, fontSize: fontSize, color: textColor, fontWeight: pw.FontWeight.bold)),
+                  pw.Text('→', style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.75, color: textColor, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(s, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize, color: textColor, fontWeight: pw.FontWeight.bold)),
                 ],
               ),
             ),
@@ -1614,7 +1618,7 @@ class PdfExportService {
                 mainAxisSize: pw.MainAxisSize.min,
                 children: [
                   pw.Container(width: 10, height: 1.0, color: textColor),
-                  pw.Text(s, style: pw.TextStyle(font: ttf, fontSize: fontSize, color: textColor, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(s, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize, color: textColor, fontWeight: pw.FontWeight.bold)),
                 ],
               ),
             ),
@@ -1641,14 +1645,14 @@ class PdfExportService {
                   mainAxisSize: pw.MainAxisSize.min,
                   children: [
                     pw.Row(mainAxisSize: pw.MainAxisSize.min, children: [
-                      pw.Text(a, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.9, color: textColor)),
+                      pw.Text(a, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.9, color: textColor)),
                       pw.SizedBox(width: 6),
-                      pw.Text(b, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.9, color: textColor)),
+                      pw.Text(b, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.9, color: textColor)),
                     ]),
                     pw.Row(mainAxisSize: pw.MainAxisSize.min, children: [
-                      pw.Text(c, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.9, color: textColor)),
+                      pw.Text(c, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.9, color: textColor)),
                       pw.SizedBox(width: 6),
-                      pw.Text(d, style: pw.TextStyle(font: ttf, fontSize: fontSize * 0.9, color: textColor)),
+                      pw.Text(d, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.9, color: textColor)),
                     ]),
                   ],
                 ),
@@ -1690,7 +1694,7 @@ class PdfExportService {
                                   ? pw.Text(
                                       op,
                                       style: pw.TextStyle(
-                                        font: ttf,
+                                        font: effectiveFont,
                                         fontSize: fontSize * 1.15,
                                         color: textColor,
                                         fontWeight: pw.FontWeight.bold,
@@ -1703,7 +1707,7 @@ class PdfExportService {
                             pw.Text(
                               val,
                               style: pw.TextStyle(
-                                font: ttf,
+                                font: effectiveFont,
                                 fontSize: fontSize * 1.05,
                                 color: textColor,
                                 fontWeight: pw.FontWeight.bold,
@@ -1749,7 +1753,7 @@ class PdfExportService {
                           child: pw.Text(
                             quotient,
                             style: pw.TextStyle(
-                              font: ttf,
+                              font: effectiveFont,
                               fontSize: fontSize * 0.9,
                               color: textColor,
                               fontWeight: pw.FontWeight.bold,
@@ -1763,7 +1767,7 @@ class PdfExportService {
                           pw.Text(
                             divisor,
                             style: pw.TextStyle(
-                              font: ttf,
+                              font: effectiveFont,
                               fontSize: fontSize,
                               color: textColor,
                               fontWeight: pw.FontWeight.bold,
@@ -1782,7 +1786,7 @@ class PdfExportService {
                             child: pw.Text(
                               dividend,
                               style: pw.TextStyle(
-                                font: ttf,
+                                font: effectiveFont,
                                 fontSize: fontSize,
                                 color: textColor,
                                 fontWeight: pw.FontWeight.bold,
@@ -1812,7 +1816,7 @@ class PdfExportService {
       text: pw.TextSpan(
         children: spans,
         style: pw.TextStyle(
-          font: ttf,
+          font: effectiveFont,
           fontSize: fontSize,
           color: textColor,
           fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
