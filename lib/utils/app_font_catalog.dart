@@ -1,0 +1,41 @@
+import 'package:flutter/material.dart';
+
+typedef FontItem = Map<String, String>;
+
+/// مصدر واحد لقائمة الخطوط المعتمدة في جميع أدوات التطبيق.
+const List<FontItem> appFontsList = [
+  {'id': 'Amiri', 'name': 'خط الأميري (الافتراضي)'},
+  {'id': 'Hafs', 'name': 'مصحف حفص (عثماني)'},
+  {'id': 'Thuluth', 'name': 'خط الثلث'},
+  {'id': 'Almarai', 'name': 'المراعي'},
+  {'id': 'Changa', 'name': 'تشانجا'},
+  {'id': 'Kufam', 'name': 'كوفام'},
+  {'id': 'Rubik', 'name': 'روبيك'},
+  {'id': 'Arial', 'name': 'أريال (Arial)'},
+  {'id': 'ElHijaz', 'name': 'الحجاز عادي'},
+  {'id': 'ElSHijazAdorn', 'name': 'زخارف الحجاز'},
+  {'id': 'ElourQuraaKufi', 'name': 'قراء كوفي'},
+  {'id': 'ElghAnSrame', 'name': 'الغصن الصارم'},
+  {'id': 'ElAfrica', 'name': 'إفريقيا'},
+  {'id': 'SultanCtangle', 'name': 'سلطان'},
+  {'id': 'Tahrir', 'name': 'تحرير'},
+  {'id': 'DTUTH', 'name': 'ديتوث'},
+  {'id': 'Lishposter', 'name': 'ليش بوستر'},
+  {'id': 'Axdf', 'name': 'أكسدف'},
+  {'id': 'Banyeh', 'name': 'بنية'},
+  {'id': 'Meshref', 'name': 'مشرف'},
+  {'id': 'Minder', 'name': 'ميندر'},
+  {'id': 'Mobv2', 'name': 'موب V2'},
+  {'id': 'GSoon', 'name': 'غصون'},
+  {'id': 'DeApple', 'name': 'دي آبل'},
+  {'id': 'JsMath', 'name': 'رموز الرياضيات'},
+  {'id': 'Satisfy', 'name': 'Satisfy'},
+  {'id': 'Schoolbell', 'name': 'Schoolbell'},
+  {'id': 'Caps', 'name': 'Caps Regular'},
+  {'id': 'Chewy', 'name': 'Chewy'},
+  {'id': 'Crushed', 'name': 'Crushed'},
+  {'id': 'Girls', 'name': 'Girls'},
+  {'id': 'Grover', 'name': 'Grover'},
+  {'id': 'RSwanky', 'name': 'R-Swanky'},
+  {'id': 'SMono', 'name': 'خط أحادي'},
+];
