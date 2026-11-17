@@ -1266,10 +1266,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               Directionality(
                 textDirection: TextDirection.rtl,
                 child: SizedBox(
-                  height: 64,
-                  child: FluentToolbar(
-                    document: _activeRichDocument!,
-                    labels: RichQuestionEditorDialogState.arabicLabels,
+                  height: 108,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: FluentToolbar(
+                      document: _activeRichDocument!,
+                      labels: RichQuestionEditorDialogState.arabicLabels,
+                    ),
                   ),
                 ),
               )
