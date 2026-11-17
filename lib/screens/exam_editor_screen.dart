@@ -3034,17 +3034,21 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     if (el.type == ElementType.image || el.type == ElementType.shape || el.type == ElementType.table) {
+      final double safeScale = gestureScale.clamp(0.25, 3.0);
+      final double controlSize = 34 / safeScale;
+
       return Transform.translate(
         offset: applyOffset ? Offset(el.dx, el.dy) : Offset.zero,
         child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: () {
             refreshState(() {
               _selectedElementId = isSelected ? null : el.id;
             });
           },
-          // لا نسحب العنصر من كامل مساحته؛ التحريك يتم حصراً من مقبض الأسهم
-          // حتى لا تتعارض إيماءة السحب مع أزرار تغيير الحجم.
           child: Stack(
+            // مهم: يجب أن تقع مقابض اللمس داخل حدود Stack نفسها.
+            // المقابض الموضوعة خارج الحدود قد تظهر بصرياً لكنها لا تستقبل اللمس.
             clipBehavior: Clip.none,
             alignment: Alignment.center,
             children: [
@@ -3059,51 +3063,52 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 child: coreWidget,
               ),
               if (isSelected) ...[
+                // مقبض التحريك داخل أعلى العنصر حتى يكون قابلاً للمس فعلياً.
                 Positioned(
-                  top: -46 / gestureScale,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onPanUpdate: (details) {
-                      refreshState(() {
-                        el.dx += details.delta.dx;
-                        el.dy += details.delta.dy;
-                      });
-                    },
-                    child: Container(
-                      width: 36 / gestureScale,
-                      height: 36 / gestureScale,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF1976D2),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))
-                        ],
+                  top: 2 / safeScale,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onPanUpdate: (details) {
+                        refreshState(() {
+                          el.dx += details.delta.dx / safeScale;
+                          el.dy += details.delta.dy / safeScale;
+                        });
+                      },
+                      child: Container(
+                        width: controlSize,
+                        height: controlSize,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF1976D2),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))
+                          ],
+                        ),
+                        child: Icon(Icons.open_with, color: Colors.white, size: 20 / safeScale),
                       ),
-                      child: Icon(Icons.open_with, color: Colors.white, size: 20 / gestureScale),
                     ),
                   ),
                 ),
                 if (canResize) ...[
-                  // شريط رأسي: تغيير الارتفاع فقط.
+                  // شريط رأسي داخل الحافة اليسرى لتغيير الارتفاع.
                   Positioned(
-                    left: -42 / gestureScale,
-                    top: 0,
-                    bottom: 0,
+                    left: 2 / safeScale,
+                    top: controlSize + (5 / safeScale),
+                    bottom: 2 / safeScale,
                     child: SizedBox(
-                      width: 36 / gestureScale,
+                      width: controlSize,
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _buildSizeStepButton(
-                            Icons.add,
-                            gestureScale,
-                            () => changeHeight(8),
-                          ),
+                          _buildSizeStepButton(Icons.add, safeScale, () => changeHeight(8)),
                           Expanded(
                             child: Center(
                               child: Container(
-                                width: 3 / gestureScale,
-                                margin: EdgeInsets.symmetric(vertical: 4 / gestureScale),
+                                width: 3 / safeScale,
+                                margin: EdgeInsets.symmetric(vertical: 4 / safeScale),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF1976D2),
                                   borderRadius: BorderRadius.circular(4),
@@ -3111,35 +3116,27 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               ),
                             ),
                           ),
-                          _buildSizeStepButton(
-                            Icons.remove,
-                            gestureScale,
-                            () => changeHeight(-8),
-                          ),
+                          _buildSizeStepButton(Icons.remove, safeScale, () => changeHeight(-8)),
                         ],
                       ),
                     ),
                   ),
-                  // شريط أفقي: تغيير العرض فقط.
+                  // شريط أفقي داخل الحافة السفلية لتغيير العرض.
                   Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: -42 / gestureScale,
+                    left: controlSize + (5 / safeScale),
+                    right: 2 / safeScale,
+                    bottom: 2 / safeScale,
                     child: SizedBox(
-                      height: 36 / gestureScale,
+                      height: controlSize,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _buildSizeStepButton(
-                            Icons.add,
-                            gestureScale,
-                            () => changeWidth(8),
-                          ),
+                          _buildSizeStepButton(Icons.add, safeScale, () => changeWidth(8)),
                           Expanded(
                             child: Center(
                               child: Container(
-                                height: 3 / gestureScale,
-                                margin: EdgeInsets.symmetric(horizontal: 4 / gestureScale),
+                                height: 3 / safeScale,
+                                margin: EdgeInsets.symmetric(horizontal: 4 / safeScale),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF1976D2),
                                   borderRadius: BorderRadius.circular(4),
@@ -3147,11 +3144,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               ),
                             ),
                           ),
-                          _buildSizeStepButton(
-                            Icons.remove,
-                            gestureScale,
-                            () => changeWidth(-8),
-                          ),
+                          _buildSizeStepButton(Icons.remove, safeScale, () => changeWidth(-8)),
                         ],
                       ),
                     ),
