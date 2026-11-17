@@ -1198,6 +1198,13 @@ class PdfExportService {
     pw.Font font,
     bool isAr,
   ) {
+    // قد يحتوي المستند الغني على فقرة فارغة ناتجة عن سطر جديد أو
+    // حذف محتوى؛ بعض إصدارات Fluent Editor تفترض وجود fragment أول.
+    // نتجاوز الفقرة الفارغة بأمان بدلاً من إسقاط عملية تصدير PDF كاملة.
+    if (paragraph.fragments.isEmpty) {
+      return pw.SizedBox.shrink();
+    }
+
     final paragraphStyle = paragraph.getStyle();
     final spans = <pw.InlineSpan>[];
     for (final fragment in paragraph.fragments) {
