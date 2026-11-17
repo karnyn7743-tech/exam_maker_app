@@ -3093,7 +3093,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             clipBehavior: Clip.none,
             children: [
               Positioned(
-                left: railWidth,
+                left: 0,
                 top: 0,
                 width: el.width,
                 height: el.height,
