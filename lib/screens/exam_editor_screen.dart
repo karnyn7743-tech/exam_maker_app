@@ -1132,7 +1132,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             ? (isAr ? '${_exam.questions.length} فقرة مضافة' : '${_exam.questions.length} items')
                             : (isBalanced ? (isAr ? 'الميزان مضبوط ✓' : 'Balanced ✓') : (diff > 0 ? '+${diff.toStringAsFixed(1)}' : '${diff.toStringAsFixed(1)}')),
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: 8,
                           fontWeight: FontWeight.bold,
                           color: isBalanced ? Colors.green.shade800 : (diff > 0 ? Colors.blue.shade800 : Colors.red.shade800),
                         ),
@@ -1760,11 +1760,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
               // شريط قياس امتلاء الصفحة
               Positioned(
-                bottom: 6,
+                bottom: 3,
                 left: 12,
                 right: 12,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade100,
                     borderRadius: BorderRadius.circular(6),
@@ -1773,17 +1773,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
                         decoration: BoxDecoration(
                           color: isOverflown ? Colors.red.shade700 : const Color(0xFF1E3A8A),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           'A4 - صفحة ${pageIndex + 1} من ${pages.length}',
-                          style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                          style: const TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 5),
                       Expanded(
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(4),
@@ -1795,11 +1795,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                   ? Colors.red
                                   : (fillPercentage > 0.85 ? Colors.orange : Colors.green),
                             ),
-                            minHeight: 6,
+                            minHeight: 3,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 5),
                       Text(
                         isOverflown
                             ? 'فاضت الصفحة ($displayPercent%) ⚠️'
