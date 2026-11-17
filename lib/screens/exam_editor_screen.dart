@@ -3070,7 +3070,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               ? (controlSize * 2 + 18 / safeScale)
               : el.height);
       final double outerHeight = verticalRailHeight + bottomRailHeight;
-      final double outerWidth = canResize\n          ? math.max(el.width, railWidth + controlSize + 4 / safeScale)\n          : el.width;
+      final double outerWidth = canResize
+          ? math.max(el.width, railWidth + controlSize + 4 / safeScale)
+          : el.width;
 
       void moveBy(Offset delta) {
         refreshState(() {
