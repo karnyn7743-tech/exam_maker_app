@@ -90,11 +90,19 @@ jobs:
             exit 1
           fi
 
-          PREVIOUS_CERT="$("${APKSIGNER}" verify --print-certs "${PREVIOUS_APK}" | awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2; exit}')"
-          CURRENT_CERT="$("${APKSIGNER}" verify --print-certs "${CURRENT_APK}" | awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2; exit}')"
+          PREVIOUS_CERT_OUTPUT="$("${APKSIGNER}" verify --print-certs "${PREVIOUS_APK}" 2>&1)"
+          CURRENT_CERT_OUTPUT="$("${APKSIGNER}" verify --print-certs "${CURRENT_APK}" 2>&1)"
 
-          echo "Previous APK signer: ${PREVIOUS_CERT}"
-          echo "Current APK signer:  ${CURRENT_CERT}"
+          echo "Previous APK certificate details:"
+          printf '%s\\n' "${PREVIOUS_CERT_OUTPUT}"
+          echo "Current APK certificate details:"
+          printf '%s\\n' "${CURRENT_CERT_OUTPUT}"
+
+          PREVIOUS_CERT="$(printf '%s\\n' "${PREVIOUS_CERT_OUTPUT}" | sed -nE 's/.*SHA-256 digest: ([[:xdigit:]]+).*/\\1/p' | head -n 1)"
+          CURRENT_CERT="$(printf '%s\\n' "${CURRENT_CERT_OUTPUT}" | sed -nE 's/.*SHA-256 digest: ([[:xdigit:]]+).*/\\1/p' | head -n 1)"
+
+          echo "Previous APK signer fingerprint: ${PREVIOUS_CERT}"
+          echo "Current APK signer fingerprint:  ${CURRENT_CERT}"
 
           if [ -z "${PREVIOUS_CERT}" ] || [ "${PREVIOUS_CERT}" != "${CURRENT_CERT}" ]; then
             echo "::error::The signing certificate differs from the installed release. Do not install this APK over the existing app."
