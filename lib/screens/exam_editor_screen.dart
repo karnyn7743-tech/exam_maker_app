@@ -3794,6 +3794,23 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     bool isUnderlineActive = false;
     String currentColor = '#000000';
 
+    // حافظ على معاينة النص المنسق متزامنة مع النص الجاري تحريره.
+    // وعند تغيير النص بالكامل نستخدم نمط الإدخال النشط، مثل سلوك الحفظ الحالي.
+    void syncWorkingSpansWithText() {
+      final value = textCtrl.text;
+      if (workingSpans.map((span) => span.text).join() == value) return;
+      workingSpans = [
+        TextSpanModel(
+          text: value,
+          colorHex: currentColor,
+          fontFamily: currentFont,
+          fontSize: currentFontSize.clamp(8.0, 36.0).toDouble(),
+          isBold: isBoldActive,
+          isUnderline: isUnderlineActive,
+        ),
+      ];
+    }
+
     void _rebuildSpansWithInsertedText(int offset, String inserted, TextSpanModel template) {
       if (textCtrl.text.isEmpty) {
         workingSpans = [
@@ -5208,6 +5225,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             await Clipboard.setData(ClipboardData(text: selectedText));
                             textCtrl.text = textCtrl.text.replaceRange(start, end, '');
                             textCtrl.selection = TextSelection.collapsed(offset: start);
+                            syncWorkingSpansWithText();
                             lastSelection = textCtrl.selection;
                             setModalState(() {
                               isTextSelected = false;
@@ -5230,6 +5248,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             setModalState(() {
                               textCtrl.text = textCtrl.text.replaceRange(pos, end, clipText);
                               textCtrl.selection = TextSelection.collapsed(offset: pos + clipText.length);
+                              syncWorkingSpansWithText();
                               lastSelection = textCtrl.selection;
                               isTextSelected = false;
                             });
@@ -5262,6 +5281,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             setModalState(() {
                               textCtrl.text = textCtrl.text.replaceRange(start, end, '');
                               textCtrl.selection = TextSelection.collapsed(offset: start);
+                              syncWorkingSpansWithText();
                               lastSelection = textCtrl.selection;
                               isTextSelected = false;
                             });
@@ -5328,6 +5348,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           style: TextStyle(height: currentLineSpacing),
                           onChanged: (val) {
                             setModalState(() {
+                              syncWorkingSpansWithText();
                               lastSelection = textCtrl.selection;
                               isTextSelected = textCtrl.selection.isValid && !textCtrl.selection.isCollapsed;
                             });
