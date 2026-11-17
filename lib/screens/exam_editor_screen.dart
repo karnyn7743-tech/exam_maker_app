@@ -1965,7 +1965,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               TableCell(
                 verticalAlignment: TableCellVerticalAlignment.middle,
                 child: InkWell(
-                  onTap: () => _openQuestionDialog(questionIndex: indexInMainList),
+                  onTap: () {
+                    if (_activeRichEditorQuestionId != null) {
+                      setState(() {
+                        _activeRichEditorQuestionId = null;
+                        _activeRichDocument = null;
+                      });
+                    }
+                    _openQuestionDialog(questionIndex: indexInMainList);
+                  },
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Center(child: titleWidget),
@@ -1981,7 +1989,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ? SizedBox(
                           height: 430,
                           child: RichQuestionInlineEditor(
-                            key: ValueKey('rich-editor-\${q.id}'),
+                            key: ValueKey('rich-editor-${q.id}'),
                             initialDocumentJson: q.richDocumentJson,
                             initialSpans: q.spans,
                             initialText: q.spans.map((span) => span.text).join(),
@@ -2053,7 +2061,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                           const SizedBox(width: 4),
                                           Expanded(
                                             child: Text(
-                                              isAr ? 'الإجابة النموذجية: \${q.answerKey}' : 'Model Answer: \${q.answerKey}',
+                                              isAr ? 'الإجابة النموذجية: ${q.answerKey}' : 'Model Answer: ${q.answerKey}',
                                               style: TextStyle(
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 12,
@@ -2088,7 +2096,15 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               TableCell(
                 verticalAlignment: TableCellVerticalAlignment.middle,
                 child: InkWell(
-                  onTap: () => _openQuestionDialog(questionIndex: indexInMainList),
+                  onTap: () {
+                    if (_activeRichEditorQuestionId != null) {
+                      setState(() {
+                        _activeRichEditorQuestionId = null;
+                        _activeRichDocument = null;
+                      });
+                    }
+                    _openQuestionDialog(questionIndex: indexInMainList);
+                  },
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Center(child: markWidget),
