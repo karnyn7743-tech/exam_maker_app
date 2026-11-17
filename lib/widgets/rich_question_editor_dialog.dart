@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../models/exam_models.dart';
 
 /// محرر مستند غني تجريبي للأسئلة.
+/// Arabic RTL presentation and complete Fluent Editor localization are configured below.
 /// يحتفظ ببنية Fluent Editor كاملة بصيغة JSON دون المساس ببيانات الأسئلة القديمة.
 class RichQuestionEditorDialog extends StatefulWidget {
   final String? initialDocumentJson;
