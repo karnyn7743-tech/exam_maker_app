@@ -2742,7 +2742,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
                 fontSize: s.fontSize,
                 color: spanColor,
-                height: 1.5,
+                height: 1.15,
               );
               return _buildInlineSpanWithFractions(s.text, style);
             }).toList(),
@@ -2771,7 +2771,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
                 fontSize: s.fontSize,
                 color: spanColor,
-                height: 1.5,
+                height: 1.15,
               );
               return _buildInlineSpanWithFractions(s.text, style);
             }).toList(),
@@ -2792,13 +2792,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       fontFamily: q.spans.isNotEmpty ? q.spans.first.fontFamily : defaultFont,
       fontWeight: FontWeight.bold,
       fontSize: q.spans.isNotEmpty ? q.spans.first.fontSize : 14.0,
-      height: 1.5,
+      height: 1.15,
     );
 
     final itemStyle = TextStyle(
       fontFamily: q.spans.isNotEmpty ? q.spans.first.fontFamily : defaultFont,
       fontSize: q.spans.isNotEmpty ? q.spans.first.fontSize : 13.0,
-      height: 1.4,
+      height: 1.15,
     );
 
     return Directionality(
@@ -3774,7 +3774,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     TextSelection? lastSelection;
     bool isTextSelected = false;
     bool hasClipboardContent = false;
-    double currentLineSpacing = 1.5;
+    double currentLineSpacing = 1.15;
 
     Clipboard.hasStrings().then((hasVal) {
       hasClipboardContent = hasVal;
@@ -3798,6 +3798,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     bool useSystemKeyboard = false;
     TextEditingController activeFieldController = textCtrl;
     bool showQuestionSettings = true;
+    // معاينة ورقة A4 اختيارية حتى تبقى مساحة تحرير النص واضحة على الهاتف.
+    bool showA4Preview = false;
 
     final defaultFont = _activeFont.isNotEmpty ? _activeFont : (isAr ? 'Amiri' : 'Arial');
     List<TextSpanModel> workingSpans = q.spans.isNotEmpty
@@ -5422,12 +5424,38 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ),
                       const SizedBox(height: 8),
 
-                      const Text(
-                        'مساحة تحرير السؤال على ورقة A4 — حدد الصورة أو الشكل ثم اسحب مقابضه لتغيير حجمه أو اسحبه لتحريكه:',
-                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
+                      // لا نعرض صفحة A4 كاملة بشكل دائم؛ تظهر عند طلب المستخدم
+                      // لمعاينة الصور والأشكال وتحريكها وتغيير أحجامها.
+                      Align(
+                        alignment: isInputArabic ? Alignment.centerRight : Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () => setModalState(() {
+                            showA4Preview = !showA4Preview;
+                          }),
+                          icon: Icon(
+                            showA4Preview ? Icons.visibility_off_outlined : Icons.preview_outlined,
+                            color: const Color(0xFF1E3A8A),
+                          ),
+                          label: Text(
+                            showA4Preview
+                                ? 'إخفاء معاينة ورقة A4'
+                                : 'معاينة ورقة A4 وتحرير مواضع الصور والأشكال',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1E3A8A),
+                            ),
+                          ),
+                        ),
                       ),
-                      buildQuestionEditorCanvas(setModalState),
-                      const SizedBox(height: 8),
+                      if (showA4Preview) ...[
+                        const Text(
+                          'حدد الصورة أو الشكل ثم اسحب مقابضه لتغيير حجمه أو اسحبه لتحريكه:',
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
+                        ),
+                        buildQuestionEditorCanvas(setModalState),
+                        const SizedBox(height: 8),
+                      ],
 
                       Directionality(
                         textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
