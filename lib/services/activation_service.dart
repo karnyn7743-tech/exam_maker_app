@@ -145,12 +145,26 @@ class ActivationService {
 
     if (status != LicenseStatus.locked) {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_prefKeyActivationCode, enteredKey.trim().toUpperCase());
+      final normalizedKey = enteredKey.trim().toUpperCase();
+      final previousKey = prefs.getString(_prefKeyActivationCode);
+
+      // لا نسمح لمفتاح تجريبي أن يستبدل ترخيصاً دائماً محفوظاً.
+      if (status == LicenseStatus.trial &&
+          previousKey != null &&
+          verifyKey(previousKey, currentDeviceId) == LicenseStatus.full) {
+        return LicenseStatus.full;
+      }
+
+      await prefs.setString(_prefKeyActivationCode, normalizedKey);
       await prefs.setString(_prefLicenseStatus, status == LicenseStatus.full ? 'full' : 'trial');
 
-      // عند إدخال مفتاح تجريبي، نسجل لحظة البداية لبدء حساب الـ 30 يوماً
       if (status == LicenseStatus.trial) {
-        await prefs.setInt(_prefTrialStartDate, DateTime.now().millisecondsSinceEpoch);
+        // إعادة إدخال المفتاح التجريبي نفسه لا تعيد عداد الثلاثين يوماً.
+        // يبدأ العداد فقط عند تفعيل تجريبي جديد أو عند غياب تاريخ محفوظ.
+        final existingStart = prefs.getInt(_prefTrialStartDate);
+        if (previousKey?.trim().toUpperCase() != normalizedKey || existingStart == null) {
+          await prefs.setInt(_prefTrialStartDate, DateTime.now().millisecondsSinceEpoch);
+        }
       }
     }
 
