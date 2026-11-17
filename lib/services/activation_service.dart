@@ -159,10 +159,21 @@ class ActivationService {
       await prefs.setString(_prefLicenseStatus, status == LicenseStatus.full ? 'full' : 'trial');
 
       if (status == LicenseStatus.trial) {
-        // إعادة إدخال المفتاح التجريبي نفسه لا تعيد عداد الثلاثين يوماً.
-        // يبدأ العداد فقط عند تفعيل تجريبي جديد أو عند غياب تاريخ محفوظ.
         final existingStart = prefs.getInt(_prefTrialStartDate);
-        if (previousKey?.trim().toUpperCase() != normalizedKey || existingStart == null) {
+        final isSameTrialKey = previousKey?.trim().toUpperCase() == normalizedKey;
+
+        // المفتاح التجريبي نفسه لا يعيد المدة، حتى بعد انتهاء الأيام الثلاثين.
+        if (isSameTrialKey && existingStart != null) {
+          final elapsedDays = DateTime.now()
+              .difference(DateTime.fromMillisecondsSinceEpoch(existingStart))
+              .inDays;
+          if (elapsedDays >= trialDaysDuration) {
+            return LicenseStatus.locked;
+          }
+        }
+
+        // يبدأ العداد فقط عند تفعيل تجريبي جديد أو عند غياب تاريخ محفوظ.
+        if (!isSameTrialKey || existingStart == null) {
           await prefs.setInt(_prefTrialStartDate, DateTime.now().millisecondsSinceEpoch);
         }
       }
