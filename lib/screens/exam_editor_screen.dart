@@ -4940,15 +4940,33 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           ),
           const Divider(color: Colors.black54, height: 22),
-          Text(
-            textCtrl.text,
-            textAlign: selectedAlignment,
-            textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
-            style: TextStyle(
-              fontSize: 19,
-              height: currentLineSpacing,
-              color: Colors.black,
+          Text.rich(
+            TextSpan(
+              children: workingSpans.map((span) {
+                Color spanColor = Colors.black87;
+                try {
+                  spanColor = Color(
+                    int.parse(span.colorHex.replaceFirst('#', '0xFF')),
+                  );
+                } catch (_) {}
+
+                final spanStyle = TextStyle(
+                  fontFamily: span.fontFamily,
+                  fontSize: span.fontSize,
+                  fontWeight:
+                      span.isBold ? FontWeight.bold : FontWeight.normal,
+                  decoration: span.isUnderline
+                      ? TextDecoration.underline
+                      : TextDecoration.none,
+                  color: spanColor,
+                  height: currentLineSpacing,
+                );
+                return _buildInlineSpanWithFractions(span.text, spanStyle);
+              }).toList(),
             ),
+            textAlign: selectedAlignment,
+            textDirection:
+                isInputArabic ? TextDirection.rtl : TextDirection.ltr,
           ),
           ...currentElements
               .where((el) => el.type != ElementType.image &&
