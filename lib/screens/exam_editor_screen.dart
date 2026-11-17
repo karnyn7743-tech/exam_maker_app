@@ -5424,6 +5424,52 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ),
                       const SizedBox(height: 8),
 
+                      // مساحة عناصر حية داخل محرر السؤال: تعرض الصور والأشكال فور إدراجها
+                      // دون فرض عرض صفحة A4 كاملة، مع الإبقاء على مقابض التحديد والتحريك والتغيير.
+                      if (currentElements.isNotEmpty) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.blueGrey.shade50,
+                            border: Border.all(color: Colors.blueGrey.shade200),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Text(
+                                'العناصر المدرجة في السؤال',
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1E3A8A),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                alignment: isInputArabic
+                                    ? WrapAlignment.start
+                                    : WrapAlignment.end,
+                                crossAxisAlignment: WrapCrossAlignment.start,
+                                spacing: 10,
+                                runSpacing: 10,
+                                children: currentElements.map((el) {
+                                  return _buildRenderedElement(
+                                    el,
+                                    applyOffset: false,
+                                    editorSetState: setModalState,
+                                    gestureScale: 1.0,
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+
                       // لا نعرض صفحة A4 كاملة بشكل دائم؛ تظهر عند طلب المستخدم
                       // لمعاينة الصور والأشكال وتحريكها وتغيير أحجامها.
                       Align(
