@@ -1137,12 +1137,19 @@ class PdfExportService {
         bytes = File(image.src).readAsBytesSync();
       }
       if (bytes == null) return null;
-      return pw.Image(
+      final renderedImage = pw.Image(
         pw.MemoryImage(bytes),
         width: image.width,
         height: image.height,
         fit: pw.BoxFit.contain,
       );
+      if (image.isFloating) {
+        return pw.Transform.translate(
+          offset: PdfPoint(image.offsetX, image.offsetY),
+          child: renderedImage,
+        );
+      }
+      return renderedImage;
     } catch (_) {
       return null;
     }
