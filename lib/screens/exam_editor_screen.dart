@@ -1741,8 +1741,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               // التذييل ثابت أسفل الورقة، مع حجز المساحة المطلوبة للأسئلة.
               Positioned(
                 bottom: 6.0 * 96.0 / 25.4,
-                left: 18,
-                right: 18,
+                left: 20.0 * 96.0 / 72.0,
+                right: 20.0 * 96.0 / 72.0,
                 height: (pageIndex == 0 &&
                         _exam.header.topMargin1cm &&
                         _exam.header.studentDataMode != 'none')
@@ -3521,12 +3521,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 : (_exam.header.isMultiPage
                     ? (_exam.header.continuationText.isNotEmpty ? _exam.header.continuationText : (isAr ? 'يتبع في الصفحة التالية...' : 'To be continued on next page...'))
                     : (_exam.header.singlePageFooterText.isNotEmpty ? _exam.header.singlePageFooterText : (isAr ? 'انتهت الأسئلة مع تمنياتنا بالتوفيق' : 'End of Questions - Good Luck'))),
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.7),
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 2.7),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -3536,7 +3536,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   _showAnswerKeyMode
                       ? (isAr ? 'المصحح / المراجع: ......................' : 'Examiner: ......................')
                       : _exam.header.teacherSignature,
-                  style: const TextStyle(fontSize: 10),
+                  style: const TextStyle(fontSize: 12),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -3548,22 +3548,22 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   children: [
                     Text(
                       _exam.header.subjectCode.toString(),
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontSize: 29.3, fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10.7),
                     Container(
-                      width: 38,
-                      height: 38,
+                      width: 38.0 * 96.0 / 72.0,
+                      height: 38.0 * 96.0 / 72.0,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         border: Border.all(color: Colors.black54, width: 0.8),
                       ),
-                      child: const Icon(Icons.qr_code_2, size: 32, color: Colors.black87),
+                      child: const Icon(Icons.qr_code_2, size: 42.7, color: Colors.black87),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 13.3),
                     Container(
-                      width: 55,
-                      height: 45,
+                      width: 55.0 * 96.0 / 72.0,
+                      height: 45.0 * 96.0 / 72.0,
                       decoration: BoxDecoration(
                         border: Border.all(color: Colors.black54, width: 0.8),
                       ),
