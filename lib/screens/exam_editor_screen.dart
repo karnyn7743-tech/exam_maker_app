@@ -5375,6 +5375,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           readOnly: false,
                           showCursor: true,
                           enableInteractiveSelection: true,
+                          onSelectionChanged: (selection, cause) {
+                            setModalState(() {
+                              lastSelection = selection;
+                              isTextSelected =
+                                  selection.isValid && !selection.isCollapsed;
+                            });
+                          },
                           keyboardType: useSystemKeyboard ? TextInputType.multiline : TextInputType.none,
                           maxLines: 4,
                           style: TextStyle(height: currentLineSpacing),
