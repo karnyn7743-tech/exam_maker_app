@@ -265,13 +265,26 @@ class StudentExcelService {
   }
 
   static bool _isSemesterTitle(String normalizedTitle) {
-    final hasSemesterPhrase = normalizedTitle.contains('فصلدراسي');
-    final hasFirstOrSecond =
-        normalizedTitle.contains('اول') ||
-        normalizedTitle.contains('ثاني') ||
-        normalizedTitle.contains('الاول') ||
-        normalizedTitle.contains('الثاني');
-    return hasSemesterPhrase && hasFirstOrSecond;
+    // نزيل علامات الترقيم والمسافات والرموز الخفية حتى لا يتأثر
+    // التعرف باختلاف كتابة العبارة أو وجود نقطتين بعد "الدراسي".
+    final cleanTitle = normalizedTitle.replaceAll(
+      RegExp(r'[^ء-ي0-9٠-٩]'),
+      '',
+    );
+
+    // يكفي وجود كلمة "فصل" مع تحديد الأول أو الثاني؛ وهذا يشمل:
+    // الفصل الدراسي الأول/الثاني، ونهاية الفصل الدراسي: الأول/الثاني.
+    final hasSemesterWord = cleanTitle.contains('فصل');
+    final isFirstSemester =
+        cleanTitle.contains('اول') ||
+        cleanTitle.contains('١') ||
+        cleanTitle.contains('1');
+    final isSecondSemester =
+        cleanTitle.contains('ثاني') ||
+        cleanTitle.contains('٢') ||
+        cleanTitle.contains('2');
+
+    return hasSemesterWord && (isFirstSemester || isSecondSemester);
   }
 
   static int resolveSmartQrCodeNumberDynamic({
