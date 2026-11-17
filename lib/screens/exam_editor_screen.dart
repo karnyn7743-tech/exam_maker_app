@@ -19,6 +19,7 @@ import 'omr_scanner_screen.dart';
 import '../widgets/exam_custom_keyboard.dart';
 import '../widgets/exam_ribbon_toolbar.dart';
 import '../widgets/rich_question_editor_dialog.dart';
+import '../widgets/rich_question_document_view.dart';
 
 typedef FontItem = Map<String, String>;
 
@@ -2713,6 +2714,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   Widget _buildQuestionContent(QuestionModel q) {
+    if (q.richDocumentJson != null && q.richDocumentJson!.isNotEmpty) {
+      return RichQuestionDocumentView(
+        documentJson: q.richDocumentJson!,
+        direction: _isArabicExam ? TextDirection.rtl : TextDirection.ltr,
+        fallbackAlignment: q.alignment ?? (_isArabicExam ? TextAlign.right : TextAlign.left),
+      );
+    }
     final fullText = q.spans.map((s) => s.text).join('');
     final bool isAutomatedMcq = _exam.examType == ExamType.automated &&
         (fullText.contains('[') && (fullText.contains('أ-') || fullText.contains('١-') || fullText.contains('1-') || fullText.contains('A-') || fullText.contains('a-')));
@@ -4993,6 +5001,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ),
           ),
           const Divider(color: Colors.black54, height: 22),
+          if (richDocumentJson != null && richDocumentJson!.isNotEmpty)
+            RichQuestionDocumentView(
+              documentJson: richDocumentJson!,
+              direction: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
+              fallbackAlignment: selectedAlignment,
+            )
+          else
           Text.rich(
             TextSpan(
               children: workingSpans.map((span) {
