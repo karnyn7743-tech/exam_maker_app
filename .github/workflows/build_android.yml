@@ -61,57 +61,8 @@ jobs:
       - name: Build Release APK
         run: flutter build apk --release --verbose
 
-      # Compare the new APK certificate with the last successful APK artifact
-      # before allowing an update package to be published.
-      - name: Verify update signing certificate
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          PREVIOUS_ARTIFACT_ID="14340395380"
-          ARTIFACT_URL="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PREVIOUS_ARTIFACT_ID}/zip"
-
-          curl --fail --location --silent --show-error \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "${ARTIFACT_URL}" \
-            --output /tmp/previous-release-artifact.zip
-
-          mkdir -p /tmp/previous-release
-          unzip -q /tmp/previous-release-artifact.zip -d /tmp/previous-release
-
-          PREVIOUS_APK="$(find /tmp/previous-release -type f -name '*.apk' -print -quit)"
-          CURRENT_APK="build/app/outputs/flutter-apk/app-release.apk"
-          APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -type f -name apksigner -print | sort -V | tail -n 1)"
-
-          if [ -z "${PREVIOUS_APK}" ] || [ -z "${APKSIGNER}" ]; then
-            echo "::error::Could not inspect the previous APK signing certificate. No update APK will be published."
-            exit 1
-          fi
-
-          PREVIOUS_CERT_OUTPUT="$("${APKSIGNER}" verify --print-certs "${PREVIOUS_APK}" 2>&1)"
-          CURRENT_CERT_OUTPUT="$("${APKSIGNER}" verify --print-certs "${CURRENT_APK}" 2>&1)"
-
-          echo "Previous APK certificate details:"
-          printf '%s\\n' "${PREVIOUS_CERT_OUTPUT}"
-          echo "Current APK certificate details:"
-          printf '%s\\n' "${CURRENT_CERT_OUTPUT}"
-
-          PREVIOUS_CERT="$(printf '%s\\n' "${PREVIOUS_CERT_OUTPUT}" | grep -Eo '[A-Fa-f0-9]{64}' | sed -n '1p' || true)"
-          CURRENT_CERT="$(printf '%s\\n' "${CURRENT_CERT_OUTPUT}" | grep -Eo '[A-Fa-f0-9]{64}' | sed -n '1p' || true)"
-
-          echo "Previous APK signer fingerprint: ${PREVIOUS_CERT}"
-          echo "Current APK signer fingerprint:  ${CURRENT_CERT}"
-
-          if [ -z "${PREVIOUS_CERT}" ] || [ "${PREVIOUS_CERT}" != "${CURRENT_CERT}" ]; then
-            echo "::error::The signing certificate differs from the installed release. Do not install this APK over the existing app."
-            exit 1
-          fi
-
-          echo "Signing certificate matches. The APK is eligible for an in-place update."
-
+      # Build-validation artifact only. This APK uses the runner's debug signing key
+      # and must not be installed over an existing release or distributed.
       - name: Verify APK
         shell: bash
         run: |
@@ -132,6 +83,6 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: exam-maker-Android-APK
+          name: exam-maker-Android-APK-build-test-only
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
