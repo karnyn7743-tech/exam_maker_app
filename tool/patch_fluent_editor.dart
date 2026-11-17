@@ -51,17 +51,18 @@ Future<void> main() async {
 
   if (source.contains(patched)) {
     stdout.writeln('Fluent Editor long-press selection patch is already applied.');
-    return;
-  }
-  if (!source.contains(original)) {
-    stderr.writeln('Expected Fluent Editor long-press block was not found; refusing an unsafe patch.');
-    exitCode = 1;
-    return;
+  } else {
+    if (!source.contains(original)) {
+      stderr.writeln('Expected Fluent Editor long-press block was not found; refusing an unsafe patch.');
+      exitCode = 1;
+      return;
+    }
+    source = source.replaceFirst(original, patched);
+    await sourceFile.writeAsString(source);
+    stdout.writeln('Applied Fluent Editor long-press text-selection patch.');
   }
 
-  source = source.replaceFirst(original, patched);
-  await sourceFile.writeAsString(source);
-  stdout.writeln('Applied Fluent Editor long-press text-selection patch.');
+  await patchImageDragging(rootUri);
 }
 
 Future<void> patchImageDragging(Uri rootUri) async {
