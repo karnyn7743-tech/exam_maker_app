@@ -1265,8 +1265,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               currentFontSize: _activeFontSize,
               isArabicInput: _isArabicInput,
               showQuestionSettings: true,
-              onToggleQuestionSettings: () {},
-              isTextSelected: false,
+              onToggleQuestionSettings: () => _openQuestionDialog(),
+              isTextSelected: _selectedElementId != null,
               hasClipboardContent: _copiedElement != null,
               currentLineSpacing: 1.5,
               currentZoom: _zoomLevel,
@@ -1284,88 +1284,98 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 });
               },
               onCopy: () {
-                if (_exam.questions.isNotEmpty &&
-                    _exam.questions.any((q) => q.elements.isNotEmpty)) {
-                  final allElements =
-                      _exam.questions.expand((q) => q.elements).toList();
-                  final el = _selectedElementId == null
-                      ? allElements.last
-                      : allElements.firstWhere(
-                          (e) => e.id == _selectedElementId,
-                          orElse: () => allElements.last,
-                        );
-                  setState(() {
-                    _copiedElement = InsertableElement(
-                      id: const Uuid().v4(),
-                      type: el.type,
-                      content: el.content,
-                      width: el.width,
-                      height: el.height,
-                      dx: el.dx,
-                      dy: el.dy,
-                      layer: el.layer,
-                    );
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم نسخ العنصر المحدد إلى الحافظة.')),
+                final selectedId = _selectedElementId;
+                if (selectedId == null) return;
+                final matches = _exam.questions
+                    .expand((question) => question.elements)
+                    .where((element) => element.id == selectedId)
+                    .toList();
+                if (matches.isEmpty) return;
+
+                final el = matches.first;
+                setState(() {
+                  _copiedElement = InsertableElement(
+                    id: const Uuid().v4(),
+                    type: el.type,
+                    content: el.content,
+                    width: el.width,
+                    height: el.height,
+                    dx: el.dx,
+                    dy: el.dy,
+                    layer: el.layer,
                   );
-                }
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('تم نسخ العنصر المحدد إلى الحافظة.')),
+                );
               },
               onPaste: () {
-                if (_copiedElement != null && _exam.questions.isNotEmpty) {
-                  setState(() {
-                    final pastedElement = InsertableElement(
-                      id: const Uuid().v4(),
-                      type: _copiedElement!.type,
-                      content: _copiedElement!.content,
-                      width: _copiedElement!.width,
-                      height: _copiedElement!.height,
-                      dx: _copiedElement!.dx + 10,
-                      dy: _copiedElement!.dy + 10,
-                      layer: _copiedElement!.layer,
-                    );
-                    _exam.questions.last.elements.add(pastedElement);
-                    _selectedElementId = pastedElement.id;
-                  });
-                  _measurePagesHeight();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم لصق العنصر في السؤال الأخير.')),
+                if (_copiedElement == null || _exam.questions.isEmpty) return;
+
+                final selectedQuestion = _exam.questions.where(
+                  (question) => question.elements.any(
+                    (element) => element.id == _selectedElementId,
+                  ),
+                );
+                final targetQuestion = selectedQuestion.isNotEmpty
+                    ? selectedQuestion.first
+                    : _exam.questions.last;
+
+                setState(() {
+                  final pastedElement = InsertableElement(
+                    id: const Uuid().v4(),
+                    type: _copiedElement!.type,
+                    content: _copiedElement!.content,
+                    width: _copiedElement!.width,
+                    height: _copiedElement!.height,
+                    dx: _copiedElement!.dx + 10,
+                    dy: _copiedElement!.dy + 10,
+                    layer: _copiedElement!.layer,
                   );
-                }
+                  targetQuestion.elements.add(pastedElement);
+                  _selectedElementId = pastedElement.id;
+                });
+                _measurePagesHeight();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('تم لصق العنصر في السؤال المحدد.')),
+                );
               },
               onCut: () {
-                final allElements =
-                    _exam.questions.expand((q) => q.elements).toList();
-                if (allElements.isNotEmpty) {
-                  final el = _selectedElementId == null
-                      ? allElements.last
-                      : allElements.firstWhere(
-                          (e) => e.id == _selectedElementId,
-                          orElse: () => allElements.last,
-                        );
-                  setState(() {
-                    _copiedElement = InsertableElement(
-                      id: const Uuid().v4(),
-                      type: el.type,
-                      content: el.content,
-                      width: el.width,
-                      height: el.height,
-                      dx: el.dx,
-                      dy: el.dy,
-                    );
-                    for (final question in _exam.questions) {
-                      question.elements.removeWhere((item) => item.id == el.id);
-                    }
-                    _selectedElementId = null;
-                  });
-                  _measurePagesHeight();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم قص العنصر المحدد إلى الحافظة.')),
+                final selectedId = _selectedElementId;
+                if (selectedId == null) return;
+
+                final matches = _exam.questions
+                    .expand((question) => question.elements)
+                    .where((element) => element.id == selectedId)
+                    .toList();
+                if (matches.isEmpty) return;
+
+                final el = matches.first;
+                setState(() {
+                  _copiedElement = InsertableElement(
+                    id: const Uuid().v4(),
+                    type: el.type,
+                    content: el.content,
+                    width: el.width,
+                    height: el.height,
+                    dx: el.dx,
+                    dy: el.dy,
+                    layer: el.layer,
                   );
-                }
+                  for (final question in _exam.questions) {
+                    question.elements.removeWhere(
+                      (item) => item.id == selectedId,
+                    );
+                  }
+                  _selectedElementId = null;
+                });
+                _measurePagesHeight();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('تم قص العنصر المحدد إلى الحافظة.')),
+                );
               },
               onShare: null,
-              onSelectAll: () {},
+              onSelectAll: null,
               onDeleteSelected: () {
                 if (_selectedElementId != null) {
                   setState(() {
