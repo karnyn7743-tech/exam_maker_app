@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:fluent_editor/fluent_document.dart';
+import 'package:fluent_editor/widgets/editor/fluent_toolbar_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 import '../models/exam_models.dart';
@@ -102,6 +104,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
   InsertableElement? _copiedElement;
   String? _selectedElementId;
+  String? _activeRichEditorQuestionId;
+  FluentDocument? _activeRichDocument;
 
   // الحالات النشطة لتنسيق الشريط المبوب الرئيسي
   bool _isBold = false;
@@ -1257,6 +1261,19 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         ),
         body: Column(
           children: [
+            // أدوات Fluent Editor تظهر أعلى الورقة بالحجم الطبيعي عند تحرير سؤال.
+            if (_activeRichDocument != null)
+              Directionality(
+                textDirection: TextDirection.rtl,
+                child: SizedBox(
+                  height: 64,
+                  child: FluentToolbar(
+                    document: _activeRichDocument!,
+                    labels: RichQuestionEditorDialogState.arabicLabels,
+                  ),
+                ),
+              )
+            else ...[
             // شريط أوفيس Ribbon المبوب أعلى ورقة الاختبار
             ExamRibbonToolbar(
               isBold: _isBold,
@@ -1509,6 +1526,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               onZoomOut: _zoomOut,
               onFitScreen: _fitScreen,
             ),
+            ],
 
             // تغليف عرض الورقة البيضاء بـ InteractiveViewer وتثبيت أبعاد A4
             Expanded(
@@ -1954,84 +1972,116 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                 ),
               ),
-              // 1: نص السؤال والعناصر المرافقة بالوسط
+              // 1: محتوى السؤال في العمود الأوسط؛ يتحول إلى محرر غني داخل الورقة عند اختياره.
               TableCell(
                 verticalAlignment: TableCellVerticalAlignment.middle,
-                child: InkWell(
-                  onTap: () => _openQuestionDialog(questionIndex: indexInMainList),
-                  child: Padding(
-                    padding: const EdgeInsets.all(6.0),
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        // مساحة حقيقية داخل صف السؤال تستوعب العناصر العائمة
-                        // وتمنعها من الانزلاق بصرياً إلى صف السؤال التالي أو التذييل.
-                        SizedBox(height: floatingElementsExtent),
-                        ...q.elements
-                            .where((el) => el.layer == 'behind')
-                            .map((el) => Positioned(
-                                  left: el.dx,
-                                  top: el.dy,
-                                  child: _buildRenderedElement(
-                                    el,
-                                    applyOffset: false,
-                                    gestureScale: _zoomLevel,
-                                  ),
-                                )),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildQuestionContent(q),
-                            if (q.elements.any((el) => el.layer == 'inline'))
-                              const SizedBox(height: 6),
-                            ...q.elements
-                                .where((el) => el.layer == 'inline')
-                                .map((el) => _buildRenderedElement(el, gestureScale: _zoomLevel)),
-                            if (_showAnswerKeyMode && q.answerKey.trim().isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.shade50,
-                              border: Border.all(color: Colors.blue.shade300),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(Icons.check_circle_outline, size: 16, color: Colors.blue),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    isAr ? 'الإجابة النموذجية: ${q.answerKey}' : 'Model Answer: ${q.answerKey}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                      color: Colors.blue.shade900,
-                                      fontFamily: isAr ? 'Amiri' : 'Arial',
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                child: Padding(
+                  padding: const EdgeInsets.all(6.0),
+                  child: _activeRichEditorQuestionId == q.id
+                      ? SizedBox(
+                          height: 430,
+                          child: RichQuestionInlineEditor(
+                            key: ValueKey('rich-editor-\${q.id}'),
+                            initialDocumentJson: q.richDocumentJson,
+                            initialSpans: q.spans,
+                            initialText: q.spans.map((span) => span.text).join(),
+                            onChanged: (result) {
+                              q.richDocumentJson = result['json'];
+                              q.spans = [
+                                TextSpanModel(text: result['text'] ?? ''),
+                              ];
+                            },
+                            onDocumentReady: (document) {
+                              if (!mounted || _activeRichEditorQuestionId != q.id) return;
+                              setState(() => _activeRichDocument = document);
+                            },
+                            onClose: () {
+                              setState(() {
+                                _activeRichEditorQuestionId = null;
+                                _activeRichDocument = null;
+                              });
+                              _measurePagesHeight();
+                            },
                           ),
+                        )
+                      : InkWell(
+                          onTap: () {
+                            setState(() {
+                              _activeRichEditorQuestionId = q.id;
+                              _activeRichDocument = null;
+                            });
+                          },
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              // مساحة حقيقية داخل صف السؤال تستوعب العناصر العائمة
+                              // وتمنعها من الانزلاق بصرياً إلى صف السؤال التالي أو التذييل.
+                              SizedBox(height: floatingElementsExtent),
+                              ...q.elements
+                                  .where((el) => el.layer == 'behind')
+                                  .map((el) => Positioned(
+                                        left: el.dx,
+                                        top: el.dy,
+                                        child: _buildRenderedElement(
+                                          el,
+                                          applyOffset: false,
+                                          gestureScale: _zoomLevel,
+                                        ),
+                                      )),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _buildQuestionContent(q),
+                                  if (q.elements.any((el) => el.layer == 'inline'))
+                                    const SizedBox(height: 6),
+                                  ...q.elements
+                                      .where((el) => el.layer == 'inline')
+                                      .map((el) => _buildRenderedElement(el, gestureScale: _zoomLevel)),
+                                  if (_showAnswerKeyMode && q.answerKey.trim().isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue.shade50,
+                                        border: Border.all(color: Colors.blue.shade300),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Icon(Icons.check_circle_outline, size: 16, color: Colors.blue),
+                                          const SizedBox(width: 4),
+                                          Expanded(
+                                            child: Text(
+                                              isAr ? 'الإجابة النموذجية: \${q.answerKey}' : 'Model Answer: \${q.answerKey}',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                                color: Colors.blue.shade900,
+                                                fontFamily: isAr ? 'Amiri' : 'Arial',
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              ...q.elements
+                                  .where((el) => el.layer == 'front')
+                                  .map((el) => Positioned(
+                                        left: el.dx,
+                                        top: el.dy,
+                                        child: _buildRenderedElement(
+                                          el,
+                                          applyOffset: false,
+                                          gestureScale: _zoomLevel,
+                                        ),
+                                      )),
                             ],
-                          ],
+                          ),
                         ),
-                        ...q.elements
-                            .where((el) => el.layer == 'front')
-                            .map((el) => Positioned(
-                                  left: el.dx,
-                                  top: el.dy,
-                                  child: _buildRenderedElement(
-                                    el,
-                                    applyOffset: false,
-                                    gestureScale: _zoomLevel,
-                                  ),
-                                )),
-                      ],
-                    ),
-                  ),
                 ),
               ),
               // 2: محتوى عمود الدرجة (يسار بالعربي)
@@ -5453,45 +5503,21 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ),
                       const SizedBox(height: 8),
 
-                      SizedBox(
+                      Container(
                         width: double.infinity,
-                        child: OutlinedButton.icon(
-                          icon: const Icon(Icons.description_outlined, color: Color(0xFF1E3A8A)),
-                          label: const Text(
-                            'فتح محرر Word المتقدم (إدراج الصور داخل النص)',
-                            style: TextStyle(
-                              color: Color(0xFF1E3A8A),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEAF0FA),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'لتحرير السؤال بأدوات التنسيق والصور والجداول، اضغط على محتوى السؤال في العمود الأوسط من ورقة الاختبار.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Color(0xFF1E3A8A),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
                           ),
-                          onPressed: () async {
-                            final result = await showDialog<Map<String, String>>(
-                              context: context,
-                              barrierDismissible: false,
-                              builder: (_) => Dialog.fullscreen(
-                                child: RichQuestionEditorDialog(
-                                  initialDocumentJson: richDocumentJson,
-                                  initialSpans: workingSpans,
-                                  initialText: textCtrl.text,
-                                ),
-                              ),
-                            );
-                            if (result == null) return;
-                            setModalState(() {
-                              richDocumentJson = result['json'];
-                              final updatedText = result['text'] ?? '';
-                              textCtrl.value = TextEditingValue(
-                                text: updatedText,
-                                selection: TextSelection.collapsed(
-                                  offset: updatedText.length,
-                                ),
-                              );
-                              syncWorkingSpansWithText();
-                              lastSelection = textCtrl.selection;
-                              activeFieldController = textCtrl;
-                            });
-                          },
                         ),
                       ),
                       const SizedBox(height: 6),
