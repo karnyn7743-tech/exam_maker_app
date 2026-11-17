@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 # يمنع تكدس عمليات البناء لنفس الفرع؛ الأحدث يلغي الأقدم.
 concurrency:
@@ -58,6 +59,49 @@ jobs:
 
       - name: Build Release APK
         run: flutter build apk --release --verbose
+
+      # Compare the new APK certificate with the last successful APK artifact
+      # before allowing an update package to be published.
+      - name: Verify update signing certificate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PREVIOUS_ARTIFACT_ID="14340395380"
+          ARTIFACT_URL="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PREVIOUS_ARTIFACT_ID}/zip"
+
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${ARTIFACT_URL}" \
+            --output /tmp/previous-release-artifact.zip
+
+          mkdir -p /tmp/previous-release
+          unzip -q /tmp/previous-release-artifact.zip -d /tmp/previous-release
+
+          PREVIOUS_APK="$(find /tmp/previous-release -type f -name '*.apk' -print -quit)"
+          CURRENT_APK="build/app/outputs/flutter-apk/app-release.apk"
+          APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -type f -name apksigner -print | sort -V | tail -n 1)"
+
+          if [ -z "${PREVIOUS_APK}" ] || [ -z "${APKSIGNER}" ]; then
+            echo "::error::Could not inspect the previous APK signing certificate. No update APK will be published."
+            exit 1
+          fi
+
+          PREVIOUS_CERT="$("${APKSIGNER}" verify --print-certs "${PREVIOUS_APK}" | awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2; exit}')"
+          CURRENT_CERT="$("${APKSIGNER}" verify --print-certs "${CURRENT_APK}" | awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2; exit}')"
+
+          echo "Previous APK signer: ${PREVIOUS_CERT}"
+          echo "Current APK signer:  ${CURRENT_CERT}"
+
+          if [ -z "${PREVIOUS_CERT}" ] || [ "${PREVIOUS_CERT}" != "${CURRENT_CERT}" ]; then
+            echo "::error::The signing certificate differs from the installed release. Do not install this APK over the existing app."
+            exit 1
+          fi
+
+          echo "Signing certificate matches. The APK is eligible for an in-place update."
 
       - name: Verify APK
         shell: bash
