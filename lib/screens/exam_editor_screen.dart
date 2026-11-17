@@ -1870,7 +1870,19 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               .where((el) => el.layer == 'behind' || el.layer == 'front')
               .fold<double>(
                 0.0,
-                (extent, el) => math.max(extent, el.dy + el.height + 12.0).toDouble(),
+                (extent, el) {
+                  final bool showResizeControls =
+                      _selectedElementId == el.id &&
+                      (el.type == ElementType.image ||
+                          el.type == ElementType.shape);
+                  final double controlsBottom = showResizeControls
+                      ? math.max(el.height, 106.0) + 52.0
+                      : el.height;
+                  return math.max(
+                    extent,
+                    el.dy + controlsBottom + 12.0,
+                  ).toDouble();
+                },
               )
               .clamp(0.0, kA4PaperHeight - 80.0)
               .toDouble();
