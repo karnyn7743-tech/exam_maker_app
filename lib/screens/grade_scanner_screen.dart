@@ -11,9 +11,9 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:xml/xml.dart';
+import '../utils/permission_helper.dart';
 
 bool _isMahsala1(String t) => t == 'م١' || t == 'م1' || t == 'م۱';
 bool _isMahsala2(String t) => t == 'م٢' || t == 'م2' || t == 'م۲';
@@ -688,34 +688,9 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   }
 
   Future<void> _requestPermissions() async {
-    if (!await Permission.camera.isGranted) await Permission.camera.request();
-    if (!await Permission.storage.isGranted) await Permission.storage.request();
-    if (!await Permission.manageExternalStorage.isGranted) {
-      final status = await Permission.manageExternalStorage.request();
-      if (status.isDenied && mounted) _showManageStorageDialog();
-    }
-  }
-
-  void _showManageStorageDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('صلاحية مطلوبة'),
-        content: const Text(
-            'لكي يعمل التطبيق، نحتاج صلاحية "إدارة جميع الملفات".\n\nاضغط "فتح الإعدادات" ثم فعّل الخيار للتطبيق.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('لاحقاً')),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await openAppSettings();
-            },
-            child: const Text('فتح الإعدادات'),
-          ),
-        ],
-      ),
-    );
+    await requestStoragePermissionIfNeeded();
+    if (!mounted) return;
+    await requestCameraPermissionIfNeeded(context);
   }
 
   Future<String> _getPermanentExcelPath(
