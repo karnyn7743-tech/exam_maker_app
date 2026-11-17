@@ -119,6 +119,9 @@ class PdfExportService {
       final bool showQrMode = hasStudent &&
           exam.header.studentDataMode == 'namesAndQr' &&
           !isAutomated;
+      final bool reserveStudentFooterArea = hasStudent &&
+          exam.header.topMargin1cm &&
+          exam.header.studentDataMode != 'none';
 
       // بناء الصفحات صفحة صفحة بشكل مستقل ومنضبط لمنع خطأ الذاكرة
       for (int pageIdx = 0; pageIdx < pagesQuestions.length; pageIdx++) {
@@ -142,6 +145,96 @@ class PdfExportService {
               right: 20.0,
             ),
             textDirection: pageDir,
+            // التذييل مثبت في أسفل الصفحة، ويستهلك 3 سم عند وجود بيانات
+            // الطالب، و1 سم فقط في الورق العادي. موضع QR ورقم المادة
+            // مرتبط بهامش الصفحة السفلي الثابت ولا يتأثر بمساحة الأسئلة.
+            footer: (pw.Context footerContext) {
+              final bool footerHasQr = showQrMode && isFirstPage;
+              final double footerHeight = reserveStudentFooterArea && isFirstPage
+                  ? 3.0 * cm
+                  : 1.0 * cm;
+
+              return pw.Directionality(
+                textDirection: pw.TextDirection.rtl,
+                child: pw.Container(
+                  height: footerHeight,
+                  alignment: pw.Alignment.bottomCenter,
+                  child: pw.Column(
+                    mainAxisSize: pw.MainAxisSize.min,
+                    mainAxisAlignment: pw.MainAxisAlignment.end,
+                    children: [
+                      pw.Center(
+                        child: pw.Text(
+                          isLastPage
+                              ? (exam.header.singlePageFooterText.isNotEmpty
+                                  ? exam.header.singlePageFooterText
+                                  : (isAr ? 'انتهت الأسئلة مع تمنياتنا لكم بالتوفيق والنجاح' : 'End of Questions - Best of Luck'))
+                              : (exam.header.continuationText.isNotEmpty
+                                  ? exam.header.continuationText
+                                  : (isAr ? 'يتبع في الصفحة التالية...' : 'To be continued on next page...')),
+                          style: pw.TextStyle(
+                            font: ttf,
+                            fontSize: 9.5,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      pw.SizedBox(height: 2),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: pw.CrossAxisAlignment.end,
+                        children: [
+                          pw.Text(
+                            exam.header.teacherSignature.isNotEmpty
+                                ? exam.header.teacherSignature
+                                : (isAr ? 'معلم المادة: ......................' : 'Teacher: ......................'),
+                            style: pw.TextStyle(font: ttf, fontSize: 9.0),
+                          ),
+                          if (footerHasQr)
+                            pw.Row(
+                              mainAxisSize: pw.MainAxisSize.min,
+                              crossAxisAlignment: pw.CrossAxisAlignment.center,
+                              children: [
+                                pw.Text(
+                                  '$currentSubjectCode',
+                                  style: pw.TextStyle(
+                                    font: ttf,
+                                    fontSize: 22,
+                                    fontWeight: pw.FontWeight.bold,
+                                  ),
+                                ),
+                                pw.SizedBox(width: 8),
+                                pw.Container(
+                                  width: 38,
+                                  height: 38,
+                                  child: pw.BarcodeWidget(
+                                    barcode: Barcode.qrCode(),
+                                    data: student.secretCode,
+                                    drawText: false,
+                                  ),
+                                ),
+                                pw.SizedBox(width: 10),
+                                pw.Container(
+                                  width: 55,
+                                  height: 45,
+                                  decoration: pw.BoxDecoration(
+                                    border: pw.Border.all(color: PdfColors.black, width: 1.2),
+                                  ),
+                                ),
+                              ],
+                            )
+                          else
+                            pw.Text(
+                              'صفحة \${pageIdx + 1} من \${pagesQuestions.length}',
+                              style: pw.TextStyle(font: ttf, fontSize: 8.5),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
             build: (pw.Context context) {
               return [
                 pw.Column(
@@ -219,91 +312,8 @@ class PdfExportService {
                   else
                     _buildQuestionsSubTable(currentQuestions, exam.header.instructionText, ttf, isAr),
 
-                  // مساحة فاصلة مرنة لا تستخدم Spacer داخل MultiPage
-                  pw.SizedBox(height: 8),
-
-                  // 4. تذييل الصفحة وتوقيع المعلم
-                  pw.Directionality(
-                    textDirection: pw.TextDirection.rtl,
-                    child: pw.Container(
-                      padding: const pw.EdgeInsets.only(top: 2),
-                      child: pw.Column(
-                        mainAxisSize: pw.MainAxisSize.min,
-                        children: [
-                          pw.Center(
-                            child: pw.Text(
-                              isLastPage
-                                  ? (exam.header.singlePageFooterText.isNotEmpty
-                                      ? exam.header.singlePageFooterText
-                                      : (isAr ? 'انتهت الأسئلة مع تمنياتنا لكم بالتوفيق والنجاح' : 'End of Questions - Best of Luck'))
-                                  : (exam.header.continuationText.isNotEmpty
-                                      ? exam.header.continuationText
-                                      : (isAr ? 'يتبع في الصفحة التالية...' : 'To be continued on next page...')),
-                              style: pw.TextStyle(
-                                font: ttf,
-                                fontSize: 9.5,
-                                fontWeight: pw.FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          pw.SizedBox(height: 2),
-                          pw.Row(
-                            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                            crossAxisAlignment: pw.CrossAxisAlignment.end,
-                            children: [
-                              pw.Text(
-                                exam.header.teacherSignature.isNotEmpty
-                                    ? exam.header.teacherSignature
-                                    : (isAr ? 'معلم المادة: ......................' : 'Teacher: ......................'),
-                                style: pw.TextStyle(font: ttf, fontSize: 9.0),
-                              ),
-                              if (showQrMode && isFirstPage)
-                                pw.Row(
-                                  mainAxisSize: pw.MainAxisSize.min,
-                                  crossAxisAlignment: pw.CrossAxisAlignment.center,
-                                  children: [
-                                    pw.Text(
-                                      '$currentSubjectCode',
-                                      style: pw.TextStyle(
-                                        font: ttf,
-                                        fontSize: 22,
-                                        fontWeight: pw.FontWeight.bold,
-                                      ),
-                                    ),
-                                    pw.SizedBox(width: 8),
-                                    if (student.secretCode.isNotEmpty)
-                                      pw.Container(
-                                        width: 38,
-                                        height: 38,
-                                        child: pw.BarcodeWidget(
-                                          barcode: Barcode.qrCode(),
-                                          data: student.secretCode,
-                                          drawText: false,
-                                        ),
-                                      )
-                                    else
-                                      pw.SizedBox(width: 38, height: 38),
-                                    pw.SizedBox(width: 10),
-                                    pw.Container(
-                                      width: 55,
-                                      height: 45,
-                                      decoration: pw.BoxDecoration(
-                                        border: pw.Border.all(color: PdfColors.black, width: 1.2),
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              else
-                                pw.Text(
-                                  'صفحة ${pageIdx + 1} من ${pagesQuestions.length}',
-                                  style: pw.TextStyle(font: ttf, fontSize: 8.5),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  // التذييل يُرسم من footer الثابت الخاص بالصفحة.
+                  pw.SizedBox(height: 2),
                 ],
               ),
               ];
