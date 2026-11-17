@@ -142,7 +142,7 @@ Future<void> patchTouchSelection(Uri rootUri) async {
   }
 }
 
-/// Tracks whether a top-level''';
+/// Tracks whether a virtualized''';
     const closingReplacement = '''          },
         ),
       ),
@@ -151,7 +151,7 @@ Future<void> patchTouchSelection(Uri rootUri) async {
   }
 }
 
-/// Tracks whether a top-level''';
+/// Tracks whether a virtualized''';
     if (!source.contains(closingAnchor)) {
       stderr.writeln('Expected selectable-area closing structure was not found.');
       exitCode = 1;
