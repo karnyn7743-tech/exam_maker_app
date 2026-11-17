@@ -45,14 +45,14 @@ class RichQuestionDocumentView extends StatelessWidget {
   List<Widget> _buildNodes(List<FNode> nodes) {
     final result = <Widget>[];
     for (final node in nodes) {
-      if (node is Paragraph) {
+      if (node is FluentList) {
+        result.add(_buildList(node));
+      } else if (node is Paragraph) {
         result.add(_buildParagraph(node));
       } else if (node is FluentImage) {
         result.add(_buildImage(node));
       } else if (node is HorizontalRule) {
         result.add(const Divider(height: 12));
-      } else if (node is FluentList) {
-        result.add(_buildList(node));
       } else if (node is FluentTable) {
         result.add(_buildTable(node));
       }
