@@ -84,11 +84,15 @@ class RichQuestionDocumentView extends StatelessWidget {
             fontSize: fragment.fontSize,
             fontWeight: styles.contains('bold') ? FontWeight.bold : FontWeight.normal,
             fontStyle: styles.contains('italic') ? FontStyle.italic : FontStyle.normal,
-            decoration: styles.contains('underline')
-                ? TextDecoration.underline
-                : styles.contains('strikethrough')
-                    ? TextDecoration.lineThrough
-                    : TextDecoration.none,
+            decoration: [
+              if (styles.contains('underline')) TextDecoration.underline,
+              if (styles.contains('strikethrough')) TextDecoration.lineThrough,
+            ].isEmpty
+                ? TextDecoration.none
+                : TextDecoration.combine([
+                    if (styles.contains('underline')) TextDecoration.underline,
+                    if (styles.contains('strikethrough')) TextDecoration.lineThrough,
+                  ]),
             color: color,
             backgroundColor: fragment.highlightColor == null
                 ? null
