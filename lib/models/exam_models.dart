@@ -102,37 +102,48 @@ class InsertableElement {
 class TextSpanModel {
   String text;
   bool isBold;
+  bool isItalic;
   bool isUnderline;
+  bool isStrikethrough;
   double fontSize;
   String fontFamily;
   String colorHex;
+  String? highlightHex;
 
   TextSpanModel({
     required this.text,
     this.isBold = false,
+    this.isItalic = false,
     this.isUnderline = false,
+    this.isStrikethrough = false,
     this.fontSize = 14.0,
-    this.fontFamily = 'Traditional Arabic',
+    this.fontFamily = 'Amiri',
     this.colorHex = '#000000',
+    this.highlightHex,
   });
 
   Map<String, dynamic> toMap() => {
         'text': text,
         'isBold': isBold,
+        'isItalic': isItalic,
         'isUnderline': isUnderline,
+        'isStrikethrough': isStrikethrough,
         'fontSize': fontSize,
         'fontFamily': fontFamily,
         'colorHex': colorHex,
+        'highlightHex': highlightHex,
       };
 
   factory TextSpanModel.fromMap(Map<String, dynamic> map) => TextSpanModel(
         text: map['text']?.toString() ?? '',
         isBold: map['isBold'] as bool? ?? false,
+        isItalic: map['isItalic'] as bool? ?? false,
         isUnderline: map['isUnderline'] as bool? ?? false,
+        isStrikethrough: map['isStrikethrough'] as bool? ?? false,
         fontSize: (map['fontSize'] as num?)?.toDouble() ?? 14.0,
-        fontFamily:
-            map['fontFamily']?.toString() ?? 'Traditional Arabic',
+        fontFamily: map['fontFamily']?.toString() ?? 'Amiri',
         colorHex: map['colorHex']?.toString() ?? '#000000',
+        highlightHex: map['highlightHex']?.toString(),
       );
 }
 
