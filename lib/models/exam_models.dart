@@ -144,6 +144,11 @@ class QuestionModel {
   GradeTextOrientation gradeOrientation;
   List<TextSpanModel> spans;
   List<InsertableElement> elements;
+
+  /// نسخة المستند الغني المحرر بصيغة Fluent Editor.
+  /// اختيارية حتى تبقى ملفات .exam القديمة متوافقة.
+  String? richDocumentJson;
+
   String answerKey;
   bool isTwoColumns;
   TextAlign? alignment;
@@ -156,6 +161,7 @@ class QuestionModel {
     this.gradeOrientation = GradeTextOrientation.horizontal,
     required this.spans,
     List<InsertableElement>? elements,
+    this.richDocumentJson,
     this.answerKey = '',
     this.isTwoColumns = false,
     this.alignment,
@@ -169,6 +175,7 @@ class QuestionModel {
         'gradeOrientation': gradeOrientation.name,
         'spans': spans.map((s) => s.toMap()).toList(),
         'elements': elements.map((e) => e.toMap()).toList(),
+        'richDocumentJson': richDocumentJson,
         'answerKey': answerKey,
         'isTwoColumns': isTwoColumns,
         'alignment': alignment?.name,
@@ -227,6 +234,7 @@ class QuestionModel {
                   ))
               .toList()
           : [],
+      richDocumentJson: map['richDocumentJson']?.toString(),
       answerKey: map['answerKey']?.toString() ?? '',
       isTwoColumns: map['isTwoColumns'] as bool? ?? false,
       alignment: parsedAlign,
