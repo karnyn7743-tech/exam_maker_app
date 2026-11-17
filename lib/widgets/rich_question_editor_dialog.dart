@@ -494,6 +494,43 @@ class _RichQuestionInlineEditorState extends State<RichQuestionInlineEditor> {
     return spans;
   }
 
+  List<TextSpanModel> _extractStyledSpans() {
+    final spans = <TextSpanModel>[];
+    void visit(FNode node) {
+      if (node is Paragraph) {
+        for (final fragment in node.fragments) {
+          if (fragment is! Fragment || fragment is FluentImage) continue;
+          final value = fragment.text.replaceAll('\u200B', '');
+          if (value.isEmpty) continue;
+          final styles = fragment.styles ?? const <String>[];
+          spans.add(TextSpanModel(
+            text: value,
+            isBold: styles.contains('bold'),
+            isItalic: styles.contains('italic'),
+            isUnderline: styles.contains('underline'),
+            isStrikethrough: styles.contains('strikethrough'),
+            fontFamily: fragment.fontFamily,
+            fontSize: fragment.fontSize,
+            colorHex: fragment.color ?? '#000000',
+            highlightHex: fragment.highlightColor,
+          ));
+        }
+      } else if (node is FluentList) {
+        for (final item in node.items) {
+          for (final child in item.children) { visit(child); }
+        }
+      } else if (node is FluentTable) {
+        for (final row in node.rows) {
+          for (final cell in row.cells) {
+            for (final child in cell.children) { visit(child); }
+          }
+        }
+      }
+    }
+    for (final node in _document.content.nodes) { visit(node); }
+    return spans;
+  }
+
   void _handleDocumentChanged() {
     final version = _document.contentVersion;
     if (version == _lastContentVersion) return;
@@ -501,6 +538,7 @@ class _RichQuestionInlineEditorState extends State<RichQuestionInlineEditor> {
     widget.onChanged({
       'json': _document.toJson(),
       'text': _extractPlainText(),
+      'spans': jsonEncode(_extractStyledSpans().map((span) => span.toMap()).toList()),
     });
   }
 
