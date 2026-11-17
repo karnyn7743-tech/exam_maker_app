@@ -234,7 +234,6 @@ class _RichQuestionEditorDialogState extends State<RichQuestionEditorDialog> {
               child: FluentEditor(
                 document: _document,
                 labels: _arabicLabels,
-                toolbarMode: FluentToolbarMode.fixed,
               ),
             ),
             SafeArea(
