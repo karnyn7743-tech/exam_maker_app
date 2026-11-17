@@ -1623,6 +1623,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           // مساحة الأسئلة تتغير حسب وضع بيانات الطلاب:
                           // 3 سم عند تفعيل بيانات الطلاب، و1 سم في الورق العادي.
                           bottom: (pageIndex == 0 &&
+                                  _exam.header.topMargin1cm &&
                                   _exam.header.studentDataMode != 'none')
                               ? (3.0 * 96.0 / 2.54) + (6.0 * 96.0 / 25.4)
                               : (1.0 * 96.0 / 2.54) + (6.0 * 96.0 / 25.4),
@@ -1743,6 +1744,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 left: 18,
                 right: 18,
                 height: (pageIndex == 0 &&
+                        _exam.header.topMargin1cm &&
                         _exam.header.studentDataMode != 'none')
                     ? 3.0 * 96.0 / 2.54
                     : 1.0 * 96.0 / 2.54,
@@ -1752,6 +1754,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     textDirection: TextDirection.rtl,
                     child: _buildFooterPreview(
                       showQrPlaceholder: pageIndex == 0 &&
+                          _exam.header.topMargin1cm &&
+                          _exam.examType != ExamType.automated &&
                           _exam.header.studentDataMode == 'namesAndQr',
                     ),
                   ),
