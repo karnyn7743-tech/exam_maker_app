@@ -1116,7 +1116,64 @@ class PdfExportService {
     bool isAr,
   ) {
     final widgets = <pw.Widget>[];
-    for (final node in nodes) {
+    for (var nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
+      final node = nodes[nodeIndex];
+
+      // A floating block image keeps its original flow-space as an invisible
+      // placeholder, while a PDF Stack paints the actual image above every
+      // following node. Overflow.visible also lets it overlap earlier text
+      // when the user has dragged it upward.
+      if (node is FluentImage && node.isFloating) {
+        final image = _pdfRichImage(node);
+        if (image != null) {
+          const double logicalPixelToPdfPoint = 72.0 / 96.0;
+          final double reservedHeight =
+              ((node.height ?? 120.0) * logicalPixelToPdfPoint) + 8.0;
+          final suffix = _buildPdfRichNodes(
+            nodes.sublist(nodeIndex + 1),
+            font,
+            isAr,
+          );
+          final alignment = node.textAlign == 'center'
+              ? pw.Alignment.center
+              : node.textAlign == 'right'
+                  ? pw.Alignment.centerRight
+                  : pw.Alignment.centerLeft;
+
+          widgets.add(pw.SizedBox(height: reservedHeight));
+          widgets.add(
+            pw.Stack(
+              overflow: pw.Overflow.visible,
+              children: [
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                  mainAxisSize: pw.MainAxisSize.min,
+                  children: suffix.isEmpty
+                      ? [pw.SizedBox(height: 1)]
+                      : suffix,
+                ),
+                pw.Positioned(
+                  top: -reservedHeight +
+                      node.offsetY * logicalPixelToPdfPoint,
+                  left: 0,
+                  right: 0,
+                  child: pw.Align(
+                    alignment: alignment,
+                    child: pw.Transform.translate(
+                      offset: PdfPoint(
+                        node.offsetX * logicalPixelToPdfPoint,
+                        0,
+                      ),
+                      child: image,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+          return widgets;
+        }
+      }
       if (node is FluentList) {
         for (var i = 0; i < node.items.length; i++) {
           final item = node.items[i];
@@ -1211,7 +1268,7 @@ class PdfExportService {
       if (fragment is Link) {
         for (final child in fragment.fragments) {
           if (child is FluentImage) {
-            final image = _pdfRichImage(child);
+            final image = _pdfRichInlineImage(child);
             if (image != null) spans.add(pw.WidgetSpan(child: image));
           } else if (child is Fragment) {
             spans.add(pw.TextSpan(
@@ -1221,7 +1278,7 @@ class PdfExportService {
           }
         }
       } else if (fragment is FluentImage) {
-        final image = _pdfRichImage(fragment);
+        final image = _pdfRichInlineImage(fragment);
         if (image != null) spans.add(pw.WidgetSpan(child: image));
       } else if (fragment is Fragment) {
         spans.add(pw.TextSpan(
@@ -1303,6 +1360,19 @@ class PdfExportService {
     );
   }
 
+  static pw.Widget? _pdfRichInlineImage(FluentImage image) {
+    final rendered = _pdfRichImage(image);
+    if (rendered == null || !image.isFloating) return rendered;
+    const double logicalPixelToPdfPoint = 72.0 / 96.0;
+    return pw.Transform.translate(
+      offset: PdfPoint(
+        image.offsetX * logicalPixelToPdfPoint,
+        image.offsetY * logicalPixelToPdfPoint,
+      ),
+      child: rendered,
+    );
+  }
+
   static pw.Widget? _pdfRichImage(FluentImage image) {
     try {
       Uint8List? bytes;
@@ -1328,15 +1398,8 @@ class PdfExportService {
             : image.height! * logicalPixelToPdfPoint,
         fit: pw.BoxFit.contain,
       );
-      if (image.isFloating) {
-        return pw.Transform.translate(
-          offset: PdfPoint(
-            image.offsetX * logicalPixelToPdfPoint,
-            image.offsetY * logicalPixelToPdfPoint,
-          ),
-          child: renderedImage,
-        );
-      }
+      // Positioning is handled by the containing rich-node layout. Inline
+      // images apply their local drag offset in _pdfRichInlineImage().
       return renderedImage;
     } catch (_) {
       return null;
