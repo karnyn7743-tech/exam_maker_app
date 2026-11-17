@@ -9,6 +9,8 @@ import 'package:fluent_editor/widgets/editor/fluent_toolbar_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 import '../models/exam_models.dart';
+import '../utils/app_font_catalog.dart';
+import '../widgets/rich_font_selector.dart';
 import '../utils/save_dialog_helper.dart';
 import '../services/exam_storage_service.dart';
 import '../services/pdf_export_service.dart';
@@ -23,50 +25,7 @@ import '../widgets/exam_ribbon_toolbar.dart';
 import '../widgets/rich_question_editor_dialog.dart';
 import '../widgets/rich_question_document_view.dart';
 
-typedef FontItem = Map<String, String>;
-
-// أبعاد ورقة A4 القياسية للشاشات والطباعة (بكسل منطقي 96 DPI)
-const double kA4PaperWidth = 794.0;
-const double kA4PaperHeight = 1123.0;
-
-// قائمة الخطوط الرسمية المعتمدة
-const List<FontItem> appFontsList = [
-  {'id': 'Amiri', 'name': 'خط الأميري (الافتراضي)'},
-  {'id': 'Hafs', 'name': 'مصحف حفص (عثماني)'},
-  {'id': 'Thuluth', 'name': 'خط الثلث'},
-  {'id': 'Almarai', 'name': 'المراعي'},
-  {'id': 'Changa', 'name': 'تشانجا'},
-  {'id': 'Kufam', 'name': 'كوفام'},
-  {'id': 'Rubik', 'name': 'روبيك'},
-  {'id': 'Arial', 'name': 'أريال (Arial)'},
-  {'id': 'ElHijaz', 'name': 'الحجاز عادي'},
-  {'id': 'ElSHijazAdorn', 'name': 'زخارف الحجاز (ElS-Hijaz Adorn)'},
-  {'id': 'ElourQuraaKufi', 'name': 'قراء كوفي'},
-  {'id': 'ElghAnSrame', 'name': 'الغصن الصارم'},
-  {'id': 'ElAfrica', 'name': 'إفريقيا (ElAfrica)'},
-  {'id': 'SultanCtangle', 'name': 'سلطان (Sultan)'},
-  {'id': 'Tahrir', 'name': 'تحرير'},
-  {'id': 'DTUTH', 'name': 'ديتوث (DTUTH)'},
-  {'id': 'Lishposter', 'name': 'ليش بوستر'},
-  {'id': 'Axdf', 'name': 'أكسدف (Axdf)'},
-  {'id': 'Banyeh', 'name': 'بنية (Banyeh)'},
-  {'id': 'Meshref', 'name': 'مشرف'},
-  {'id': 'Minder', 'name': 'ميندر'},
-  {'id': 'Mobv2', 'name': 'موب V2'},
-  {'id': 'GSoon', 'name': 'غصون'},
-  {'id': 'DeApple', 'name': 'دي آبل'},
-  {'id': 'JsMath', 'name': 'رموز الرياضيات (JsMath)'},
-  {'id': 'Satisfy', 'name': 'Satisfy'},
-  {'id': 'Schoolbell', 'name': 'Schoolbell'},
-  {'id': 'Caps', 'name': 'Caps Regular'},
-  {'id': 'Chewy', 'name': 'Chewy'},
-  {'id': 'Crushed', 'name': 'Crushed'},
-  {'id': 'Girls', 'name': 'Girls'},
-  {'id': 'Grover', 'name': 'Grover'},
-  {'id': 'RSwanky', 'name': 'R-Swanky'},
-  {'id': 'SMono', 'name': 'خط أحادي (SMono)'},
-];
-
+// Shared font catalog used by the ribbon and rich editor.
 class ExamEditorScreen extends StatefulWidget {
   final ExamModel initialExam;
   final bool isNewExam;
@@ -1295,13 +1254,30 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               Directionality(
                 textDirection: TextDirection.rtl,
                 child: SizedBox(
-                  height: 108,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: FluentToolbar(
-                      document: _activeRichDocument!,
-                      labels: RichQuestionEditorDialogState.arabicLabels,
-                    ),
+                  height: 154,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        height: 46,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: RichFontSelector(document: _activeRichDocument!),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: FluentToolbar(
+                            document: _activeRichDocument!,
+                            labels: RichQuestionEditorDialogState.arabicLabels,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               )
