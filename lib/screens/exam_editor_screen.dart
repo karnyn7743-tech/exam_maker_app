@@ -1265,7 +1265,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               currentFontSize: _activeFontSize,
               isArabicInput: _isArabicInput,
               showQuestionSettings: true,
-              onToggleQuestionSettings: () => _openQuestionDialog(),
+              onToggleQuestionSettings: () => _openQuestionDialog(\n                questionIndex: _exam.questions.isEmpty ? null : _exam.questions.length - 1,\n              ),
               isTextSelected: _selectedElementId != null,
               hasClipboardContent: _copiedElement != null,
               currentLineSpacing: 1.5,
