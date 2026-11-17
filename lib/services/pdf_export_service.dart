@@ -959,29 +959,7 @@ class PdfExportService {
   ) {
     final widgets = <pw.Widget>[];
     for (final node in nodes) {
-      if (node is Paragraph) {
-        widgets.add(_buildPdfRichParagraph(node, font, isAr));
-      } else if (node is FluentImage) {
-        final image = _pdfRichImage(node);
-        if (image != null) {
-          widgets.add(pw.Padding(
-            padding: const pw.EdgeInsets.symmetric(vertical: 4),
-            child: pw.Align(
-              alignment: node.textAlign == 'center'
-                  ? pw.Alignment.center
-                  : node.textAlign == 'right'
-                      ? pw.Alignment.centerRight
-                      : pw.Alignment.centerLeft,
-              child: image,
-            ),
-          ));
-        }
-      } else if (node is HorizontalRule) {
-        widgets.add(pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(vertical: 5),
-          child: pw.Divider(thickness: 0.8, color: PdfColors.grey600),
-        ));
-      } else if (node is FluentList) {
+      if (node is FluentList) {
         for (var i = 0; i < node.items.length; i++) {
           final item = node.items[i];
           widgets.add(pw.Padding(
@@ -1006,6 +984,28 @@ class PdfExportService {
             ),
           ));
         }
+      } else if (node is Paragraph) {
+        widgets.add(_buildPdfRichParagraph(node, font, isAr));
+      } else if (node is FluentImage) {
+        final image = _pdfRichImage(node);
+        if (image != null) {
+          widgets.add(pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(vertical: 4),
+            child: pw.Align(
+              alignment: node.textAlign == 'center'
+                  ? pw.Alignment.center
+                  : node.textAlign == 'right'
+                      ? pw.Alignment.centerRight
+                      : pw.Alignment.centerLeft,
+              child: image,
+            ),
+          ));
+        }
+      } else if (node is HorizontalRule) {
+        widgets.add(pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(vertical: 5),
+          child: pw.Divider(thickness: 0.8, color: PdfColors.grey600),
+        ));
       } else if (node is FluentTable) {
         final rows = <pw.TableRow>[];
         for (final row in node.rows) {
