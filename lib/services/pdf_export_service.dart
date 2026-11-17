@@ -4,6 +4,8 @@ import 'package:barcode/barcode.dart';
 import 'package:better_download_saver/better_download_saver.dart';
 import 'package:flutter/material.dart' show TextAlign;
 import 'package:flutter/services.dart';
+import 'package:fluent_editor/factories.dart';
+import 'package:fluent_editor/fluent_document.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -830,6 +832,23 @@ class PdfExportService {
   }
 
   static pw.Widget _buildPdfQuestionContent(QuestionModel q, pw.Font ttf, bool isAr) {
+    if (q.richDocumentJson != null && q.richDocumentJson!.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(q.richDocumentJson!);
+        if (decoded is Map<String, dynamic>) {
+          final document = FluentDocument.fromJson(decoded);
+          return pw.Directionality(
+            textDirection: isAr ? pw.TextDirection.rtl : pw.TextDirection.ltr,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: _buildPdfRichNodes(document.content.nodes, ttf, isAr),
+            ),
+          );
+        }
+      } catch (_) {
+        // ملف غني غير صالح: نرجع إلى النص التقليدي بدلاً من إسقاط السؤال.
+      }
+    }
     final pw.TextAlign chosenAlign = _convertTextAlign(q.alignment, isAr);
     final pw.TextDirection itemDir = (chosenAlign == pw.TextAlign.left || !isAr)
         ? pw.TextDirection.ltr
@@ -929,6 +948,203 @@ class PdfExportService {
         ],
       ),
     );
+  }
+
+  /// Render the same Fluent document tree in the exam PDF.
+  static List<pw.Widget> _buildPdfRichNodes(
+    List<FNode> nodes,
+    pw.Font font,
+    bool isAr,
+  ) {
+    final widgets = <pw.Widget>[];
+    for (final node in nodes) {
+      if (node is Paragraph) {
+        widgets.add(_buildPdfRichParagraph(node, font, isAr));
+      } else if (node is FluentImage) {
+        final image = _pdfRichImage(node);
+        if (image != null) {
+          widgets.add(pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(vertical: 4),
+            child: pw.Align(
+              alignment: node.textAlign == 'center'
+                  ? pw.Alignment.center
+                  : node.textAlign == 'right'
+                      ? pw.Alignment.centerRight
+                      : pw.Alignment.centerLeft,
+              child: image,
+            ),
+          ));
+        }
+      } else if (node is HorizontalRule) {
+        widgets.add(pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(vertical: 5),
+          child: pw.Divider(thickness: 0.8, color: PdfColors.grey600),
+        ));
+      } else if (node is FluentList) {
+        for (var i = 0; i < node.items.length; i++) {
+          final item = node.items[i];
+          widgets.add(pw.Padding(
+            padding: const pw.EdgeInsets.only(bottom: 2),
+            child: pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.SizedBox(
+                  width: 18,
+                  child: pw.Text(
+                    node.listType == 'ordered' ? '${i + 1}.' : '•',
+                    style: pw.TextStyle(font: font, fontSize: 10),
+                  ),
+                ),
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: _buildPdfRichNodes(item.children, font, isAr),
+                  ),
+                ),
+              ],
+            ),
+          ));
+        }
+      } else if (node is FluentTable) {
+        final rows = <pw.TableRow>[];
+        for (final row in node.rows) {
+          rows.add(pw.TableRow(
+            children: row.cells.map((cell) {
+              final children = _buildPdfRichNodes(cell.children, font, isAr);
+              return pw.Padding(
+                padding: const pw.EdgeInsets.all(4),
+                child: children.isEmpty
+                    ? pw.SizedBox(height: 12)
+                    : pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                        children: children,
+                      ),
+              );
+            }).toList(),
+          ));
+        }
+        if (rows.isNotEmpty) {
+          widgets.add(pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey700, width: 0.6),
+            children: rows,
+          ));
+        }
+      }
+    }
+    return widgets;
+  }
+
+  static pw.Widget _buildPdfRichParagraph(
+    Paragraph paragraph,
+    pw.Font font,
+    bool isAr,
+  ) {
+    final paragraphStyle = paragraph.getStyle();
+    final spans = <pw.InlineSpan>[];
+    for (final fragment in paragraph.fragments) {
+      if (fragment is Link) {
+        for (final child in fragment.fragments) {
+          if (child is FluentImage) {
+            final image = _pdfRichImage(child);
+            if (image != null) spans.add(pw.WidgetSpan(child: image));
+          } else if (child is Fragment) {
+            spans.add(pw.TextSpan(
+              text: child.text,
+              style: _pdfRichTextStyle(child, paragraphStyle, font),
+            ));
+          }
+        }
+      } else if (fragment is FluentImage) {
+        final image = _pdfRichImage(fragment);
+        if (image != null) spans.add(pw.WidgetSpan(child: image));
+      } else if (fragment is Fragment) {
+        spans.add(pw.TextSpan(
+          text: fragment.text,
+          style: _pdfRichTextStyle(fragment, paragraphStyle, font),
+        ));
+      }
+    }
+    final align = switch (paragraph.textAlign) {
+      'center' => pw.TextAlign.center,
+      'right' => pw.TextAlign.right,
+      'justify' => pw.TextAlign.justify,
+      'left' => pw.TextAlign.left,
+      _ => isAr ? pw.TextAlign.right : pw.TextAlign.left,
+    };
+    final lineHeight = paragraphStyle.lineHeight ?? 1.15;
+    return pw.Padding(
+      padding: pw.EdgeInsets.only(
+        top: paragraphStyle.spacingBefore ?? 0,
+        bottom: paragraphStyle.spacingAfter ?? 4,
+        left: paragraph.indent * 12.0,
+      ),
+      child: pw.RichText(
+        textAlign: align,
+        text: pw.TextSpan(
+          children: spans,
+          style: pw.TextStyle(font: font, lineSpacing: lineHeight),
+        ),
+      ),
+    );
+  }
+
+  static pw.TextStyle _pdfRichTextStyle(
+    Fragment fragment,
+    dynamic paragraphStyle,
+    pw.Font font,
+  ) {
+    final styles = fragment.styles ?? const <String>[];
+    final paragraphStyles = paragraphStyle.styles as List<String>? ?? const <String>[];
+    final color = _parsePdfColor(
+      fragment.color ?? paragraphStyle.color?.toString(),
+    );
+    pw.TextDecoration? decoration;
+    if (styles.contains('underline') && styles.contains('strikethrough')) {
+      decoration = pw.TextDecoration.combine([
+        pw.TextDecoration.underline,
+        pw.TextDecoration.lineThrough,
+      ]);
+    } else if (styles.contains('underline')) {
+      decoration = pw.TextDecoration.underline;
+    } else if (styles.contains('strikethrough')) {
+      decoration = pw.TextDecoration.lineThrough;
+    }
+    return pw.TextStyle(
+      font: font,
+      fontSize: fragment.fontSize,
+      color: color,
+      fontWeight: styles.contains('bold') || paragraphStyles.contains('bold')
+          ? pw.FontWeight.bold
+          : pw.FontWeight.normal,
+      fontStyle: styles.contains('italic') || paragraphStyles.contains('italic')
+          ? pw.FontStyle.italic
+          : pw.FontStyle.normal,
+      decoration: decoration,
+      background: fragment.highlightColor == null
+          ? null
+          : pw.BoxDecoration(color: _parsePdfColor(fragment.highlightColor)),
+    );
+  }
+
+  static pw.Widget? _pdfRichImage(FluentImage image) {
+    try {
+      Uint8List? bytes;
+      if (image.src.startsWith('data:')) {
+        final comma = image.src.indexOf(',');
+        if (comma >= 0) bytes = base64Decode(image.src.substring(comma + 1));
+      } else if (File(image.src).existsSync()) {
+        bytes = File(image.src).readAsBytesSync();
+      }
+      if (bytes == null) return null;
+      return pw.Image(
+        pw.MemoryImage(bytes),
+        width: image.width,
+        height: image.height,
+        fit: pw.BoxFit.contain,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   static pw.Widget _drawPdfCheckmark({double size = 11.0, PdfColor color = PdfColors.black}) {
