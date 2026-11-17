@@ -3815,9 +3815,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     String currentFont = q.spans.isNotEmpty ? q.spans.first.fontFamily : defaultFont;
     double currentFontSize = (q.spans.isNotEmpty ? q.spans.first.fontSize : _activeFontSize).clamp(8.0, 36.0).toDouble();
-    bool isBoldActive = _isBold;
-    bool isUnderlineActive = _isUnderline;
-    String currentColor = _activeColor;
+    bool isBoldActive = q.spans.isNotEmpty ? q.spans.first.isBold : _isBold;
+    bool isUnderlineActive = q.spans.isNotEmpty ? q.spans.first.isUnderline : _isUnderline;
+    String currentColor = q.spans.isNotEmpty ? q.spans.first.colorHex : _activeColor;
 
     // حافظ على معاينة النص المنسق متزامنة مع النص الجاري تحريره.
     // وعند تغيير النص بالكامل نستخدم نمط الإدخال النشط، مثل سلوك الحفظ الحالي.
