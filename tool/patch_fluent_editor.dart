@@ -22,22 +22,31 @@ Future<void> main() async {
   }
 
   final rootUri = Uri.parse(package['rootUri'] as String);
-  final sourceUri = rootUri.resolve('lib/widgets/nodes/virtualized_selectable_area.dart');
-  final sourceFile = File.fromUri(sourceUri);
-  if (!await sourceFile.exists()) {
-    stderr.writeln('Fluent Editor selectable area source was not found: $sourceUri');
+  await patchTouchSelection(rootUri);
+  await patchImageDragging(rootUri);
+}
+
+Future<void> patchTouchSelection(Uri rootUri) async {
+  final uri = rootUri.resolve('lib/widgets/nodes/virtualized_selectable_area.dart');
+  final file = File.fromUri(uri);
+  if (!await file.exists()) {
+    stderr.writeln('Fluent Editor selectable area source was not found: $uri');
     exitCode = 1;
     return;
   }
 
-  var source = await sourceFile.readAsString();
-  const original = '''      _longPressTimer = Timer(_kLongPressTimeout, () {
+  var source = await file.readAsString();
+
+  // A raw pointer timer does not win Flutter's gesture arena against the
+  // ListView. Use GestureDetector's long-press recognizer so a long press
+  // claims the gesture and subsequent finger movement updates the selection.
+  const oldTimer = '''      _longPressTimer = Timer(_kLongPressTimeout, () {
         if (!_isDragging && _pointerDownPosition != null) {
           _isScrolling = true;
           _dismissKeyboard();
         }
       });''';
-  const patched = '''      _longPressTimer = Timer(_kLongPressTimeout, () {
+  const oldPatchedTimer = '''      _longPressTimer = Timer(_kLongPressTimeout, () {
         if (!_isDragging && !_isScrolling && _pointerDownPosition != null) {
           // On touch screens, a long press starts text selection instead of
           // switching to scroll mode. Vertical movement before the timeout
@@ -48,21 +57,109 @@ Future<void> main() async {
           _startSelectionAt(_pointerDownPosition!);
         }
       });''';
+  const disabledTimer = '''      // Long-press selection is handled by the GestureDetector below.
+      _longPressTimer?.cancel();''';
 
-  if (source.contains(patched)) {
-    stdout.writeln('Fluent Editor long-press selection patch is already applied.');
-  } else {
-    if (!source.contains(original)) {
-      stderr.writeln('Expected Fluent Editor long-press block was not found; refusing an unsafe patch.');
+  if (source.contains(oldTimer)) {
+    source = source.replaceFirst(oldTimer, disabledTimer);
+  } else if (source.contains(oldPatchedTimer)) {
+    source = source.replaceFirst(oldPatchedTimer, disabledTimer);
+  } else if (!source.contains(disabledTimer)) {
+    stderr.writeln('Expected mobile long-press timer was not found; refusing unsafe selection patch.');
+    exitCode = 1;
+    return;
+  }
+
+  const methodAnchor = '''  /// Dismisses the virtual keyboard on mobile platforms
+  void _dismissKeyboard() {''';
+  const methods = '''  void _handleLongPressSelectionStart(LongPressStartDetails details) {
+    if (widget.document.isResizingImage || widget.document.isResizingTable) return;
+    _pointerDownPosition = details.globalPosition;
+    _pointerDownButtons = 1;
+    _tapTimer?.cancel();
+    _longPressTimer?.cancel();
+    _isDragging = true;
+    _isScrolling = false;
+    _isSelecting = false;
+    setState(() {});
+    _startSelectionAt(details.globalPosition);
+  }
+
+  void _handleLongPressSelectionMove(LongPressMoveUpdateDetails details) {
+    if (_isDragging && _isSelecting) {
+      _scheduleSelectionUpdate(details.globalPosition);
+    }
+  }
+
+  void _handleLongPressSelectionEnd(LongPressEndDetails details) {
+    if (!_isDragging) return;
+    _selectionUpdateTimer?.cancel();
+    _isDragging = false;
+    _isScrolling = false;
+    _isSelecting = false;
+    _pointerDownPosition = null;
+    _pointerDownButtons = 0;
+    _lastSelectionResult = null;
+    _lastSelectionPosition = null;
+    setState(() {});
+    widget.document.cursorOnlyUpdate();
+  }
+
+  /// Dismisses the virtual keyboard on mobile platforms
+  void _dismissKeyboard() {''';
+
+  if (!source.contains(methods)) {
+    if (!source.contains(methodAnchor)) {
+      stderr.writeln('Expected selection helper insertion point was not found.');
       exitCode = 1;
       return;
     }
-    source = source.replaceFirst(original, patched);
-    await sourceFile.writeAsString(source);
-    stdout.writeln('Applied Fluent Editor long-press text-selection patch.');
+    source = source.replaceFirst(methodAnchor, methods);
   }
 
-  await patchImageDragging(rootUri);
+  const buildAnchor = '''    return MouseRegion(
+      cursor: isResizeActive ? SystemMouseCursors.basic : SystemMouseCursors.text,
+      child: Listener(''';
+  const buildReplacement = '''    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onLongPressStart: _handleLongPressSelectionStart,
+      onLongPressMoveUpdate: _handleLongPressSelectionMove,
+      onLongPressEnd: _handleLongPressSelectionEnd,
+      child: MouseRegion(
+      cursor: isResizeActive ? SystemMouseCursors.basic : SystemMouseCursors.text,
+      child: Listener(''';
+  if (!source.contains(buildReplacement)) {
+    if (!source.contains(buildAnchor)) {
+      stderr.writeln('Expected selectable-area build anchor was not found.');
+      exitCode = 1;
+      return;
+    }
+    source = source.replaceFirst(buildAnchor, buildReplacement);
+    const closingAnchor = '''        ),
+      ),
+    );
+  }
+}
+
+/// Tracks whether a top-level''';
+    const closingReplacement = '''        ),
+      ),
+      ),
+    );
+  }
+}
+
+/// Tracks whether a top-level''';
+    if (!source.contains(closingAnchor)) {
+      stderr.writeln('Expected selectable-area closing structure was not found.');
+      exitCode = 1;
+      return;
+    }
+    source = source.replaceFirst(closingAnchor, closingReplacement);
+  }
+
+  await file.writeAsString(source);
+  stdout.writeln('Applied gesture-arena-aware long-press text selection patch.');
 }
 
 Future<void> patchImageDragging(Uri rootUri) async {
@@ -78,13 +175,15 @@ Future<void> patchImageDragging(Uri rootUri) async {
   const panAnchor = '''          onLongPressStart: (details) => _showContextMenu(details.globalPosition),
           child: LayoutBuilder(''';
   const panReplacement = '''          onLongPressStart: (details) => _showContextMenu(details.globalPosition),
+          // Dragging the image body moves it; the eight child resize handles
+          // retain their own more-specific pan recognizers.
           onPanStart: (_) {
-            if (_isResizeMode || widget.document.isResizingImage) return;
+            if (widget.document.isResizingImage) return;
             widget.document.saveState(description: 'Move image', forceNewAction: true);
             _isDragging = true;
           },
           onPanUpdate: (details) {
-            if (!_isDragging || _isResizeMode || widget.document.isResizingImage) return;
+            if (!_isDragging || widget.document.isResizingImage) return;
             _moveBlockImageTo(details.globalPosition);
           },
           onPanEnd: (_) {
@@ -95,7 +194,7 @@ Future<void> patchImageDragging(Uri rootUri) async {
           child: LayoutBuilder(''';
   if (!source.contains(panReplacement)) {
     if (!source.contains(panAnchor)) {
-      stderr.writeln('Expected image gesture insertion point was not found; refusing an unsafe image-drag patch.');
+      stderr.writeln('Expected image gesture insertion point was not found; refusing unsafe image-drag patch.');
       exitCode = 1;
       return;
     }
@@ -103,9 +202,8 @@ Future<void> patchImageDragging(Uri rootUri) async {
   }
 
   const methodAnchor = '''  Widget _buildImage(String src) {''';
-  const moveMethod = '''  /// Reorders this block image among the document's top-level blocks.
-  /// The model order is serialized by FluentDocument, so the new position
-  /// survives save/reopen and participates in undo/redo.
+  const moveMethod = '''  /// Reorders a block image vertically among top-level document blocks.
+  /// This intentionally does not pretend to provide arbitrary x/y positioning.
   void _moveBlockImageTo(Offset globalPosition) {
     final blocks = widget.document.content.nodes;
     final currentIndex = blocks.indexWhere((item) => item.id == widget.node.id);
@@ -137,7 +235,7 @@ Future<void> patchImageDragging(Uri rootUri) async {
   Widget _buildImage(String src) {''';
   if (!source.contains(moveMethod)) {
     if (!source.contains(methodAnchor)) {
-      stderr.writeln('Expected image helper insertion point was not found; refusing an unsafe image-drag patch.');
+      stderr.writeln('Expected image helper insertion point was not found; refusing unsafe image-drag patch.');
       exitCode = 1;
       return;
     }
@@ -145,5 +243,5 @@ Future<void> patchImageDragging(Uri rootUri) async {
   }
 
   await imageFile.writeAsString(source);
-  stdout.writeln('Applied persistent top-level image drag/reorder patch.');
+  stdout.writeln('Applied image-body drag/reorder patch; resize handles remain independent.');
 }
