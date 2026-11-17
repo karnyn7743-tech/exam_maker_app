@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_font_catalog.dart';
 
 enum RibbonTab {
   home,       // الرئيسية
