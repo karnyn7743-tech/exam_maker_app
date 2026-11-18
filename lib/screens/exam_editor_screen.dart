@@ -1994,7 +1994,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   padding: const EdgeInsets.all(6.0),
                   child: _activeRichEditorQuestionId == q.id
                       ? SizedBox(
-                          height: 430,
+                          height: (MediaQuery.of(context).size.height * 0.62).clamp(460.0, 720.0),
                           child: RichQuestionInlineEditor(
                             key: ValueKey('rich-editor-${q.id}'),
                             initialDocumentJson: q.richDocumentJson,
