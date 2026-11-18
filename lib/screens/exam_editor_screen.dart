@@ -4,13 +4,10 @@ import 'dart:math' as math;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:fluent_editor/fluent_document.dart';
-import 'package:fluent_editor/widgets/editor/fluent_toolbar_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 import '../models/exam_models.dart';
 import '../utils/app_font_catalog.dart';
-import '../widgets/rich_font_selector.dart';
 import '../utils/save_dialog_helper.dart';
 import '../services/exam_storage_service.dart';
 import '../services/pdf_export_service.dart';
@@ -22,14 +19,71 @@ import '../services/direct_print_service.dart';
 import 'omr_scanner_screen.dart';
 import '../widgets/exam_custom_keyboard.dart';
 import '../widgets/exam_ribbon_toolbar.dart';
-import '../widgets/rich_question_editor_dialog.dart';
 import '../widgets/rich_question_document_view.dart';
 
 // A4 page dimensions in logical points.
 const double kA4PaperWidth = 595.28;
 const double kA4PaperHeight = 841.89;
 
-// Shared font catalog used by the ribbon and rich editor.
+// محرر نصي واحد يدعم تنسيق المقاطع مباشرة داخل ورقة A4 دون إنشاء مساحة محرر منفصلة.
+class QuestionRichTextController extends TextEditingController {
+  List<TextSpanModel> _styledSpans = const [];
+
+  QuestionRichTextController({String? text}) : super(text: text);
+
+  void setStyledSpans(List<TextSpanModel> spans) {
+    _styledSpans = List<TextSpanModel>.from(spans);
+    notifyListeners();
+  }
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    if (_styledSpans.isEmpty ||
+        _styledSpans.map((span) => span.text).join() != text) {
+      return super.buildTextSpan(
+        context: context,
+        style: style,
+        withComposing: withComposing,
+      );
+    }
+
+    Color parseColor(String? value, Color fallback) {
+      if (value == null || value.isEmpty) return fallback;
+      try {
+        return Color(int.parse(value.replaceFirst('#', '0xFF')));
+      } catch (_) {
+        return fallback;
+      }
+    }
+
+    final children = <InlineSpan>[];
+    for (final span in _styledSpans) {
+      final decorations = <TextDecoration>[];
+      if (span.isUnderline) decorations.add(TextDecoration.underline);
+      if (span.isStrikethrough) decorations.add(TextDecoration.lineThrough);
+      children.add(TextSpan(
+        text: span.text,
+        style: TextStyle(
+          fontFamily: span.fontFamily.isEmpty ? null : span.fontFamily,
+          fontSize: span.fontSize,
+          fontWeight: span.isBold ? FontWeight.bold : FontWeight.normal,
+          fontStyle: span.isItalic ? FontStyle.italic : FontStyle.normal,
+          color: parseColor(span.colorHex, Colors.black),
+          backgroundColor: parseColor(span.highlightHex, Colors.transparent),
+          decoration: decorations.isEmpty
+              ? TextDecoration.none
+              : TextDecoration.combine(decorations),
+        ),
+      ));
+    }
+    return TextSpan(style: style, children: children);
+  }
+}
+
 class ExamEditorScreen extends StatefulWidget {
   final ExamModel initialExam;
   final bool isNewExam;
@@ -67,9 +121,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
   InsertableElement? _copiedElement;
   String? _selectedElementId;
-  String? _activeRichEditorQuestionId;
-  FluentDocument? _activeRichDocument;
-  double? _zoomBeforeRichEdit;
 
   // الحالات النشطة لتنسيق الشريط المبوب الرئيسي
   bool _isBold = false;
@@ -290,34 +341,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
   void _fitScreen() {
     _fitScreenToA4();
-  }
-
-  void _activateRichEditor(String questionId) {
-    final previousZoom = _zoomBeforeRichEdit ?? _zoomLevel;
-    setState(() {
-      _zoomBeforeRichEdit = previousZoom;
-      _activeRichEditorQuestionId = questionId;
-      _activeRichDocument = null;
-      // Keep the editing surface readable even when the A4 page was fitted
-      // to a small phone screen.
-      _zoomLevel = math.max(_zoomLevel, 1.0).clamp(0.35, 3.0).toDouble();
-      _transformationController.value = Matrix4.identity()..scale(_zoomLevel);
-    });
-  }
-
-  void _closeRichEditor() {
-    if (_activeRichEditorQuestionId == null && _activeRichDocument == null) return;
-    setState(() {
-      _activeRichEditorQuestionId = null;
-      _activeRichDocument = null;
-      final restoreZoom = _zoomBeforeRichEdit;
-      if (restoreZoom != null) {
-        _zoomLevel = restoreZoom;
-        _transformationController.value = Matrix4.identity()..scale(restoreZoom);
-      }
-      _zoomBeforeRichEdit = null;
-    });
-    _measurePagesHeight();
   }
 
   bool get _isArabicExam => _exam.isArabic;
@@ -1253,40 +1276,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         ),
         body: Column(
           children: [
-            // أدوات Fluent Editor تظهر أعلى الورقة بالحجم الطبيعي عند تحرير سؤال.
-            if (_activeRichDocument != null)
-              Directionality(
-                textDirection: TextDirection.rtl,
-                child: SizedBox(
-                  height: 154,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(
-                        height: 46,
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: RichFontSelector(document: _activeRichDocument!),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: FluentToolbar(
-                            document: _activeRichDocument!,
-                            labels: RichQuestionEditorDialogState.arabicLabels,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else ...[
-            // شريط أوفيس Ribbon المبوب أعلى ورقة الاختبار
             ExamRibbonToolbar(
               isBold: _isBold,
               isUnderline: _isUnderline,
@@ -1538,12 +1527,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               onZoomOut: _zoomOut,
               onFitScreen: _fitScreen,
             ),
-            ],
+
 
             // تغليف عرض الورقة البيضاء بـ InteractiveViewer وتثبيت أبعاد A4
             Expanded(
               child: InteractiveViewer(
-                panEnabled: _activeRichEditorQuestionId != null,
+                panEnabled: false,
                 scaleEnabled: true,
                 alignment: Alignment.topCenter,
                 transformationController: _transformationController,
@@ -1978,7 +1967,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 verticalAlignment: TableCellVerticalAlignment.middle,
                 child: InkWell(
                   onTap: () {
-                    _closeRichEditor();
                     _openQuestionDialog(questionIndex: indexInMainList);
                   },
                   child: Padding(
@@ -1992,42 +1980,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 verticalAlignment: TableCellVerticalAlignment.middle,
                 child: Padding(
                   padding: const EdgeInsets.all(6.0),
-                  child: _activeRichEditorQuestionId == q.id
-                      ? SizedBox(
-                          height: (MediaQuery.of(context).size.height * 0.62).clamp(460.0, 720.0),
-                          child: RichQuestionInlineEditor(
-                            key: ValueKey('rich-editor-${q.id}'),
-                            initialDocumentJson: q.richDocumentJson,
-                            initialSpans: q.spans,
-                            initialText: q.spans.map((span) => span.text).join(),
-                            onChanged: (result) {
-                              q.richDocumentJson = result['json'];
-                              final rawSpans = result['spans'];
-                              if (rawSpans != null && rawSpans.isNotEmpty) {
-                                try {
-                                  final decodedSpans = jsonDecode(rawSpans) as List<dynamic>;
-                                  q.spans = decodedSpans
-                                      .whereType<Map>()
-                                      .map((item) => TextSpanModel.fromMap(
-                                            Map<String, dynamic>.from(item),
-                                          ))
-                                      .toList();
-                                } catch (_) {
-                                  // Keep the last valid styled spans if a malformed payload arrives.
-                                }
-                              } else {
-                                q.spans = [TextSpanModel(text: result['text'] ?? '')];
-                              }
-                            },
-                            onDocumentReady: (document) {
-                              if (!mounted || _activeRichEditorQuestionId != q.id) return;
-                              setState(() => _activeRichDocument = document);
-                            },
-                            onClose: _closeRichEditor,
-                          ),
-                        )
-                      : InkWell(
-                          onTap: () => _activateRichEditor(q.id),
+                  child: InkWell(
+                          onTap: () => _openQuestionDialog(questionIndex: indexInMainList),
                           child: Stack(
                             clipBehavior: Clip.none,
                             children: [
@@ -2106,7 +2060,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 verticalAlignment: TableCellVerticalAlignment.middle,
                 child: InkWell(
                   onTap: () {
-                    _closeRichEditor();
                     _openQuestionDialog(questionIndex: indexInMainList);
                   },
                   child: Padding(
@@ -3928,7 +3881,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     final titleCtrl = TextEditingController(text: q.title);
     final textCtrl =
-        TextEditingController(text: q.spans.map((e) => e.text).join(''));
+        QuestionRichTextController(text: q.spans.map((e) => e.text).join(''));
     final markCtrl =
         TextEditingController(text: q.mark > 0 ? (q.mark % 1 == 0 ? q.mark.toInt().toString() : q.mark.toString()) : '5');
     final answerCtrl = TextEditingController(text: q.answerKey);
@@ -3939,14 +3892,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     String? richDocumentJson = q.richDocumentJson;
 
     TextAlign selectedAlignment = q.alignment ?? _activeAlignment;
-    bool isInputArabic = _isArabicInput;
+    bool isInputArabic = isAr;
 
     bool showCustomKeyboard = true;
     bool useSystemKeyboard = false;
     TextEditingController activeFieldController = textCtrl;
     bool showQuestionSettings = true;
-    // معاينة ورقة A4 اختيارية حتى تبقى مساحة تحرير النص واضحة على الهاتف.
-    bool showA4Preview = false;
 
     final defaultFont = _activeFont.isNotEmpty ? _activeFont : (isAr ? 'Amiri' : 'Arial');
     List<TextSpanModel> workingSpans = q.spans.isNotEmpty
@@ -3968,6 +3919,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               isUnderline: _isUnderline,
             )
           ];
+    textCtrl.setStyledSpans(workingSpans);
 
     String currentFont = q.spans.isNotEmpty ? q.spans.first.fontFamily : defaultFont;
     double currentFontSize = (q.spans.isNotEmpty ? q.spans.first.fontSize : _activeFontSize).clamp(8.0, 36.0).toDouble();
@@ -3990,6 +3942,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           isUnderline: isUnderlineActive,
         ),
       ];
+      textCtrl.setStyledSpans(workingSpans);
     }
 
     void _rebuildSpansWithInsertedText(int offset, String inserted, TextSpanModel template) {
@@ -4004,6 +3957,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             isUnderline: template.isUnderline,
           )
         ];
+        textCtrl.setStyledSpans(workingSpans);
         return;
       }
       List<TextSpanModel> nextSpans = [];
@@ -4066,6 +4020,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         ));
       }
       workingSpans = nextSpans.where((s) => s.text.isNotEmpty).toList();
+      textCtrl.setStyledSpans(workingSpans);
     }
 
     void insertAtCursor(String symbol) {
@@ -4117,7 +4072,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       if (clampedSize != null) currentFontSize = clampedSize;
       if (color != null) currentColor = color;
 
-      final sel = lastSelection ?? textCtrl.selection;
+      final currentSelection = textCtrl.selection;
+      final sel = currentSelection.isValid && !currentSelection.isCollapsed
+          ? currentSelection
+          : (lastSelection ?? currentSelection);
       if (!sel.isValid || sel.isCollapsed || sel.start == sel.end) {
         return;
       }
@@ -4185,63 +4143,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       }
 
       workingSpans = newSpans.where((s) => s.text.isNotEmpty).toList();
-    }
-
-    Future<void> openRichQuestionEditor(
-      void Function(void Function()) setParentState,
-    ) async {
-      final result = await showDialog<Map<String, String>>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => RichQuestionEditorDialog(
-          initialDocumentJson: richDocumentJson,
-          initialSpans: workingSpans,
-          initialText: textCtrl.text,
-        ),
-      );
-      if (result == null) return;
-
-      final returnedText = result['text'] ?? '';
-      final returnedJson = result['json'];
-      final List<TextSpanModel> returnedSpans = [];
-      final rawSpans = result['spans'];
-      if (rawSpans != null && rawSpans.isNotEmpty) {
-        try {
-          final decodedSpans = jsonDecode(rawSpans);
-          if (decodedSpans is List) {
-            for (final item in decodedSpans) {
-              if (item is Map) {
-                returnedSpans.add(
-                  TextSpanModel.fromMap(Map<String, dynamic>.from(item)),
-                );
-              }
-            }
-          }
-        } catch (_) {
-          // Keep the plain text fallback if styled-span conversion fails.
-        }
-      }
-
-      setParentState(() {
-        richDocumentJson = returnedJson;
-        textCtrl.value = TextEditingValue(
-          text: returnedText,
-          selection: TextSelection.collapsed(offset: returnedText.length),
-        );
-        workingSpans = returnedSpans.isNotEmpty
-            ? returnedSpans
-            : [
-                TextSpanModel(
-                  text: returnedText,
-                  fontFamily: currentFont,
-                  fontSize: currentFontSize,
-                  colorHex: currentColor,
-                ),
-              ];
-        activeFieldController = textCtrl;
-        lastSelection = textCtrl.selection;
-        isTextSelected = false;
-      });
+      textCtrl.setStyledSpans(workingSpans);
+      richDocumentJson = null;
     }
 
     void showAdvancedEquationDialog(void Function(void Function()) setParentState) {
@@ -5188,100 +5091,57 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     Widget buildQuestionEditorCanvas(StateSetter setModalState) {
       final double availableWidth = MediaQuery.of(context).size.width - 40;
       final double scale = (availableWidth / kA4PaperWidth).clamp(0.25, 1.0);
-      final double previewWidth = kA4PaperWidth * scale;
-      final double previewHeight = kA4PaperHeight * scale;
-
-      Widget pageText = Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            titleCtrl.text,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
-          ),
-          const Divider(color: Colors.black54, height: 22),
-          if (richDocumentJson != null && richDocumentJson!.isNotEmpty)
-            RichQuestionDocumentView(
-              documentJson: richDocumentJson!,
-              direction: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
-              fallbackAlignment: selectedAlignment,
-            )
-          else
-          Text.rich(
-            TextSpan(
-              children: workingSpans.map((span) {
-                Color spanColor = Colors.black87;
-                try {
-                  spanColor = Color(
-                    int.parse(span.colorHex.replaceFirst('#', '0xFF')),
-                  );
-                } catch (_) {}
-
-                final spanStyle = TextStyle(
-                  fontFamily: span.fontFamily,
-                  fontSize: span.fontSize,
-                  fontWeight:
-                      span.isBold ? FontWeight.bold : FontWeight.normal,
-                  decoration: span.isUnderline
-                      ? TextDecoration.underline
-                      : TextDecoration.none,
-                  color: spanColor,
-                  height: currentLineSpacing,
-                );
-                return _buildInlineSpanWithFractions(span.text, spanStyle);
-              }).toList(),
-            ),
-            textAlign: selectedAlignment,
-            textDirection:
-                isInputArabic ? TextDirection.rtl : TextDirection.ltr,
-          ),
-          ...currentElements
-              .where((el) => el.type != ElementType.image &&
-                  el.type != ElementType.shape &&
-                  el.type != ElementType.table)
-              .map((el) => Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: _buildRenderedElement(
-                      el,
-                      editorSetState: setModalState,
-                      gestureScale: scale,
-                    ),
-                  )),
-        ],
-      );
+      final double pageWidth = kA4PaperWidth * scale;
+      final double pageHeight = kA4PaperHeight * scale;
 
       List<Widget> positionedElements(String layer) => currentElements
-                .where((el) =>
-                    el.layer == layer &&
-                    (el.type == ElementType.image ||
-                        el.type == ElementType.shape ||
-                        el.type == ElementType.table))
-                .map((el) => Positioned(
-                      left: el.dx,
-                      top: el.dy,
-                      child: _buildRenderedElement(
-                        el,
-                        applyOffset: false,
-                        editorSetState: setModalState,
-                        gestureScale: scale,
-                      ),
-                    ))
-                .toList();
+          .where((el) =>
+              el.layer == layer &&
+              (el.type == ElementType.image ||
+                  el.type == ElementType.shape ||
+                  el.type == ElementType.table))
+          .map((el) => Positioned(
+                left: el.dx,
+                top: el.dy,
+                child: _buildRenderedElement(
+                  el,
+                  applyOffset: false,
+                  editorSetState: setModalState,
+                  gestureScale: scale,
+                ),
+              ))
+          .toList();
+
+      final inlineElements = currentElements
+          .where((el) =>
+              el.layer == 'inline' &&
+              el.type != ElementType.image &&
+              el.type != ElementType.shape &&
+              el.type != ElementType.table)
+          .map((el) => Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: _buildRenderedElement(
+                  el,
+                  editorSetState: setModalState,
+                  gestureScale: scale,
+                ),
+              ))
+          .toList();
 
       return Center(
         child: Container(
-          width: previewWidth,
-          height: previewHeight,
+          width: pageWidth,
+          height: pageHeight,
           margin: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: Colors.white,
-            border: Border.all(color: Colors.blueGrey.shade300),
+            border: Border.all(color: const Color(0xFF94A3B8), width: 1),
             boxShadow: const [
-              BoxShadow(color: Colors.black26, blurRadius: 7, offset: Offset(0, 3)),
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 8,
+                offset: Offset(0, 3),
+              ),
             ],
           ),
           child: ClipRect(
@@ -5298,20 +5158,131 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     children: [
                       Positioned.fill(
                         child: Padding(
-                          padding: const EdgeInsets.all(38),
-                          child: DecoratedBox(
-                            decoration: const BoxDecoration(color: Colors.white),
-                            child: const SizedBox.expand(),
+                          padding: const EdgeInsets.fromLTRB(38, 30, 38, 38),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Directionality(
+                                textDirection: isInputArabic
+                                    ? TextDirection.rtl
+                                    : TextDirection.ltr,
+                                child: Text(
+                                  titleCtrl.text,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontFamily: isInputArabic ? 'Amiri' : 'Arial',
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                              const Divider(
+                                color: Colors.black54,
+                                height: 22,
+                                thickness: 0.8,
+                              ),
+                              Expanded(
+                                child: Directionality(
+                                  textDirection: isInputArabic
+                                      ? TextDirection.rtl
+                                      : TextDirection.ltr,
+                                  child: SingleChildScrollView(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        TextField(
+                                          controller: textCtrl,
+                                          textAlign: selectedAlignment,
+                                          textAlignVertical:
+                                              TextAlignVertical.top,
+                                          readOnly: false,
+                                          showCursor: true,
+                                          enableInteractiveSelection: true,
+                                          keyboardType: useSystemKeyboard
+                                              ? TextInputType.multiline
+                                              : TextInputType.none,
+                                          maxLines: null,
+                                          style: TextStyle(
+                                            fontFamily: currentFont,
+                                            fontSize: currentFontSize,
+                                            height: currentLineSpacing,
+                                            color: Colors.black,
+                                          ),
+                                          onChanged: (value) {
+                                            setModalState(() {
+                                              richDocumentJson = null;
+                                              syncWorkingSpansWithText();
+                                              lastSelection =
+                                                  textCtrl.selection;
+                                              isTextSelected =
+                                                  textCtrl.selection.isValid &&
+                                                      !textCtrl.selection
+                                                          .isCollapsed;
+                                            });
+                                            Clipboard.hasStrings().then(
+                                              (hasValue) {
+                                                if (hasValue !=
+                                                    hasClipboardContent) {
+                                                  setModalState(() =>
+                                                      hasClipboardContent =
+                                                          hasValue);
+                                                }
+                                              },
+                                            );
+                                          },
+                                          onTap: () {
+                                            setModalState(() {
+                                              activeFieldController = textCtrl;
+                                              lastSelection =
+                                                  textCtrl.selection;
+                                              isTextSelected =
+                                                  textCtrl.selection.isValid &&
+                                                      !textCtrl.selection
+                                                          .isCollapsed;
+                                              if (!useSystemKeyboard) {
+                                                showCustomKeyboard = true;
+                                              }
+                                              showQuestionSettings = false;
+                                            });
+                                            Clipboard.hasStrings().then(
+                                              (hasValue) {
+                                                if (hasValue !=
+                                                    hasClipboardContent) {
+                                                  setModalState(() =>
+                                                      hasClipboardContent =
+                                                          hasValue);
+                                                }
+                                              },
+                                            );
+                                          },
+                                          decoration: InputDecoration(
+                                            hintText: isInputArabic
+                                                ? 'اكتب نص السؤال هنا...'
+                                                : 'Type your question here...',
+                                            hintStyle: const TextStyle(
+                                              color: Colors.black38,
+                                              fontSize: 14,
+                                            ),
+                                            border: InputBorder.none,
+                                            enabledBorder: InputBorder.none,
+                                            focusedBorder: InputBorder.none,
+                                            contentPadding: EdgeInsets.zero,
+                                            isCollapsed: true,
+                                          ),
+                                        ),
+                                        ...inlineElements,
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
                       ...positionedElements('behind'),
-                      Positioned(
-                        top: 38,
-                        left: 38,
-                        right: 38,
-                        child: pageText,
-                      ),
                       ...positionedElements('inline'),
                       ...positionedElements('front'),
                     ],
@@ -5350,6 +5321,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               flex: 2,
                               child: TextField(
                                 controller: titleCtrl,
+                                onChanged: (_) => setModalState(() {}),
                                 decoration: InputDecoration(
                                   labelText: isAr ? 'اسم السؤال (س١)' : 'Question Title (Q1)',
                                 ),
@@ -5425,21 +5397,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         ),
                         const SizedBox(height: 8),
                       ],
-
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          icon: const Icon(Icons.article_outlined),
-                          label: const Text('فتح المحرر الغني الموحد'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF1E3A8A),
-                            side: const BorderSide(color: Color(0xFF1E3A8A)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                          onPressed: () => openRichQuestionEditor(setModalState),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
 
                       ExamRibbonToolbar(
                         showQuestionSettings: showQuestionSettings,
@@ -5602,161 +5559,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         onZoomOut: _zoomOut,
                         onFitScreen: _fitScreen,
                       ),
-                      const SizedBox(height: 8),
-
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEAF0FA),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          'لتحرير السؤال بأدوات التنسيق والصور والجداول، اضغط على محتوى السؤال في العمود الأوسط من ورقة الاختبار.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Color(0xFF1E3A8A),
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-
-                      Directionality(
-                        textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
-                        child: TextField(
-                          controller: textCtrl,
-                          textAlign: selectedAlignment,
-                          readOnly: false,
-                          showCursor: true,
-                          enableInteractiveSelection: true,
-                          keyboardType: useSystemKeyboard ? TextInputType.multiline : TextInputType.none,
-                          maxLines: 4,
-                          style: TextStyle(height: currentLineSpacing),
-                          onChanged: (val) {
-                            setModalState(() {
-                              richDocumentJson = null;
-                              syncWorkingSpansWithText();
-                              lastSelection = textCtrl.selection;
-                              isTextSelected = textCtrl.selection.isValid && !textCtrl.selection.isCollapsed;
-                            });
-                            Clipboard.hasStrings().then((hasVal) {
-                              if (hasVal != hasClipboardContent) {
-                                setModalState(() => hasClipboardContent = hasVal);
-                              }
-                            });
-                          },
-                          onTap: () {
-                            setModalState(() {
-                              activeFieldController = textCtrl;
-                              lastSelection = textCtrl.selection;
-                              isTextSelected = textCtrl.selection.isValid && !textCtrl.selection.isCollapsed;
-                              if (!useSystemKeyboard) {
-                                showCustomKeyboard = true;
-                              }
-                              showQuestionSettings = false;
-                            });
-                            Clipboard.hasStrings().then((hasVal) {
-                              if (hasVal != hasClipboardContent) {
-                                setModalState(() => hasClipboardContent = hasVal);
-                              }
-                            });
-                          },
-                          decoration: InputDecoration(
-                            labelText: isInputArabic
-                                ? 'محتوى نص السؤال (مكان الإدخال محدد: ${selectedAlignment == TextAlign.right ? "يمين" : (selectedAlignment == TextAlign.center ? "وسط" : "يسار")})'
-                                : 'Question Text (Alignment: ${selectedAlignment == TextAlign.left ? "Left" : (selectedAlignment == TextAlign.center ? "Center" : "Right")})',
-                            border: const OutlineInputBorder(),
-                            focusedBorder: OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: activeFieldController == textCtrl ? const Color(0xFF1E3A8A) : Colors.grey,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      // مساحة عناصر حية داخل محرر السؤال: تعرض الصور والأشكال فور إدراجها
-                      // دون فرض عرض صفحة A4 كاملة، مع الإبقاء على مقابض التحديد والتحريك والتغيير.
-                      if (currentElements.isNotEmpty) ...[
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.blueGrey.shade50,
-                            border: Border.all(color: Colors.blueGrey.shade200),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const Text(
-                                'العناصر المدرجة في السؤال',
-                                textAlign: TextAlign.right,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1E3A8A),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Wrap(
-                                alignment: isInputArabic
-                                    ? WrapAlignment.start
-                                    : WrapAlignment.end,
-                                crossAxisAlignment: WrapCrossAlignment.start,
-                                spacing: 10,
-                                runSpacing: 10,
-                                children: currentElements.map((el) {
-                                  return _buildRenderedElement(
-                                    el,
-                                    applyOffset: false,
-                                    editorSetState: setModalState,
-                                    gestureScale: 1.0,
-                                  );
-                                }).toList(),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-
-                      // لا نعرض صفحة A4 كاملة بشكل دائم؛ تظهر عند طلب المستخدم
-                      // لمعاينة الصور والأشكال وتحريكها وتغيير أحجامها.
-                      Align(
-                        alignment: isInputArabic ? Alignment.centerRight : Alignment.centerLeft,
-                        child: TextButton.icon(
-                          onPressed: () => setModalState(() {
-                            showA4Preview = !showA4Preview;
-                          }),
-                          icon: Icon(
-                            showA4Preview ? Icons.visibility_off_outlined : Icons.preview_outlined,
-                            color: const Color(0xFF1E3A8A),
-                          ),
-                          label: Text(
-                            showA4Preview
-                                ? 'إخفاء معاينة ورقة A4'
-                                : 'معاينة ورقة A4 وتحرير مواضع الصور والأشكال',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1E3A8A),
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (showA4Preview) ...[
-                        const Text(
-                          'حدد الصورة أو الشكل ثم اسحب مقابضه لتغيير حجمه أو اسحبه لتحريكه:',
-                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
-                        ),
-                        buildQuestionEditorCanvas(setModalState),
-                        const SizedBox(height: 8),
-                      ],
+                      const SizedBox(height: 10),
+                      buildQuestionEditorCanvas(setModalState),
+                      const SizedBox(height: 10),
 
                       Directionality(
                         textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
@@ -5808,7 +5613,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 titleOrientation: orientation,
                                 gradeOrientation: gradeOrient,
                                 mark: double.tryParse(markCtrl.text) ?? 5.0,
-                                spans: [TextSpanModel(text: textCtrl.text)],
+                                spans: workingSpans,
                                 elements: currentElements,
                                 richDocumentJson: richDocumentJson,
                                 answerKey: answerCtrl.text.trim(),
