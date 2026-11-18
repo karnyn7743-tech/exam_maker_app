@@ -2832,7 +2832,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 fontSize: s.fontSize,
                 color: spanColor,
                 backgroundColor: _parseQuestionHighlight(s.highlightHex),
-                height: 1.15,
+                height: q.lineSpacing,
               );
               return _buildInlineSpanWithFractions(s.text, style);
             }).toList(),
@@ -3905,7 +3905,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     TextSelection? lastSelection;
     bool isTextSelected = false;
     bool hasClipboardContent = false;
-    double currentLineSpacing = 1.15;
+    double currentLineSpacing = q.lineSpacing;
     double currentQuestionZoom = 1.0;
 
     Clipboard.hasStrings().then((hasVal) {
@@ -5699,6 +5699,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         onLineSpacingChanged: (spacing) {
                           setModalState(() {
                             currentLineSpacing = spacing;
+                            richDocumentJson = null;
                           });
                         },
                         onZoomIn: () => setModalState(() => currentQuestionZoom = (currentQuestionZoom + 0.15).clamp(0.5, 2.5).toDouble()),
@@ -5864,6 +5865,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                   answerKey: answerCtrl.text.trim(),
                                   isTwoColumns: isTwoCols,
                                   alignment: selectedAlignment,
+                                  lineSpacing: currentLineSpacing,
                                 );
 
                                 setState(() {
