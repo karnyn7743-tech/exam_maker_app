@@ -253,7 +253,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('إلغاء'),
+            child: Text(isAr ? 'إلغاء' : 'Cancel'),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
@@ -1975,7 +1975,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                 ),
               ),
-              // 1: محتوى السؤال في العمود الأوسط؛ يتحول إلى محرر غني داخل الورقة عند اختياره.
+              // 1: محتوى السؤال؛ الضغط عليه يفتح نافذة تحرير A4 نفسها.
               TableCell(
                 verticalAlignment: TableCellVerticalAlignment.middle,
                 child: Padding(
@@ -4002,6 +4002,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       ));
 
       workingSpans = nextSpans;
+      richDocumentJson = null;
       textCtrl.setStyledSpans(workingSpans);
     }
 
@@ -4086,6 +4087,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         ));
       }
       workingSpans = nextSpans.where((s) => s.text.isNotEmpty).toList();
+      richDocumentJson = null;
       textCtrl.setStyledSpans(workingSpans);
     }
 
@@ -5369,7 +5371,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setModalState) => SizedBox(
+        builder: (context, setModalState) => Directionality(
+          textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
+          child: SizedBox(
           height: MediaQuery.of(ctx).size.height * 0.94,
           child: Column(
             children: [
@@ -5413,19 +5417,19 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             Text(isAr ? 'عنوان السؤال: ' : 'Title Orient: ',
                                 style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                             ChoiceChip(
-                              label: const Text('أفقي', style: TextStyle(fontSize: 11)),
+                              label: Text(isAr ? 'أفقي' : 'Horizontal', style: const TextStyle(fontSize: 11)),
                               selected: orientation == QuestionTitleOrientation.horizontal,
                               onSelected: (val) => setModalState(
                                   () => orientation = QuestionTitleOrientation.horizontal),
                             ),
                             ChoiceChip(
-                              label: const Text('رأسي ◄', style: TextStyle(fontSize: 11)),
+                              label: Text(isAr ? 'رأسي ◄' : 'Vertical ◄', style: const TextStyle(fontSize: 11)),
                               selected: orientation == QuestionTitleOrientation.verticalBottomToTop,
                               onSelected: (val) => setModalState(() =>
                                   orientation = QuestionTitleOrientation.verticalBottomToTop),
                             ),
                             ChoiceChip(
-                              label: const Text('رأسي ►', style: TextStyle(fontSize: 11)),
+                              label: Text(isAr ? 'رأسي ►' : 'Vertical ►', style: const TextStyle(fontSize: 11)),
                               selected: orientation == QuestionTitleOrientation.verticalTopToBottom,
                               onSelected: (val) => setModalState(() =>
                                   orientation = QuestionTitleOrientation.verticalTopToBottom),
@@ -5674,7 +5678,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         children: [
                           OutlinedButton.icon(
                             icon: const Icon(Icons.bookmark_add, color: Color(0xFF1E3A8A)),
-                            label: const Text('حفظ لبنك الأسئلة'),
+                            label: Text(isAr ? 'حفظ لبنك الأسئلة' : 'Save to Question Bank'),
                             onPressed: () async {
                               final qToSave = QuestionModel(
                                 id: const Uuid().v4(),
@@ -5696,7 +5700,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('تم حفظ السؤال بنجاح في بنك الأسئلة الشخصي.'),
+                                    content: Text(isAr ? 'تم حفظ السؤال بنجاح في بنك الأسئلة الشخصي.' : 'Question saved to your personal question bank.'),
                                     backgroundColor: Colors.green,
                                   ),
                                 );
@@ -5717,8 +5721,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 showDialog(
                                   context: context,
                                   builder: (dCtx) => AlertDialog(
-                                    title: const Text('تأكيد حذف السؤال'),
-                                    content: Text('هل أنت متأكد من حذف (${q.title}) نهائياً؟'),
+                                    title: Text(isAr ? 'تأكيد حذف السؤال' : 'Confirm question deletion'),
+                                    content: Text(isAr ? 'هل أنت متأكد من حذف (${q.title}) نهائياً؟' : 'Are you sure you want to permanently delete (${q.title})?'),
                                     actions: [
                                       TextButton(
                                         onPressed: () => Navigator.pop(dCtx),
@@ -5735,13 +5739,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                           _measurePagesHeight();
                                           ScaffoldMessenger.of(context).showSnackBar(
                                             const SnackBar(
-                                              content: Text('تم حذف السؤال بنجاح'),
+                                              content: Text(isAr ? 'تم حذف السؤال بنجاح' : 'Question deleted successfully'),
                                               backgroundColor: Colors.red,
                                               duration: Duration(seconds: 2),
                                             ),
                                           );
                                         },
-                                        child: const Text('نعم، احذف', style: TextStyle(color: Colors.white)),
+                                        child: Text(isAr ? 'نعم، احذف' : 'Yes, delete', style: const TextStyle(color: Colors.white)),
                                       ),
                                     ],
                                   ),
@@ -5825,6 +5829,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   },
                 ),
             ],
+          ),
           ),
         ),
       ),
