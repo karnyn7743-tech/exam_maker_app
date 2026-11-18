@@ -581,11 +581,11 @@ class _RichQuestionInlineEditorState extends State<RichQuestionInlineEditor> {
           Expanded(
             child: Directionality(
               textDirection: TextDirection.rtl,
-              child: FluentDocumentWidget(
+              // Use the same complete FluentEditor surface as the advanced
+              // editor so the in-page question editor exposes its full toolbar.
+              child: FluentEditor(
                 document: _document,
-                maxWidth: 1000,
                 labels: RichQuestionEditorDialogState.arabicLabels,
-                toolbarMode: FluentToolbarMode.bubble,
               ),
             ),
           ),
