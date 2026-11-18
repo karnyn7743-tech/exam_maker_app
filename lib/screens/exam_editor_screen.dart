@@ -2858,9 +2858,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               final style = TextStyle(
                 fontFamily: s.fontFamily,
                 fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
-                decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
+                fontStyle: s.isItalic ? FontStyle.italic : FontStyle.normal,
+                decoration: _questionTextDecoration(s),
                 fontSize: s.fontSize,
                 color: spanColor,
+                backgroundColor: _parseQuestionHighlight(s.highlightHex),
                 height: 1.15,
               );
               return _buildInlineSpanWithFractions(s.text, style);
