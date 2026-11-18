@@ -5298,12 +5298,16 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                       ? TextDirection.rtl
                                       : TextDirection.ltr,
                                   child: SingleChildScrollView(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        TextField(
-                                          controller: textCtrl,
+                                    child: SizedBox(
+                                      // اجعل مساحة الكتابة بعرض الورقة الداخلي كاملاً؛
+                                      // وإلا قد ينكمش محتوى التمرير إلى عرض النص نفسه.
+                                      width: kA4PaperWidth - 76,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          TextField(
+                                            controller: textCtrl,
                                           textAlign: selectedAlignment,
                                           textAlignVertical:
                                               TextAlignVertical.top,
@@ -5381,9 +5385,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                             contentPadding: EdgeInsets.zero,
                                             isCollapsed: true,
                                           ),
-                                        ),
-                                        ...inlineElements,
-                                      ],
+                                          ),
+                                          ...inlineElements,
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
