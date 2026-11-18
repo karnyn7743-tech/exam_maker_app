@@ -163,6 +163,7 @@ class QuestionModel {
   String answerKey;
   bool isTwoColumns;
   TextAlign? alignment;
+  double lineSpacing;
 
   QuestionModel({
     required this.id,
@@ -176,6 +177,7 @@ class QuestionModel {
     this.answerKey = '',
     this.isTwoColumns = false,
     this.alignment,
+    this.lineSpacing = 1.15,
   }) : elements = elements ?? [];
 
   Map<String, dynamic> toMap() => {
@@ -190,6 +192,7 @@ class QuestionModel {
         'answerKey': answerKey,
         'isTwoColumns': isTwoColumns,
         'alignment': alignment?.name,
+        'lineSpacing': lineSpacing,
       };
 
   factory QuestionModel.fromMap(Map<String, dynamic> map) {
