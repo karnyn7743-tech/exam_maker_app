@@ -5373,7 +5373,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                         children: [
                                           TextField(
                                             controller: textCtrl,
-                                          textAlign: selectedAlignment,
+                                            // اجعل مساحة التحرير بارتفاع الصفحة الداخلي
+                                            // حتى يمكن وضع المؤشر والكتابة في كامل الورقة.
+                                            minLines: 38,
+                                            textAlign: selectedAlignment,
                                           textAlignVertical:
                                               TextAlignVertical.top,
                                           readOnly: false,
