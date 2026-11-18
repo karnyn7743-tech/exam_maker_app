@@ -5785,7 +5785,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                           Navigator.pop(ctx);
                                           _measurePagesHeight();
                                           ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(
+                                            SnackBar(
                                               content: Text(isAr ? 'تم حذف السؤال بنجاح' : 'Question deleted successfully'),
                                               backgroundColor: Colors.red,
                                               duration: Duration(seconds: 2),
