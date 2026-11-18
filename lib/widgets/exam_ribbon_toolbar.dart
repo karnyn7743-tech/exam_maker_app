@@ -421,7 +421,7 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
                     children: [
                       Icon(Icons.palette, size: 20, color: Color(int.parse(widget.currentColor.replaceFirst('#', '0xFF')))),
                       const SizedBox(height: 2),
-                      const Text(_t('لون', 'Color'), style: TextStyle(fontSize: 10, color: Color(0xFF334155))),
+                      Text(_t('لون', 'Color'), style: const TextStyle(fontSize: 10, color: Color(0xFF334155))),
                     ],
                   ),
                 ),
