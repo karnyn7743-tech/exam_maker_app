@@ -3100,6 +3100,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     bool applyOffset = true,
     StateSetter? editorSetState,
     double gestureScale = 1.0,
+    VoidCallback? onDeleteElement,
   }) {
     final bool isSelected = _selectedElementId == el.id;
     final void Function(VoidCallback) refreshState = editorSetState ?? setState;
@@ -3202,12 +3203,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
         );
         if (confirmed == true) {
-          refreshState(() {
-            currentElements.removeWhere((item) => item.id == el.id);
-            if (_selectedElementId == el.id) {
-              _selectedElementId = null;
-            }
-          });
+          onDeleteElement?.call();
         }
       }
 
@@ -5266,6 +5262,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   applyOffset: false,
                   editorSetState: setModalState,
                   gestureScale: scale,
+                  onDeleteElement: () {
+                    setModalState(() {
+                      currentElements.removeWhere((item) => item.id == el.id);
+                      if (_selectedElementId == el.id) {
+                        _selectedElementId = null;
+                      }
+                    });
+                  },
                 ),
               ))
           .toList();
