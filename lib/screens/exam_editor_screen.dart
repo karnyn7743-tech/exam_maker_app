@@ -4016,7 +4016,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             fontFamily: template.fontFamily,
             fontSize: template.fontSize.clamp(8.0, 36.0).toDouble(),
             isBold: template.isBold,
+            isItalic: template.isItalic,
             isUnderline: template.isUnderline,
+            isStrikethrough: template.isStrikethrough,
+            highlightHex: template.highlightHex,
           )
         ];
         textCtrl.setStyledSpans(workingSpans);
@@ -4055,7 +4058,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             fontFamily: template.fontFamily,
             fontSize: template.fontSize.clamp(8.0, 36.0).toDouble(),
             isBold: template.isBold,
+            isItalic: template.isItalic,
             isUnderline: template.isUnderline,
+            isStrikethrough: template.isStrikethrough,
+            highlightHex: template.highlightHex,
           ));
           if (after.isNotEmpty) {
             nextSpans.add(TextSpanModel(
@@ -4104,6 +4110,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           fontFamily: currentFont,
           fontSize: currentFontSize.clamp(8.0, 36.0).toDouble(),
           isBold: isBoldActive,
+          isItalic: false,
           isUnderline: isUnderlineActive,
         );
 
@@ -5521,7 +5528,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           }
                         },
                         onCut: () async {
-                          final sel = lastSelection ?? textCtrl.selection;
+                          final currentSelection = textCtrl.selection;
+                          final sel = currentSelection.isValid
+                              ? currentSelection
+                              : (lastSelection ?? currentSelection);
                           if (sel.isValid && !sel.isCollapsed) {
                             final start = math.min(sel.start, sel.end);
                             final end = math.max(sel.start, sel.end);
