@@ -12,12 +12,16 @@ class ExamCustomKeyboard extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback? onClose;
   final VoidCallback? onSwitchToSystemKeyboard;
+  final ValueChanged<String>? onChanged;
+  final bool isArabicInput;
 
   const ExamCustomKeyboard({
     super.key,
     required this.controller,
     this.onClose,
     this.onSwitchToSystemKeyboard,
+    this.onChanged,
+    this.isArabicInput = true,
   });
 
   @override
@@ -25,7 +29,21 @@ class ExamCustomKeyboard extends StatefulWidget {
 }
 
 class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
-  KeyboardMode _mode = KeyboardMode.arabic;
+  late KeyboardMode _mode;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.isArabicInput ? KeyboardMode.arabic : KeyboardMode.english;
+  }
+
+  @override
+  void didUpdateWidget(covariant ExamCustomKeyboard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isArabicInput != widget.isArabicInput) {
+      _mode = widget.isArabicInput ? KeyboardMode.arabic : KeyboardMode.english;
+    }
+  }
   bool _isShift = false;
   bool _arabicShift = false;
 
@@ -41,12 +59,14 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
         text: newText,
         selection: TextSelection.collapsed(offset: pos + text.length),
       );
+      widget.onChanged?.call(c.text);
     } else {
       final newText = currentText.replaceRange(selection.start, selection.end, text);
       c.value = TextEditingValue(
         text: newText,
         selection: TextSelection.collapsed(offset: selection.start + text.length),
       );
+      widget.onChanged?.call(c.text);
     }
   }
 
@@ -63,6 +83,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
         text: newText,
         selection: TextSelection.collapsed(offset: pos + prefix.length),
       );
+      widget.onChanged?.call(c.text);
     } else {
       final selectedContent = currentText.substring(selection.start, selection.end);
       final newText = currentText.replaceRange(
@@ -74,6 +95,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
         text: newText,
         selection: TextSelection.collapsed(offset: selection.start + prefix.length + selectedContent.length),
       );
+      widget.onChanged?.call(c.text);
     }
   }
 
@@ -92,6 +114,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
         text: newText,
         selection: TextSelection.collapsed(offset: selection.start),
       );
+      widget.onChanged?.call(c.text);
     } else {
       final pos = selection.start;
       final newText = currentText.substring(0, pos - 1) + currentText.substring(pos);
@@ -99,6 +122,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
         text: newText,
         selection: TextSelection.collapsed(offset: pos - 1),
       );
+      widget.onChanged?.call(c.text);
     }
   }
 
