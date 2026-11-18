@@ -156,7 +156,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
               padding: const EdgeInsets.symmetric(horizontal: 2),
               child: ActionChip(
                 avatar: const Icon(Icons.keyboard, size: 14, color: Colors.white),
-                label: const Text(
+                label: Text(
                   widget.isArabicInput ? 'لوحة الجهاز' : 'Device keyboard',
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
