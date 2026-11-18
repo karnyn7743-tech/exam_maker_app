@@ -3874,6 +3874,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     bool isTextSelected = false;
     bool hasClipboardContent = false;
     double currentLineSpacing = 1.15;
+    double currentQuestionZoom = 1.0;
 
     Clipboard.hasStrings().then((hasVal) {
       hasClipboardContent = hasVal;
@@ -5158,7 +5159,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     Widget buildQuestionEditorCanvas(StateSetter setModalState) {
       final double availableWidth = MediaQuery.of(context).size.width - 40;
-      final double scale = (availableWidth / kA4PaperWidth).clamp(0.25, 1.0);
+      final double fitScale = (availableWidth / kA4PaperWidth).clamp(0.25, 1.0);
+      final double scale = (fitScale * currentQuestionZoom).clamp(0.25, 2.5);
       final double pageWidth = kA4PaperWidth * scale;
       final double pageHeight = kA4PaperHeight * scale;
 
@@ -5196,8 +5198,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               ))
           .toList();
 
-      return Center(
-        child: Container(
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Center(
+          child: Container(
           width: pageWidth,
           height: pageHeight,
           margin: const EdgeInsets.symmetric(vertical: 8),
@@ -5359,6 +5363,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               ),
             ),
           ),
+          ),
         ),
       );
     }
@@ -5481,7 +5486,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         isTextSelected: textCtrl.text.isNotEmpty,
                         hasClipboardContent: hasClipboardContent,
                         currentLineSpacing: currentLineSpacing,
-                        currentZoom: _zoomLevel,
+                        currentZoom: currentQuestionZoom,
                         onToggleBold: () { setModalState(() { isBoldActive = !isBoldActive; applyFormatToSelection(bold: isBoldActive); }); },
                         onToggleUnderline: () { setModalState(() { isUnderlineActive = !isUnderlineActive; applyFormatToSelection(underline: isUnderlineActive); }); },
                         onAlignmentChanged: (align) => setModalState(() => selectedAlignment = align),
@@ -5628,9 +5633,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             currentLineSpacing = spacing;
                           });
                         },
-                        onZoomIn: _zoomIn,
-                        onZoomOut: _zoomOut,
-                        onFitScreen: _fitScreen,
+                        onZoomIn: () => setModalState(() => currentQuestionZoom = (currentQuestionZoom + 0.15).clamp(0.5, 2.5).toDouble()),
+                        onZoomOut: () => setModalState(() => currentQuestionZoom = (currentQuestionZoom - 0.15).clamp(0.5, 2.5).toDouble()),
+                        onFitScreen: () => setModalState(() => currentQuestionZoom = 1.0),
                       ),
                       const SizedBox(height: 10),
                       buildQuestionEditorCanvas(setModalState),
