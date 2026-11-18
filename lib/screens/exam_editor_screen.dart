@@ -4006,8 +4006,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         int spanStart = 0;
         for (final span in workingSpans) {
           final spanEnd = spanStart + span.text.length;
-          final overlapStart = math.max(spanStart, rangeStart);
-          final overlapEnd = math.min(spanEnd, rangeEnd);
+          final overlapStart = math.max(spanStart, rangeStart).toInt();
+          final overlapEnd = math.min(spanEnd, rangeEnd).toInt();
           if (overlapStart < overlapEnd) {
             result.add(TextSpanModel(
               text: span.text.substring(
@@ -5223,8 +5223,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     Widget buildQuestionEditorCanvas(StateSetter setModalState) {
       final double availableWidth = MediaQuery.of(context).size.width - 40;
-      final double fitScale = (availableWidth / kA4PaperWidth).clamp(0.25, 1.0);
-      final double scale = (fitScale * currentQuestionZoom).clamp(0.25, 2.5);
+      final double fitScale = (availableWidth / kA4PaperWidth).clamp(0.25, 1.0).toDouble();
+      final double scale = (fitScale * currentQuestionZoom).clamp(0.25, 2.5).toDouble();
       final double pageWidth = kA4PaperWidth * scale;
       final double pageHeight = kA4PaperHeight * scale;
 
