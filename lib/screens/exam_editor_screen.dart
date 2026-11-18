@@ -3904,10 +3904,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         ? q.spans.map((s) => TextSpanModel(
               text: s.text,
               isBold: s.isBold,
+              isItalic: s.isItalic,
               isUnderline: s.isUnderline,
+              isStrikethrough: s.isStrikethrough,
               fontSize: s.fontSize.clamp(8.0, 36.0).toDouble(),
               fontFamily: s.fontFamily,
               colorHex: s.colorHex,
+              highlightHex: s.highlightHex,
             )).toList()
         : [
             TextSpanModel(
@@ -3927,21 +3930,78 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     bool isUnderlineActive = q.spans.isNotEmpty ? q.spans.first.isUnderline : _isUnderline;
     String currentColor = q.spans.isNotEmpty ? q.spans.first.colorHex : _activeColor;
 
-    // حافظ على معاينة النص المنسق متزامنة مع النص الجاري تحريره.
-    // وعند تغيير النص بالكامل نستخدم نمط الإدخال النشط، مثل سلوك الحفظ الحالي.
+    // يحدّث مقاطع التنسيق وفق موضع الإدراج/الحذف، مع الاحتفاظ بتنسيق النص الذي لم يتغير.
     void syncWorkingSpansWithText() {
-      final value = textCtrl.text;
-      if (workingSpans.map((span) => span.text).join() == value) return;
-      workingSpans = [
-        TextSpanModel(
-          text: value,
+      final oldText = workingSpans.map((span) => span.text).join();
+      final newText = textCtrl.text;
+      if (oldText == newText) {
+        textCtrl.setStyledSpans(workingSpans);
+        return;
+      }
+
+      int prefixLength = 0;
+      final sharedLength = math.min(oldText.length, newText.length);
+      while (prefixLength < sharedLength &&
+          oldText.codeUnitAt(prefixLength) == newText.codeUnitAt(prefixLength)) {
+        prefixLength++;
+      }
+
+      int suffixLength = 0;
+      while (suffixLength < oldText.length - prefixLength &&
+          suffixLength < newText.length - prefixLength &&
+          oldText.codeUnitAt(oldText.length - suffixLength - 1) ==
+              newText.codeUnitAt(newText.length - suffixLength - 1)) {
+        suffixLength++;
+      }
+
+      List<TextSpanModel> copyRange(int rangeStart, int rangeEnd) {
+        final result = <TextSpanModel>[];
+        int spanStart = 0;
+        for (final span in workingSpans) {
+          final spanEnd = spanStart + span.text.length;
+          final overlapStart = math.max(spanStart, rangeStart);
+          final overlapEnd = math.min(spanEnd, rangeEnd);
+          if (overlapStart < overlapEnd) {
+            result.add(TextSpanModel(
+              text: span.text.substring(
+                overlapStart - spanStart,
+                overlapEnd - spanStart,
+              ),
+              isBold: span.isBold,
+              isItalic: span.isItalic,
+              isUnderline: span.isUnderline,
+              isStrikethrough: span.isStrikethrough,
+              fontSize: span.fontSize,
+              fontFamily: span.fontFamily,
+              colorHex: span.colorHex,
+              highlightHex: span.highlightHex,
+            ));
+          }
+          spanStart = spanEnd;
+        }
+        return result;
+      }
+
+      final nextSpans = <TextSpanModel>[
+        ...copyRange(0, prefixLength),
+      ];
+      final insertedEnd = newText.length - suffixLength;
+      if (insertedEnd > prefixLength) {
+        nextSpans.add(TextSpanModel(
+          text: newText.substring(prefixLength, insertedEnd),
           colorHex: currentColor,
           fontFamily: currentFont,
           fontSize: currentFontSize.clamp(8.0, 36.0).toDouble(),
           isBold: isBoldActive,
           isUnderline: isUnderlineActive,
-        ),
-      ];
+        ));
+      }
+      nextSpans.addAll(copyRange(
+        oldText.length - suffixLength,
+        oldText.length,
+      ));
+
+      workingSpans = nextSpans;
       textCtrl.setStyledSpans(workingSpans);
     }
 
@@ -3981,7 +4041,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               fontFamily: span.fontFamily,
               fontSize: span.fontSize,
               isBold: span.isBold,
+              isItalic: span.isItalic,
               isUnderline: span.isUnderline,
+              isStrikethrough: span.isStrikethrough,
+              highlightHex: span.highlightHex,
             ));
           }
           nextSpans.add(TextSpanModel(
@@ -3999,7 +4062,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               fontFamily: span.fontFamily,
               fontSize: span.fontSize,
               isBold: span.isBold,
+              isItalic: span.isItalic,
               isUnderline: span.isUnderline,
+              isStrikethrough: span.isStrikethrough,
+              highlightHex: span.highlightHex,
             ));
           }
           handled = true;
@@ -5408,7 +5474,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         currentFont: currentFont,
                         currentFontSize: currentFontSize,
                         isArabicInput: isInputArabic,
-                        isTextSelected: isTextSelected,
+                        isTextSelected: textCtrl.text.isNotEmpty,
                         hasClipboardContent: hasClipboardContent,
                         currentLineSpacing: currentLineSpacing,
                         currentZoom: _zoomLevel,
@@ -5426,7 +5492,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           });
                         },
                         onCopy: () async {
-                          final sel = lastSelection ?? textCtrl.selection;
+                          final currentSelection = textCtrl.selection;
+                          final sel = currentSelection.isValid && !currentSelection.isCollapsed
+                              ? currentSelection
+                              : (lastSelection ?? currentSelection);
                           if (sel.isValid && !sel.isCollapsed) {
                             final start = math.min(sel.start, sel.end);
                             final end = math.max(sel.start, sel.end);
