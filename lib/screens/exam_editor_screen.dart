@@ -3165,22 +3165,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     if (el.type == ElementType.image || el.type == ElementType.shape || el.type == ElementType.table) {
       final double safeScale = gestureScale.clamp(0.25, 3.0);
       // أحجام المقابض ثابتة تقريباً على الشاشة مهما تغيّر تكبير الصفحة.
-      final double controlSize = 44 / safeScale;
-      final double railWidth = canResize ? 52 / safeScale : 0;
-      final double bottomRailHeight = canResize ? 52 / safeScale : 0;
-      // عند قصر العنصر نمد مساحة مقبض الارتفاع حتى لا يتلاصق زرا (+) و(-).
-      final double verticalRailHeight = !canResize
-          ? el.height
-          : (el.height < (controlSize * 2 + 18 / safeScale)
-              ? (controlSize * 2 + 18 / safeScale)
-              : el.height);
-      final double outerHeight = verticalRailHeight + bottomRailHeight;
-      final double outerWidth = canResize
-          ? math.max(
-              el.width,
-              railWidth + controlSize + 4 / safeScale,
-            ).toDouble()
-          : el.width;
+      // أدوات التحكم طبقة عائمة فوق العنصر ولا تدخل ضمن أبعاده أو تدفق النص.
+      final double controlSize = 32 / safeScale;
+      final double railWidth = canResize ? 36 / safeScale : 0;
+      final double outerWidth = el.width;
+      final double outerHeight = el.height;
 
       void moveBy(Offset delta) {
         refreshState(() {
@@ -3259,32 +3248,19 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   ),
                 ),
                 if (canResize) ...[
-                  // مقبض الطول: مساحة لمس عريضة وزران متباعدان رأسياً.
+                  // أدوات تغيير الارتفاع عائمة داخل حدود العنصر.
                   Positioned(
                     left: 0,
                     top: 0,
                     width: railWidth,
-                    height: verticalRailHeight,
+                    height: outerHeight,
                     child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         _buildSizeStepButton(
                           Icons.add,
                           safeScale,
                           () => changeHeight(8),
-                        ),
-                        Expanded(
-                          child: Center(
-                            child: Container(
-                              width: 4 / safeScale,
-                              margin: EdgeInsets.symmetric(
-                                vertical: 6 / safeScale,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1976D2),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                          ),
                         ),
                         _buildSizeStepButton(
                           Icons.remove,
@@ -3294,32 +3270,19 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ],
                     ),
                   ),
-                  // مقبض العرض: شريط سفلي مستقل عن مقبض الطول.
+                  // أدوات تغيير العرض عائمة أسفل العنصر دون إضافة مساحة تحته.
                   Positioned(
                     left: railWidth,
                     right: 0,
-                    top: verticalRailHeight,
-                    height: bottomRailHeight,
+                    bottom: 0,
+                    height: controlSize,
                     child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         _buildSizeStepButton(
                           Icons.remove,
                           safeScale,
                           () => changeWidth(-8),
-                        ),
-                        Expanded(
-                          child: Center(
-                            child: Container(
-                              height: 4 / safeScale,
-                              margin: EdgeInsets.symmetric(
-                                horizontal: 6 / safeScale,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1976D2),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                          ),
                         ),
                         _buildSizeStepButton(
                           Icons.add,
@@ -3356,11 +3319,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         customBorder: const CircleBorder(),
         onTap: onPressed,
         child: SizedBox(
-          width: 44 / gestureScale,
-          height: 44 / gestureScale,
+          width: 32 / gestureScale,
+          height: 32 / gestureScale,
           child: Icon(
             icon,
-            size: 22 / gestureScale,
+            size: 18 / gestureScale,
             color: const Color(0xFF1565C0),
           ),
         ),
@@ -5292,6 +5255,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   child: Stack(
                     clipBehavior: Clip.hardEdge,
                     children: [
+                      // النقر على مساحة فارغة يلغي تحديد العنصر ويخفي مقابضه.
+                      Positioned.fill(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTap: () {
+                            if (_selectedElementId != null) {
+                              setModalState(() => _selectedElementId = null);
+                            }
+                          },
+                        ),
+                      ),
                       Positioned.fill(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(38, 30, 38, 38),
