@@ -252,6 +252,7 @@ class QuestionModel {
       answerKey: map['answerKey']?.toString() ?? '',
       isTwoColumns: map['isTwoColumns'] as bool? ?? false,
       alignment: parsedAlign,
+      lineSpacing: (map['lineSpacing'] as num?)?.toDouble() ?? 1.15,
     );
   }
 }
