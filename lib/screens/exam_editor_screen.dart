@@ -5371,11 +5371,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.stretch,
                                         children: [
-                                          TextField(
+                                          SizedBox(
+                                            // حقل التحرير يملأ مساحة الكتابة الفعلية بين هوامش A4
+                                            // أفقياً ورأسياً، وليس مجرد عدد ثابت من الأسطر.
+                                            width: double.infinity,
+                                            height: kA4PaperHeight - 68,
+                                            child: TextField(
                                             controller: textCtrl,
-                                            // اجعل مساحة التحرير بارتفاع الصفحة الداخلي
-                                            // حتى يمكن وضع المؤشر والكتابة في كامل الورقة.
-                                            minLines: 38,
+                                            expands: true,
                                             textAlign: selectedAlignment,
                                           textAlignVertical:
                                               TextAlignVertical.top,
@@ -5453,6 +5456,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                             contentPadding: EdgeInsets.zero,
                                             isCollapsed: true,
                                           ),
+                                            ),
                                           ),
                                           ...inlineElements,
                                         ],
