@@ -125,6 +125,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   // الحالات النشطة لتنسيق الشريط المبوب الرئيسي
   bool _isBold = false;
   bool _isUnderline = false;
+  bool _isItalic = false;
+  bool _isStrikethrough = false;
+  String? _activeHighlight;
   TextAlign _activeAlignment = TextAlign.right;
   String _activeColor = '#000000';
   String _activeFont = 'Amiri';
@@ -1279,6 +1282,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ExamRibbonToolbar(
               isBold: _isBold,
               isUnderline: _isUnderline,
+              isItalic: _isItalic,
+              isStrikethrough: _isStrikethrough,
+              currentHighlight: _activeHighlight,
               currentAlignment: _activeAlignment,
               currentColor: _activeColor,
               currentFont: _activeFont,
@@ -1299,6 +1305,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               currentZoom: _zoomLevel,
               onToggleBold: () => setState(() => _isBold = !_isBold),
               onToggleUnderline: () => setState(() => _isUnderline = !_isUnderline),
+              onToggleItalic: () => setState(() => _isItalic = !_isItalic),
+              onToggleStrikethrough: () => setState(() => _isStrikethrough = !_isStrikethrough),
+              onHighlightChanged: (value) => setState(() => _activeHighlight = value.isEmpty ? null : value),
               onAlignmentChanged: (align) => setState(() => _activeAlignment = align),
               onColorChanged: (c) => setState(() => _activeColor = c),
               onFontChanged: (f) => setState(() => _activeFont = f),
@@ -3920,7 +3929,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               fontFamily: defaultFont,
               colorHex: _activeColor,
               isBold: _isBold,
+              isItalic: _isItalic,
               isUnderline: _isUnderline,
+              isStrikethrough: _isStrikethrough,
+              highlightHex: _activeHighlight,
             )
           ];
     textCtrl.setStyledSpans(workingSpans);
@@ -3929,6 +3941,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     double currentFontSize = (q.spans.isNotEmpty ? q.spans.first.fontSize : _activeFontSize).clamp(8.0, 36.0).toDouble();
     bool isBoldActive = q.spans.isNotEmpty ? q.spans.first.isBold : _isBold;
     bool isUnderlineActive = q.spans.isNotEmpty ? q.spans.first.isUnderline : _isUnderline;
+    bool isItalicActive = q.spans.isNotEmpty ? q.spans.first.isItalic : _isItalic;
+    bool isStrikethroughActive = q.spans.isNotEmpty ? q.spans.first.isStrikethrough : _isStrikethrough;
+    String? currentHighlight = q.spans.isNotEmpty ? q.spans.first.highlightHex : _activeHighlight;
     String currentColor = q.spans.isNotEmpty ? q.spans.first.colorHex : _activeColor;
 
     // يحدّث مقاطع التنسيق وفق موضع الإدراج/الحذف، مع الاحتفاظ بتنسيق النص الذي لم يتغير.
@@ -3994,7 +4009,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           fontFamily: currentFont,
           fontSize: currentFontSize.clamp(8.0, 36.0).toDouble(),
           isBold: isBoldActive,
+          isItalic: isItalicActive,
           isUnderline: isUnderlineActive,
+          isStrikethrough: isStrikethroughActive,
+          highlightHex: currentHighlight,
         ));
       }
       nextSpans.addAll(copyRange(
@@ -4110,8 +4128,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           fontFamily: currentFont,
           fontSize: currentFontSize.clamp(8.0, 36.0).toDouble(),
           isBold: isBoldActive,
-          isItalic: false,
+          isItalic: isItalicActive,
           isUnderline: isUnderlineActive,
+          isStrikethrough: isStrikethroughActive,
+          highlightHex: currentHighlight,
         );
 
         if (pos >= 0) {
@@ -4137,12 +4157,18 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     void applyFormatToSelection({
       bool? bold,
       bool? underline,
+      bool? italic,
+      bool? strikethrough,
+      String? highlight,
       String? font,
       double? size,
       String? color,
     }) {
       if (bold != null) isBoldActive = bold;
       if (underline != null) isUnderlineActive = underline;
+      if (italic != null) isItalicActive = italic;
+      if (strikethrough != null) isStrikethroughActive = strikethrough;
+      if (highlight != null) currentHighlight = highlight.isEmpty ? null : highlight;
       if (font != null) currentFont = font;
       final double? clampedSize = size?.clamp(8.0, 36.0).toDouble();
       if (clampedSize != null) currentFontSize = clampedSize;
@@ -4192,13 +4218,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           newSpans.add(TextSpanModel(
             text: fullText.substring(overlapStart, overlapEnd),
             isBold: bold ?? span.isBold,
-            isItalic: span.isItalic,
+            isItalic: italic ?? span.isItalic,
             isUnderline: underline ?? span.isUnderline,
-            isStrikethrough: span.isStrikethrough,
+            isStrikethrough: strikethrough ?? span.isStrikethrough,
             fontSize: clampedSize ?? span.fontSize,
             fontFamily: font ?? span.fontFamily,
             colorHex: color ?? span.colorHex,
-            highlightHex: span.highlightHex,
+            highlightHex: highlight != null ? (highlight.isEmpty ? null : highlight) : span.highlightHex,
           ));
 
           if (spanEnd > selEnd) {
@@ -5485,6 +5511,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         onToggleQuestionSettings: () => setModalState(() => showQuestionSettings = !showQuestionSettings),
                         isBold: isBoldActive,
                         isUnderline: isUnderlineActive,
+                        isItalic: isItalicActive,
+                        isStrikethrough: isStrikethroughActive,
+                        currentHighlight: currentHighlight,
                         currentAlignment: selectedAlignment,
                         currentColor: currentColor,
                         currentFont: currentFont,
@@ -5496,6 +5525,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         currentZoom: currentQuestionZoom,
                         onToggleBold: () { setModalState(() { isBoldActive = !isBoldActive; applyFormatToSelection(bold: isBoldActive); }); },
                         onToggleUnderline: () { setModalState(() { isUnderlineActive = !isUnderlineActive; applyFormatToSelection(underline: isUnderlineActive); }); },
+                        onToggleItalic: () { setModalState(() { isItalicActive = !isItalicActive; applyFormatToSelection(italic: isItalicActive); }); },
+                        onToggleStrikethrough: () { setModalState(() { isStrikethroughActive = !isStrikethroughActive; applyFormatToSelection(strikethrough: isStrikethroughActive); }); },
+                        onHighlightChanged: (value) { setModalState(() { currentHighlight = value.isEmpty ? null : value; applyFormatToSelection(highlight: value); }); },
                         onAlignmentChanged: (align) => setModalState(() => selectedAlignment = align),
                         onColorChanged: (c) { setModalState(() { currentColor = c; applyFormatToSelection(color: c); }); },
                         onFontChanged: (f) { setModalState(() { currentFont = f; applyFormatToSelection(font: f); }); },
@@ -5784,7 +5816,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                         TextSpanModel(
                                           text: textCtrl.text,
                                           isBold: isBoldActive,
+                                          isItalic: isItalicActive,
                                           isUnderline: isUnderlineActive,
+                                          isStrikethrough: isStrikethroughActive,
+                                          highlightHex: currentHighlight,
                                           fontSize: safeFontSize,
                                           fontFamily: currentFont,
                                           colorHex: currentColor,
