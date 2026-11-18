@@ -256,7 +256,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(isAr ? 'إلغاء' : 'Cancel'),
+            child: Text(_isArabicExam ? 'إلغاء' : 'Cancel'),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
