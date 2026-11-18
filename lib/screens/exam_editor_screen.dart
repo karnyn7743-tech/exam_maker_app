@@ -3915,6 +3915,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     final titleCtrl = TextEditingController(text: q.title);
     final textCtrl =
         QuestionRichTextController(text: q.spans.map((e) => e.text).join(''));
+    // احفظ آخر تحديد غير مطوي حتى لا يضيع عندما ينتقل التركيز إلى أدوات الشريط.
+    textCtrl.addListener(() {
+      final selection = textCtrl.selection;
+      if (selection.isValid && !selection.isCollapsed) {
+        lastSelection = selection;
+        isTextSelected = true;
+      }
+    });
     final markCtrl =
         TextEditingController(text: q.mark > 0 ? (q.mark % 1 == 0 ? q.mark.toInt().toString() : q.mark.toString()) : '5');
     final answerCtrl = TextEditingController(text: q.answerKey);
