@@ -157,7 +157,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
               child: ActionChip(
                 avatar: const Icon(Icons.keyboard, size: 14, color: Colors.white),
                 label: const Text(
-                  'لوحة الجهاز',
+                  widget.isArabicInput ? 'لوحة الجهاز' : 'Device keyboard',
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
                 backgroundColor: const Color(0xFF0F766E),
@@ -165,11 +165,11 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
                 onPressed: widget.onSwitchToSystemKeyboard,
               ),
             ),
-          _buildModeTab('عربي', KeyboardMode.arabic),
+          _buildModeTab(widget.isArabicInput ? 'عربي' : 'Arabic', KeyboardMode.arabic),
           _buildModeTab('English', KeyboardMode.english),
-          _buildModeTab('رياضيات ع', KeyboardMode.mathArabic),
+          _buildModeTab(widget.isArabicInput ? 'رياضيات ع' : 'Math AR', KeyboardMode.mathArabic),
           _buildModeTab('Math EN', KeyboardMode.mathEnglish),
-          _buildModeTab('رموز وأسس', KeyboardMode.symbols),
+          _buildModeTab(widget.isArabicInput ? 'رموز وأسس' : 'Symbols & powers', KeyboardMode.symbols),
           if (widget.onClose != null)
             IconButton(
               icon: const Icon(Icons.keyboard_hide, color: Colors.white70, size: 20),
@@ -619,7 +619,7 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
             flex: 2,
           ),
           _buildSpecialKey(
-            label: 'مسافة Space',
+            label: widget.isArabicInput ? 'مسافة Space' : 'Space',
             color: const Color(0xFF475569),
             onTap: () => _insertText(' '),
             flex: 6,
