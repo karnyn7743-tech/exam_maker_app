@@ -2773,6 +2773,25 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     return TextSpan(children: children);
   }
 
+  Color? _parseQuestionHighlight(String? value) {
+    if (value == null || value.isEmpty) return null;
+    try {
+      return Color(int.parse(value.replaceFirst('#', '0xFF')));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  TextDecoration _questionTextDecoration(TextSpanModel span) {
+    final decorations = <TextDecoration>[
+      if (span.isUnderline) TextDecoration.underline,
+      if (span.isStrikethrough) TextDecoration.lineThrough,
+    ];
+    return decorations.isEmpty
+        ? TextDecoration.none
+        : TextDecoration.combine(decorations);
+  }
+
   Widget _buildQuestionContent(QuestionModel q) {
     if (q.richDocumentJson != null && q.richDocumentJson!.isNotEmpty) {
       return RichQuestionDocumentView(
@@ -2808,9 +2827,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               final style = TextStyle(
                 fontFamily: s.fontFamily,
                 fontWeight: s.isBold ? FontWeight.bold : FontWeight.normal,
-                decoration: s.isUnderline ? TextDecoration.underline : TextDecoration.none,
+                fontStyle: s.isItalic ? FontStyle.italic : FontStyle.normal,
+                decoration: _questionTextDecoration(s),
                 fontSize: s.fontSize,
                 color: spanColor,
+                backgroundColor: _parseQuestionHighlight(s.highlightHex),
                 height: 1.15,
               );
               return _buildInlineSpanWithFractions(s.text, style);
