@@ -483,7 +483,7 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF1F8E9),
       appBar: AppBar(
-        title: const Text('إدخال بقية درجات أعمال السنة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+        title: const Text('إدخال درجات تحريري_شفهي_مواظبة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
         backgroundColor: const Color(0xFF00897B),
         centerTitle: true,
         actions: [
