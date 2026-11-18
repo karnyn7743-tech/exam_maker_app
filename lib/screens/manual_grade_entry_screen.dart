@@ -1,5 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+
+import 'package:archive/archive.dart';
+import 'package:xml/xml.dart';
 import 'package:excel/excel.dart' hide Border;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -103,70 +107,161 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   };
 }
 
-Map<String, dynamic> _saveManualGradesIsolate(Map<String, dynamic> args) {
-  final String filePath = args['filePath'];
-  final String sheetName = args['sheetName'];
-  final int targetRow = args['targetRow'];
-  final String selectedMonth = args['selectedMonth'];
-  final double? hw = args['hw'];
-  final double? oral = args['oral'];
-  final double? att = args['att'];
+const String _manualRelNs = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 
-  try {
-    final file = File(filePath);
-    final bytes = file.readAsBytesSync();
-    final excel = Excel.decodeBytes(bytes);
-    final sheet = excel.tables[sheetName];
-    if (sheet == null) return {'success': false, 'message': 'الورقة غير موجودة'};
-
-    int targetCol = -1;
-    final cleanSelected = selectedMonth.replaceAll(RegExp(r'\s+'), '');
-    int c = 4;
-    while (c < sheet.maxColumns) {
-      final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 1));
-      final text = cell.value?.toString().trim() ?? '';
-
-      if (text.isNotEmpty) {
-        final cleanText = text.replaceAll(RegExp(r'\s+'), '');
-        bool isMatch = (cleanText == cleanSelected);
-
-        if (isMatch) {
-          targetCol = c;
-          break;
-        }
-
-        if (_isMahsala1(cleanText) || _isFasl1(cleanText) ||
-            _isMahsala2(cleanText) || _isFasl2(cleanText)) {
-          c += 1;
-        } else {
-          c += 5;
-        }
-      } else {
-        c += 1;
-      }
-    }
-
-    if (targetCol == -1) return {'success': false, 'message': 'تعذر تحديد عمود الشهر'};
-
-    if (hw != null) {
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: targetCol, rowIndex: targetRow)).value = DoubleCellValue(hw);
-    }
-    if (oral != null) {
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: targetCol + 1, rowIndex: targetRow)).value = DoubleCellValue(oral);
-    }
-    if (att != null) {
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: targetCol + 2, rowIndex: targetRow)).value = DoubleCellValue(att);
-    }
-
-    final encodedData = excel.encode();
-    if (encodedData != null) {
-      file.writeAsBytesSync(encodedData, flush: true);
-      return {'success': true};
-    }
-    return {'success': false, 'message': 'فشل ترميز الملف'};
-  } catch (e) {
-    return {'success': false, 'message': 'خطأ في الحفظ: $e'};
+String _manualZipPath(String p) {
+  final out=<String>[];
+  for(final x in p.replaceAll('\\','/').split('/')) {
+    if(x.isEmpty||x=='.') continue;
+    if(x=='..'){if(out.isNotEmpty) out.removeLast();} else {out.add(x);}
   }
+  return out.join('/');
+}
+String _manualSheetPath(Archive z,String name) {
+  final w=XmlDocument.parse(utf8.decode(z.findFile('xl/workbook.xml')!.content as List<int>));
+  final rel=XmlDocument.parse(utf8.decode(z.findFile('xl/_rels/workbook.xml.rels')!.content as List<int>));
+  String? id;
+  for(final e in w.descendants.whereType<XmlElement>().where((e)=>e.name.local=='sheet')) {
+    if((e.getAttribute('name')??'').trim()==name.trim()) {
+      for(final at in e.attributes){if(at.name.local=='id'){id=at.value;break;}}
+      break;
+    }
+  }
+  if(id==null) throw Exception('لم يتم العثور على ورقة العمل ($name).');
+  for(final e in rel.descendants.whereType<XmlElement>().where((e)=>e.name.local=='Relationship')) {
+    if(e.getAttribute('Id')==id) {
+      final t=e.getAttribute('Target');
+      if(t!=null) return _manualZipPath(t.startsWith('/')?t:'xl/'+t);
+    }
+  }
+  throw Exception('تعذر تحديد مسار ورقة العمل.');
+}
+XmlElement? _manualChild(XmlNode n,String name) {
+  for(final c in n.children){if(c is XmlElement&&c.name.local==name)return c;}
+  return null;
+}
+List<XmlElement> _manualDesc(XmlNode n,String name)=>
+  n.descendants.whereType<XmlElement>().where((e)=>e.name.local==name).toList();
+List<String> _manualStrings(Archive z) {
+  final f=z.findFile('xl/sharedStrings.xml'); if(f==null)return [];
+  final d=XmlDocument.parse(utf8.decode(f.content as List<int>));
+  return _manualDesc(d,'si').map((si)=>_manualDesc(si,'t').map((t)=>t.innerText).join()).toList();
+}
+String _manualCol(int c) {
+  var n=c+1; var out='';
+  while(n>0){final r=(n-1)%26;out=String.fromCharCode(65+r)+out;n=(n-1)~/26;}
+  return out;
+}
+String _manualRef(int c,int r)=>_manualCol(c)+(r+1).toString();
+Map<int,XmlElement> _manualRows(XmlElement data) {
+  final out=<int,XmlElement>{};
+  for(final e in data.children.whereType<XmlElement>()){
+    if(e.name.local=='row'){final n=int.tryParse(e.getAttribute('r')??'');if(n!=null&&n>0)out[n-1]=e;}
+  }
+  return out;
+}
+XmlElement? _manualCell(Map<int,XmlElement> rows,int c,int r) {
+  final row=rows[r];if(row==null)return null;
+  for(final e in row.children.whereType<XmlElement>()){
+    if(e.name.local=='c'&&(e.getAttribute('r')??'').toUpperCase()==_manualRef(c,r))return e;
+  }
+  return null;
+}
+dynamic _manualValue(Map<int,XmlElement> rows,int c,int r,List<String> strings) {
+  final cell=_manualCell(rows,c,r);if(cell==null)return null;
+  final type=cell.getAttribute('t');
+  if(type=='inlineStr'){final i=_manualChild(cell,'is');return i==null?null:_manualDesc(i,'t').map((e)=>e.innerText).join();}
+  final v=_manualChild(cell,'v');if(v==null||v.innerText.trim().isEmpty)return null;
+  final raw=v.innerText.trim();
+  if(type=='s'){final i=int.tryParse(raw);return i==null||i<0||i>=strings.length?null:strings[i];}
+  if(type=='b')return raw=='1';if(type=='e')return null;
+  return num.tryParse(raw)??raw;
+}
+XmlElement _manualEnsureCell(XmlElement data,Map<int,XmlElement> rows,int c,int r) {
+  final old=_manualCell(rows,c,r);if(old!=null)return old;
+  var row=rows[r];
+  if(row==null){row=XmlElement(XmlName('row'),[XmlAttribute(XmlName('r'),(r+1).toString())]);data.children.add(row);rows[r]=row;}
+  final cell=XmlElement(XmlName('c'),[XmlAttribute(XmlName('r'),_manualRef(c,r))]);row.children.add(cell);return cell;
+}
+void _manualSet(XmlElement data,Map<int,XmlElement> rows,int c,int r,double value) {
+  final cell=_manualEnsureCell(data,rows,c,r);
+  for(final child in cell.children.toList()){cell.children.remove(child);}
+  if(cell.getAttribute('t')!=null)cell.removeAttribute('t');
+  final v=value==value.roundToDouble()?value.toInt().toString():value.toString();
+  cell.children.add(XmlElement(XmlName('v'),[],[XmlText(v)]));
+}
+void _manualUpdateSum(Map<int,XmlElement> rows,int base,int r,List<String> strings) {
+  final cell=_manualCell(rows,base+4,r);if(cell==null||_manualChild(cell,'f')==null)return;
+  var total=0.0;var any=false;
+  for(var i=0;i<4;i++){final v=_manualValue(rows,base+i,r,strings);final n=v is num?v:num.tryParse(v?.toString()??'');if(n!=null){total+=n.toDouble();any=true;}}
+  if(!any)return;
+  final text=total==total.roundToDouble()?total.toInt().toString():total.toString();
+  final cached=_manualChild(cell,'v');
+  if(cached!=null){cached.children.clear();cached.children.add(XmlText(text));}
+  else{cell.children.add(XmlElement(XmlName('v'),[],[XmlText(text)]));}
+}
+Uint8List _manualRebuild(Archive source,String sheetPath,String sheetXml) {
+  final out=Archive();final wanted=_manualZipPath(sheetPath);
+  for(final f in source.files){
+    if(!f.isFile)continue;final p=_manualZipPath(f.name);if(p=='xl/calcChain.xml')continue;
+    if(p==wanted){final b=utf8.encode(sheetXml);out.addFile(ArchiveFile(f.name,b.length,b));continue;}
+    if(p=='xl/workbook.xml'){
+      var x=utf8.decode(f.content as List<int>);
+      if(x.contains('<calcPr')){if(x.contains('fullCalcOnLoad=')){x=x.replaceAll(RegExp(r'fullCalcOnLoad="[^"]*"'),'fullCalcOnLoad="1"');}else{x=x.replaceFirst('<calcPr','<calcPr fullCalcOnLoad="1"');}}
+      final b=utf8.encode(x);out.addFile(ArchiveFile(f.name,b.length,b));continue;
+    }
+    if(p=='[Content_Types].xml'){
+      final x=utf8.decode(f.content as List<int>).replaceAll(RegExp(r'<Override[^>]*PartName="/xl/calcChain\.xml"[^>]*/?>'),'');
+      final b=utf8.encode(x);out.addFile(ArchiveFile(f.name,b.length,b));continue;
+    }
+    if(p=='xl/_rels/workbook.xml.rels'){
+      final x=utf8.decode(f.content as List<int>).replaceAll(RegExp(r'<Relationship[^>]*Target="calcChain\.xml"[^>]*/?>'),'');
+      final b=utf8.encode(x);out.addFile(ArchiveFile(f.name,b.length,b));continue;
+    }
+    final bytes=f.content as List<int>;out.addFile(ArchiveFile(f.name,bytes.length,bytes));
+  }
+  final encoded=ZipEncoder().encode(out);if(encoded==null)throw Exception('فشل ترميز ملف Excel.');return Uint8List.fromList(encoded);
+}
+
+Map<String, dynamic> _saveManualGradesIsolate(Map<String, dynamic> args) {
+  final String filePath=args['filePath'], sheetName=args['sheetName'];
+  final int targetRow=args['targetRow'];final String selectedMonth=args['selectedMonth'];
+  final double? hw=args['hw'],oral=args['oral'],att=args['att'];
+  try {
+    final file=File(filePath);if(!file.existsSync())return {'success':false,'message':'ملف Excel غير موجود.'};
+    final lower=filePath.toLowerCase();
+    if(!lower.endsWith('.xlsx')&&!lower.endsWith('.xlsm'))return {'success':false,'message':'الحفظ الآمن متاح لملفات XLSX وXLSM فقط.'};
+    final archive=ZipDecoder().decodeBytes(file.readAsBytesSync());
+    final sheetPath=_manualSheetPath(archive,sheetName);
+    final sheetFile=archive.findFile(sheetPath);if(sheetFile==null)throw Exception('ورقة العمل غير موجودة داخل الملف.');
+    final doc=XmlDocument.parse(utf8.decode(sheetFile.content as List<int>));
+    final data=_manualDesc(doc,'sheetData').firstOrNull;if(data==null)throw Exception('بنية ورقة العمل غير مكتملة.');
+    final rows=_manualRows(data);final strings=_manualStrings(archive);
+    final wanted=selectedMonth.replaceAll(RegExp(r'\s+'),'');
+    var targetCol=-1;var c=4;
+    while(c<500){
+      final value=_manualValue(rows,c,1,strings);final text=value?.toString().trim()??'';
+      if(text.isNotEmpty){
+        final clean=text.replaceAll(RegExp(r'\s+'),'');
+        if(clean==wanted){targetCol=c;break;}
+        if(_isMahsala1(clean)||_isFasl1(clean)||_isMahsala2(clean)||_isFasl2(clean)){c++;}else{c+=5;}
+      }else{c++;}
+    }
+    if(targetCol<0)return {'success':false,'message':'تعذر تحديد عمود الشهر.'};
+    if(hw!=null)_manualSet(data,rows,targetCol,targetRow,hw);
+    if(oral!=null)_manualSet(data,rows,targetCol+1,targetRow,oral);
+    if(att!=null)_manualSet(data,rows,targetCol+2,targetRow,att);
+    _manualUpdateSum(rows,targetCol,targetRow,strings);
+    final bytes=_manualRebuild(archive,sheetPath,doc.toXmlString(pretty:false));
+    final check=ZipDecoder().decodeBytes(bytes);
+    if(check.findFile(sheetPath)==null||check.findFile('xl/workbook.xml')==null)throw Exception('فشل التحقق من الملف الناتج.');
+    final temp=File('$filePath.tmp'),backup=File('$filePath.bak');
+    temp.writeAsBytesSync(bytes,flush:true);if(backup.existsSync())backup.deleteSync();
+    file.renameSync(backup.path);
+    try{temp.renameSync(filePath);if(backup.existsSync())backup.deleteSync();}
+    catch(_){if(!file.existsSync()&&backup.existsSync())backup.renameSync(filePath);rethrow;}
+    return {'success':true};
+  }catch(e){return {'success':false,'message':'خطأ في الحفظ الآمن لملف Excel: $e'};}
 }
 
 class ManualGradeEntryScreen extends StatefulWidget {
@@ -264,9 +359,10 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
     }
 
     File destination = File("${targetDir.path}/$originalFileName");
-    if (!await destination.exists()) {
-      await destination.writeAsBytes(await File(sourceCachePath).readAsBytes(), flush: true);
-    }
+    // استبدال نسخة العمل عند كل اختيار لتجنب استخدام نسخة قديمة بالاسم نفسه.
+    final sourceFile = File(sourceCachePath);
+    if (!await sourceFile.exists()) throw Exception('تعذر الوصول إلى الملف المختار.');
+    await destination.writeAsBytes(await sourceFile.readAsBytes(), flush: true);
     return destination.path;
   }
 
@@ -307,7 +403,7 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
       await _requestPermissions();
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['xlsx', 'xls', 'xlsm'],
+        allowedExtensions: ['xlsx', 'xlsm'],
       );
       if (result == null || result.files.single.path == null) return;
 
@@ -495,7 +591,9 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
               onPressed: () async {
                 final result = await OpenFilex.open(
                   _excelFilePath!,
-                  type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                  type: _excelFilePath!.toLowerCase().endsWith('.xlsm')
+                      ? 'application/vnd.ms-excel.sheet.macroEnabled.12'
+                      : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 );
                 if (result.type != ResultType.done) {
                   _showSnack('تعذر فتح الملف: ${result.message}');
