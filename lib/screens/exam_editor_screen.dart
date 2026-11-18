@@ -5765,6 +5765,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 richDocumentJson: richDocumentJson,
                                 answerKey: answerCtrl.text.trim(),
                                 alignment: selectedAlignment,
+                                lineSpacing: currentLineSpacing,
                               );
                               await QuestionBankService.saveQuestion(
                                 question: qToSave,
