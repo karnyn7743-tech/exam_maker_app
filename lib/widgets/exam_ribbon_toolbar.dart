@@ -13,6 +13,9 @@ enum RibbonTab {
 class ExamRibbonToolbar extends StatefulWidget {
   final bool isBold;
   final bool isUnderline;
+  final bool isItalic;
+  final bool isStrikethrough;
+  final String? currentHighlight;
   final TextAlign currentAlignment;
   final String currentColor;
   final String currentFont;
@@ -29,6 +32,9 @@ class ExamRibbonToolbar extends StatefulWidget {
 
   final VoidCallback? onToggleBold;
   final VoidCallback? onToggleUnderline;
+  final VoidCallback? onToggleItalic;
+  final VoidCallback? onToggleStrikethrough;
+  final Function(String)? onHighlightChanged;
   final Function(TextAlign)? onAlignmentChanged;
   final Function(String)? onColorChanged;
   final Function(String)? onFontChanged;
@@ -67,6 +73,9 @@ class ExamRibbonToolbar extends StatefulWidget {
     super.key,
     required this.isBold,
     required this.isUnderline,
+    required this.isItalic,
+    required this.isStrikethrough,
+    required this.currentHighlight,
     required this.currentAlignment,
     required this.currentColor,
     required this.currentFont,
@@ -80,6 +89,9 @@ class ExamRibbonToolbar extends StatefulWidget {
     required this.currentZoom,
     required this.onToggleBold,
     required this.onToggleUnderline,
+    required this.onToggleItalic,
+    required this.onToggleStrikethrough,
+    required this.onHighlightChanged,
     required this.onAlignmentChanged,
     required this.onColorChanged,
     required this.onFontChanged,
@@ -361,6 +373,8 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
             children: [
               _buildToolItem(icon: Icons.format_bold, label: _t('عريض', 'Bold'), isSelected: widget.isBold, onTap: widget.onToggleBold),
               _buildToolItem(icon: Icons.format_underlined, label: _t('تسطير', 'Underline'), isSelected: widget.isUnderline, onTap: widget.onToggleUnderline),
+              _buildToolItem(icon: Icons.format_italic, label: _t('مائل', 'Italic'), isSelected: widget.isItalic, onTap: widget.onToggleItalic),
+              _buildToolItem(icon: Icons.strikethrough_s, label: _t('يتوسطه خط', 'Strikethrough'), isSelected: widget.isStrikethrough, onTap: widget.onToggleStrikethrough),
               _buildToolItem(
                 icon: Icons.text_increase,
                 label: _t('تكبير', 'Increase'),
@@ -426,6 +440,33 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
                   ),
                 ),
               ),
+              PopupMenuButton<String>(
+                tooltip: _t('تمييز النص', 'Text highlight'),
+                onSelected: widget.onHighlightChanged,
+                itemBuilder: (ctx) => [
+                  PopupMenuItem(value: '#FFF59D', child: Text(_t('أصفر', 'Yellow'))),
+                  PopupMenuItem(value: '#C8E6C9', child: Text(_t('أخضر', 'Green'))),
+                  PopupMenuItem(value: '#F8BBD0', child: Text(_t('وردي', 'Pink'))),
+                  PopupMenuItem(value: '', child: Text(_t('إزالة التمييز', 'No highlight'))),
+                ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.highlight,
+                        size: 20,
+                        color: widget.currentHighlight == null
+                            ? const Color(0xFF334155)
+                            : Color(int.parse(widget.currentHighlight!.replaceFirst('#', '0xFF'))),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(_t('تمييز', 'Highlight'), style: const TextStyle(fontSize: 10, color: Color(0xFF334155))),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -436,6 +477,7 @@ class _ExamRibbonToolbarState extends State<ExamRibbonToolbar> {
               _buildToolItem(icon: Icons.format_align_right, label: _t('يمين', 'Right'), isSelected: widget.currentAlignment == TextAlign.right, onTap: () => widget.onAlignmentChanged?.call(TextAlign.right)),
               _buildToolItem(icon: Icons.format_align_center, label: _t('وسط', 'Center'), isSelected: widget.currentAlignment == TextAlign.center, onTap: () => widget.onAlignmentChanged?.call(TextAlign.center)),
               _buildToolItem(icon: Icons.format_align_left, label: _t('يسار', 'Left'), isSelected: widget.currentAlignment == TextAlign.left, onTap: () => widget.onAlignmentChanged?.call(TextAlign.left)),
+              _buildToolItem(icon: Icons.format_align_justify, label: _t('ضبط', 'Justify'), isSelected: widget.currentAlignment == TextAlign.justify, onTap: () => widget.onAlignmentChanged?.call(TextAlign.justify)),
               _buildToolItem(icon: Icons.language, label: widget.isArabicInput ? 'كتابة: ع' : 'Input: En', isSelected: !widget.isArabicInput, color: widget.isArabicInput ? const Color(0xFF0F766E) : const Color(0xFFD97706), onTap: widget.onToggleInputLanguage),
             ],
           ),
