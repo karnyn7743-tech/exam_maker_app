@@ -4273,7 +4273,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     }
 
     void showAdvancedEquationDialog(void Function(void Function()) setParentState) {
-      String eqType = isAr ? 'نها' : 'نها';
+      String eqType = isAr ? 'نها' : 'lim';
       final f1Ctrl = TextEditingController(text: isAr ? 'س' : 'x');
       final f2Ctrl = TextEditingController(text: isAr ? '٠' : '0');
       final f3Ctrl = TextEditingController(text: isAr ? '٢س' : '2x');
@@ -5475,7 +5475,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           crossAxisAlignment: WrapCrossAlignment.center,
                           spacing: 4,
                           children: [
-                            Text(isAr ? 'عنوان السؤال: ' : 'Title Orient: ',
+                            Text(isAr ? 'عنوان السؤال: ' : 'Title orientation: ',
                                 style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                             ChoiceChip(
                               label: Text(isAr ? 'أفقي' : 'Horizontal', style: const TextStyle(fontSize: 11)),
@@ -5496,22 +5496,22 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                   orientation = QuestionTitleOrientation.verticalTopToBottom),
                             ),
                             const SizedBox(width: 8),
-                            Text(isAr ? 'عمود الدرجة: ' : 'Mark Col: ',
+                            Text(isAr ? 'عمود الدرجة: ' : 'Mark column: ',
                                 style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                             ChoiceChip(
-                              label: const Text('أفقي', style: TextStyle(fontSize: 11)),
+                              label: Text(isAr ? 'أفقي' : 'Horizontal', style: const TextStyle(fontSize: 11)),
                               selected: gradeOrient == GradeTextOrientation.horizontal,
                               onSelected: (val) => setModalState(
                                   () => gradeOrient = GradeTextOrientation.horizontal),
                             ),
                             ChoiceChip(
-                              label: const Text('رأسي ◄', style: TextStyle(fontSize: 11)),
+                              label: Text(isAr ? 'رأسي ◄' : 'Vertical ◄', style: const TextStyle(fontSize: 11)),
                               selected: gradeOrient == GradeTextOrientation.verticalBottomToTop,
                               onSelected: (val) => setModalState(() =>
                                   gradeOrient = GradeTextOrientation.verticalBottomToTop),
                             ),
                             ChoiceChip(
-                              label: const Text('رأسي ►', style: TextStyle(fontSize: 11)),
+                              label: Text(isAr ? 'رأسي ►' : 'Vertical ►', style: const TextStyle(fontSize: 11)),
                               selected: gradeOrient == GradeTextOrientation.verticalTopToBottom,
                               onSelected: (val) => setModalState(() =>
                                   gradeOrient = GradeTextOrientation.verticalTopToBottom),
@@ -5564,7 +5564,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         },
                         onCopy: () async {
                           final currentSelection = textCtrl.selection;
-                          final sel = currentSelection.isValid && !currentSelection.isCollapsed
+                          final sel = currentSelection.isValid
                               ? currentSelection
                               : (lastSelection ?? currentSelection);
                           if (sel.isValid && !sel.isCollapsed) {
@@ -5577,7 +5577,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             });
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('تم نسخ النص المحدد إلى الحافظة.')),
+                                SnackBar(content: Text(isAr ? 'تم نسخ النص المحدد إلى الحافظة.' : 'Selected text copied to clipboard.')),
                               );
                             }
                           }
@@ -5602,7 +5602,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             });
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('تم قص النص إلى الحافظة.')),
+                                SnackBar(content: Text(isAr ? 'تم قص النص إلى الحافظة.' : 'Text cut to clipboard.')),
                               );
                             }
                           }
@@ -5611,7 +5611,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           final data = await Clipboard.getData(Clipboard.kTextPlain);
                           if (data != null && data.text != null && data.text!.isNotEmpty) {
                             final clipText = data.text!;
-                            final sel = lastSelection ?? textCtrl.selection;
+                            final currentSelection = textCtrl.selection;
+                          final sel = currentSelection.isValid
+                              ? currentSelection
+                              : (lastSelection ?? currentSelection);
                             final pos = sel.isValid ? math.min(sel.start, sel.end) : textCtrl.text.length;
                             final end = sel.isValid ? math.max(sel.start, sel.end) : textCtrl.text.length;
                             setModalState(() {
@@ -5631,7 +5634,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             final selectedText = textCtrl.text.substring(start, end);
                             Clipboard.setData(ClipboardData(text: selectedText));
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('تم نسخ النص للمشاركة.')),
+                              SnackBar(content: Text(isAr ? 'تم نسخ النص للمشاركة.' : 'Text copied for sharing.')),
                             );
                           }
                         },
