@@ -5522,7 +5522,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               label: Text(isAr ? 'عمودان' : '2 Columns', style: TextStyle(fontSize: 11, color: isTwoCols ? Colors.white : Colors.black87)),
                               selected: isTwoCols,
                               selectedColor: const Color(0xFF0F766E),
-                              onSelected: (v) => setModalState(() => isTwoCols = v),
+                              onSelected: (v) => setModalState(() {
+                                isTwoCols = v;
+                                richDocumentJson = null;
+                              }),
                             ),
                           ],
                         ),
@@ -5551,7 +5554,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         onToggleItalic: () { setModalState(() { isItalicActive = !isItalicActive; applyFormatToSelection(italic: isItalicActive); }); },
                         onToggleStrikethrough: () { setModalState(() { isStrikethroughActive = !isStrikethroughActive; applyFormatToSelection(strikethrough: isStrikethroughActive); }); },
                         onHighlightChanged: (value) { setModalState(() { currentHighlight = value.isEmpty ? null : value; applyFormatToSelection(highlight: value); }); },
-                        onAlignmentChanged: (align) => setModalState(() => selectedAlignment = align),
+                        onAlignmentChanged: (align) => setModalState(() {
+                          selectedAlignment = align;
+                          richDocumentJson = null;
+                        }),
                         onColorChanged: (c) { setModalState(() { currentColor = c; applyFormatToSelection(color: c); }); },
                         onFontChanged: (f) { setModalState(() { currentFont = f; applyFormatToSelection(font: f); }); },
                         onFontSizeChanged: (s) { setModalState(() { currentFontSize = s.clamp(8.0, 36.0).toDouble(); applyFormatToSelection(size: currentFontSize); }); },
@@ -5560,6 +5566,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                             isInputArabic = !isInputArabic;
                             selectedAlignment = isInputArabic ? TextAlign.right : TextAlign.left;
                             currentFont = isInputArabic ? 'Amiri' : 'Arial';
+                            richDocumentJson = null;
                           });
                         },
                         onCopy: () async {
