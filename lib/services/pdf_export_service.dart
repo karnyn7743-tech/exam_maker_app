@@ -1023,7 +1023,7 @@ class PdfExportService {
               fontOverride: _pdfFontByFamily[s.fontFamily],
               textColor: spanColor,
               highlightColor: s.highlightHex == null ? null : _parsePdfColor(s.highlightHex),
-              lineSpacing: 2,
+              lineSpacing: q.lineSpacing,
               textAlign: chosenAlign,
               isAr: isAr,
             );
@@ -1054,7 +1054,7 @@ class PdfExportService {
               fontOverride: _pdfFontByFamily[s.fontFamily],
               textColor: spanColor,
               highlightColor: s.highlightHex == null ? null : _parsePdfColor(s.highlightHex),
-              lineSpacing: 2,
+              lineSpacing: q.lineSpacing,
               textAlign: chosenAlign,
               isAr: isAr,
             );
@@ -1074,7 +1074,7 @@ class PdfExportService {
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
-          _renderInlineMathText(intro, ttf, fontSize: 11, isBold: true, textAlign: chosenAlign, isAr: isAr),
+          _renderInlineMathText(intro, ttf, fontSize: 11, isBold: true, lineSpacing: q.lineSpacing, textAlign: chosenAlign, isAr: isAr),
           pw.SizedBox(height: 3),
           pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -1085,7 +1085,7 @@ class PdfExportService {
                   children: col1
                       .map((item) => pw.Padding(
                             padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-                            child: _renderInlineMathText(item, ttf, fontSize: 10, textAlign: chosenAlign, isAr: isAr),
+                            child: _renderInlineMathText(item, ttf, fontSize: 10, lineSpacing: q.lineSpacing, textAlign: chosenAlign, isAr: isAr),
                           ))
                       .toList(),
                 ),
