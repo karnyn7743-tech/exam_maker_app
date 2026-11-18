@@ -5825,6 +5825,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               if (showCustomKeyboard && !useSystemKeyboard)
                 ExamCustomKeyboard(
                   controller: activeFieldController,
+                  isArabicInput: isInputArabic,
+                  onChanged: (_) {
+                    if (activeFieldController == textCtrl) {
+                      setModalState(() {
+                        syncWorkingSpansWithText();
+                        lastSelection = textCtrl.selection;
+                        isTextSelected = textCtrl.selection.isValid &&
+                            !textCtrl.selection.isCollapsed;
+                      });
+                    }
+                  },
                   onClose: () => setModalState(() => showCustomKeyboard = false),
                   onSwitchToSystemKeyboard: () {
                     setModalState(() {
