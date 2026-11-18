@@ -5746,7 +5746,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               );
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
+                                  SnackBar(
                                     content: Text(isAr ? 'تم حفظ السؤال بنجاح في بنك الأسئلة الشخصي.' : 'Question saved to your personal question bank.'),
                                     backgroundColor: Colors.green,
                                   ),
