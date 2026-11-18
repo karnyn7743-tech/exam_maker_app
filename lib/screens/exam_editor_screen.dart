@@ -3178,6 +3178,39 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         });
       }
 
+      Future<void> confirmDeleteElement() async {
+        final bool? confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('حذف العنصر'),
+            content: Text(
+              el.type == ElementType.image
+                  ? 'هل تريد حذف هذه الصورة من السؤال؟'
+                  : 'هل تريد حذف هذا الشكل من السؤال؟',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('إلغاء'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('حذف'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed == true) {
+          refreshState(() {
+            currentElements.removeWhere((item) => item.id == el.id);
+            if (_selectedElementId == el.id) {
+              _selectedElementId = null;
+            }
+          });
+        }
+      }
+
       return Transform.translate(
         // نثبت موضع العنصر الأصلي ونبقي جميع مقابضه داخل مساحة اللمس.
         offset: Offset(
@@ -3202,6 +3235,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       _selectedElementId = isSelected ? null : el.id;
                     });
                   },
+                  onLongPress: () {
+                    refreshState(() => _selectedElementId = el.id);
+                    confirmDeleteElement();
+                  },
                   child: Container(
                     width: el.width,
                     height: el.height,
@@ -3218,7 +3255,31 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                 ),
               ),
               if (isSelected) ...[
-                // مقبض التحريك في أعلى العنصر، داخل مساحة اللمس المحجوزة.
+                // زر حذف عائم يظهر عند تحديد الصورة أو الشكل فقط.
+                if (canResize)
+                  Positioned(
+                    left: 2 / safeScale,
+                    top: 2 / safeScale,
+                    child: Material(
+                      color: Colors.red,
+                      shape: const CircleBorder(),
+                      elevation: 4,
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: confirmDeleteElement,
+                        child: SizedBox(
+                          width: controlSize,
+                          height: controlSize,
+                          child: Icon(
+                            Icons.delete_outline,
+                            color: Colors.white,
+                            size: 20 / safeScale,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                // مقبض التحريك في أعلى العنصر.
                 Positioned(
                   left: outerWidth - controlSize,
                   top: 2 / safeScale,
