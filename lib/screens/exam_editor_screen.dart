@@ -4187,6 +4187,63 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       workingSpans = newSpans.where((s) => s.text.isNotEmpty).toList();
     }
 
+    Future<void> openRichQuestionEditor(
+      void Function(void Function()) setParentState,
+    ) async {
+      final result = await showDialog<Map<String, String>>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => RichQuestionEditorDialog(
+          initialDocumentJson: richDocumentJson,
+          initialSpans: workingSpans,
+          initialText: textCtrl.text,
+        ),
+      );
+      if (result == null) return;
+
+      final returnedText = result['text'] ?? '';
+      final returnedJson = result['json'];
+      final List<TextSpanModel> returnedSpans = [];
+      final rawSpans = result['spans'];
+      if (rawSpans != null && rawSpans.isNotEmpty) {
+        try {
+          final decodedSpans = jsonDecode(rawSpans);
+          if (decodedSpans is List) {
+            for (final item in decodedSpans) {
+              if (item is Map) {
+                returnedSpans.add(
+                  TextSpanModel.fromMap(Map<String, dynamic>.from(item)),
+                );
+              }
+            }
+          }
+        } catch (_) {
+          // Keep the plain text fallback if styled-span conversion fails.
+        }
+      }
+
+      setParentState(() {
+        richDocumentJson = returnedJson;
+        textCtrl.value = TextEditingValue(
+          text: returnedText,
+          selection: TextSelection.collapsed(offset: returnedText.length),
+        );
+        workingSpans = returnedSpans.isNotEmpty
+            ? returnedSpans
+            : [
+                TextSpanModel(
+                  text: returnedText,
+                  fontFamily: currentFont,
+                  fontSize: currentFontSize,
+                  colorHex: currentColor,
+                ),
+              ];
+        activeFieldController = textCtrl;
+        lastSelection = textCtrl.selection;
+        isTextSelected = false;
+      });
+    }
+
     void showAdvancedEquationDialog(void Function(void Function()) setParentState) {
       String eqType = isAr ? 'نها' : 'نها';
       final f1Ctrl = TextEditingController(text: isAr ? 'س' : 'x');
@@ -5368,6 +5425,21 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                         ),
                         const SizedBox(height: 8),
                       ],
+
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.article_outlined),
+                          label: const Text('فتح المحرر الغني الموحد'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF1E3A8A),
+                            side: const BorderSide(color: Color(0xFF1E3A8A)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          onPressed: () => openRichQuestionEditor(setModalState),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
 
                       ExamRibbonToolbar(
                         showQuestionSettings: showQuestionSettings,
