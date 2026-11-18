@@ -1097,7 +1097,7 @@ class PdfExportService {
                   children: col2
                       .map((item) => pw.Padding(
                             padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-                            child: _renderInlineMathText(item, ttf, fontSize: 10, textAlign: chosenAlign, isAr: isAr),
+                            child: _renderInlineMathText(item, ttf, fontSize: 10, lineSpacing: q.lineSpacing, textAlign: chosenAlign, isAr: isAr),
                           ))
                       .toList(),
                 ),
