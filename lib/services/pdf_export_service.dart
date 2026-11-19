@@ -1032,18 +1032,26 @@ class PdfExportService {
       );
     }
 
-    final intro = lines.first;
-    final items = lines.sublist(1);
-    final int half = (items.length / 2).ceil();
-    final col1 = items.sublist(0, half);
-    final col2 = items.sublist(half);
+    final styledLines = _splitPdfQuestionSpansIntoLines(q.spans);
+    final itemLines = styledLines.length > 1
+        ? styledLines.sublist(1)
+        : <List<TextSpanModel>>[];
+    final int half = (itemLines.length / 2).ceil();
+    final col1 = itemLines.sublist(0, half);
+    final col2 = itemLines.sublist(half);
 
     return pw.Directionality(
       textDirection: itemDir,
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
-          _renderInlineMathText(intro, ttf, fontSize: 11, isBold: true, lineSpacing: q.lineSpacing, textAlign: chosenAlign, isAr: isAr),
+          _renderPdfStyledQuestionLine(
+            styledLines.isNotEmpty ? styledLines.first : q.spans,
+            ttf,
+            alignment: chosenAlign,
+            isAr: isAr,
+            lineSpacing: q.lineSpacing,
+          ),
           pw.SizedBox(height: 3),
           pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -1051,24 +1059,32 @@ class PdfExportService {
               pw.Expanded(
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                  children: col1
-                      .map((item) => pw.Padding(
-                            padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-                            child: _renderInlineMathText(item, ttf, fontSize: 10, lineSpacing: q.lineSpacing, textAlign: chosenAlign, isAr: isAr),
-                          ))
-                      .toList(),
+                  children: col1.map((line) => pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+                    child: _renderPdfStyledQuestionLine(
+                      line,
+                      ttf,
+                      alignment: chosenAlign,
+                      isAr: isAr,
+                      lineSpacing: q.lineSpacing,
+                    ),
+                  )).toList(),
                 ),
               ),
               pw.SizedBox(width: 8),
               pw.Expanded(
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                  children: col2
-                      .map((item) => pw.Padding(
-                            padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-                            child: _renderInlineMathText(item, ttf, fontSize: 10, lineSpacing: q.lineSpacing, textAlign: chosenAlign, isAr: isAr),
-                          ))
-                      .toList(),
+                  children: col2.map((line) => pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+                    child: _renderPdfStyledQuestionLine(
+                      line,
+                      ttf,
+                      alignment: chosenAlign,
+                      isAr: isAr,
+                      lineSpacing: q.lineSpacing,
+                    ),
+                  )).toList(),
                 ),
               ),
             ],
@@ -1460,6 +1476,129 @@ class PdfExportService {
             child: content,
           ),
         ],
+      ),
+    );
+  }
+
+  static List<List<TextSpanModel>> _splitPdfQuestionSpansIntoLines(
+    List<TextSpanModel> source,
+  ) {
+    final lines = <List<TextSpanModel>>[];
+    var current = <TextSpanModel>[];
+    for (final span in source) {
+      final parts = span.text.split('\\n');
+      for (var i = 0; i < parts.length; i++) {
+        if (parts[i].isNotEmpty) {
+          current.add(TextSpanModel(
+            text: parts[i],
+            isBold: span.isBold,
+            isItalic: span.isItalic,
+            isUnderline: span.isUnderline,
+            isStrikethrough: span.isStrikethrough,
+            fontSize: span.fontSize,
+            fontFamily: span.fontFamily,
+            colorHex: span.colorHex,
+            highlightHex: span.highlightHex,
+          ));
+        }
+        if (i < parts.length - 1) {
+          if (current.any((part) => part.text.trim().isNotEmpty)) {
+            lines.add(current);
+          }
+          current = <TextSpanModel>[];
+        }
+      }
+    }
+    if (current.any((part) => part.text.trim().isNotEmpty)) lines.add(current);
+    return lines;
+  }
+
+  static pw.Widget _renderPdfStyledQuestionLine(
+    List<TextSpanModel> spans,
+    pw.Font fallback, {
+    required pw.TextAlign alignment,
+    required bool isAr,
+    required double lineSpacing,
+  }) {
+    // Keep the existing math/checkmark renderer for a line containing a
+    // symbolic token. Ordinary styled text uses one rich run preserving fonts.
+    final combined = spans.map((span) => span.text).join();
+    final hasInlineSymbol = RegExp(
+      r'(\\[(?:كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):.*?\\]|✔|✘|✓|✗)',
+    ).hasMatch(combined);
+    if (hasInlineSymbol) {
+      if (spans.length == 1) {
+        final span = spans.first;
+        return _renderInlineMathText(
+          span.text,
+          fallback,
+          fontSize: span.fontSize,
+          isBold: span.isBold,
+          isItalic: span.isItalic,
+          isUnderline: span.isUnderline,
+          isStrikethrough: span.isStrikethrough,
+          fontOverride: _pdfFontByFamily[span.fontFamily],
+          textColor: _parsePdfColor(span.colorHex),
+          highlightColor: span.highlightHex == null
+              ? null
+              : _parsePdfColor(span.highlightHex),
+          lineSpacing: lineSpacing,
+          textAlign: alignment,
+          isAr: isAr,
+        );
+      }
+      // Multi-style symbolic lines retain the established symbol rendering
+      // rather than emitting raw internal tokens into the PDF.
+      final first = spans.first;
+      return _renderInlineMathText(
+        combined,
+        fallback,
+        fontSize: first.fontSize,
+        isBold: first.isBold,
+        isItalic: first.isItalic,
+        isUnderline: first.isUnderline,
+        isStrikethrough: first.isStrikethrough,
+        fontOverride: _pdfFontByFamily[first.fontFamily],
+        textColor: _parsePdfColor(first.colorHex),
+        highlightColor: first.highlightHex == null
+            ? null
+            : _parsePdfColor(first.highlightHex),
+        lineSpacing: lineSpacing,
+        textAlign: alignment,
+        isAr: isAr,
+      );
+    }
+    return pw.RichText(
+      textAlign: alignment,
+      text: pw.TextSpan(
+        children: spans.map((span) {
+          final decorations = <pw.TextDecoration>[
+            if (span.isUnderline) pw.TextDecoration.underline,
+            if (span.isStrikethrough) pw.TextDecoration.lineThrough,
+          ];
+          final highlight = span.highlightHex == null
+              ? null
+              : _parsePdfColor(span.highlightHex);
+          return pw.TextSpan(
+            text: span.text,
+            style: pw.TextStyle(
+              font: _pdfFontByFamily[span.fontFamily] ?? fallback,
+              fontSize: span.fontSize,
+              fontWeight:
+                  span.isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
+              fontStyle:
+                  span.isItalic ? pw.FontStyle.italic : pw.FontStyle.normal,
+              color: _parsePdfColor(span.colorHex),
+              decoration: decorations.isEmpty
+                  ? null
+                  : pw.TextDecoration.combine(decorations),
+              background: highlight == null
+                  ? null
+                  : pw.BoxDecoration(color: highlight),
+              lineSpacing: lineSpacing,
+            ),
+          );
+        }).toList(),
       ),
     );
   }

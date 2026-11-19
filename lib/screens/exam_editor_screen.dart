@@ -2887,25 +2887,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       );
     }
 
-    final intro = lines.first;
-    final items = lines.sublist(1);
-    final int half = (items.length / 2).ceil();
-    final col1 = items.sublist(0, half);
-    final col2 = items.sublist(half);
-
-    final defaultFont = _isArabicExam ? 'Amiri' : 'Arial';
-    final introStyle = TextStyle(
-      fontFamily: q.spans.isNotEmpty ? q.spans.first.fontFamily : defaultFont,
-      fontWeight: FontWeight.bold,
-      fontSize: q.spans.isNotEmpty ? q.spans.first.fontSize : 14.0,
-      height: 1.15,
-    );
-
-    final itemStyle = TextStyle(
-      fontFamily: q.spans.isNotEmpty ? q.spans.first.fontFamily : defaultFont,
-      fontSize: q.spans.isNotEmpty ? q.spans.first.fontSize : 13.0,
-      height: 1.15,
-    );
+    final styledLines = _splitQuestionSpansIntoLines(q.spans);
+    final itemLines = styledLines.length > 1
+        ? styledLines.sublist(1)
+        : <List<TextSpanModel>>[];
+    final int half = (itemLines.length / 2).ceil();
+    final col1 = itemLines.sublist(0, half);
+    final col2 = itemLines.sublist(half);
 
     return Directionality(
       textDirection: contentDirection,
@@ -2913,7 +2901,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text.rich(
-            _buildInlineSpanWithFractions(intro, introStyle),
+            _buildStyledQuestionLine(
+              styledLines.isNotEmpty ? styledLines.first : q.spans,
+              q.lineSpacing,
+            ),
             textAlign: chosenAlign,
           ),
           const SizedBox(height: 4),
@@ -2923,10 +2914,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: col1.map((item) => Padding(
+                  children: col1.map((line) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),
                     child: Text.rich(
-                      _buildInlineSpanWithFractions(item, itemStyle),
+                      _buildStyledQuestionLine(line, q.lineSpacing),
                       textAlign: chosenAlign,
                     ),
                   )).toList(),
@@ -2936,10 +2927,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: col2.map((item) => Padding(
+                  children: col2.map((line) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),
                     child: Text.rich(
-                      _buildInlineSpanWithFractions(item, itemStyle),
+                      _buildStyledQuestionLine(line, q.lineSpacing),
                       textAlign: chosenAlign,
                     ),
                   )).toList(),
@@ -2949,6 +2940,69 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  List<List<TextSpanModel>> _splitQuestionSpansIntoLines(
+    List<TextSpanModel> source,
+  ) {
+    final lines = <List<TextSpanModel>>[];
+    var current = <TextSpanModel>[];
+
+    for (final span in source) {
+      final parts = span.text.split('\n');
+      for (var i = 0; i < parts.length; i++) {
+        if (parts[i].isNotEmpty) {
+          current.add(TextSpanModel(
+            text: parts[i],
+            isBold: span.isBold,
+            isItalic: span.isItalic,
+            isUnderline: span.isUnderline,
+            isStrikethrough: span.isStrikethrough,
+            fontSize: span.fontSize,
+            fontFamily: span.fontFamily,
+            colorHex: span.colorHex,
+            highlightHex: span.highlightHex,
+          ));
+        }
+        if (i < parts.length - 1) {
+          if (current.any((part) => part.text.trim().isNotEmpty)) {
+            lines.add(current);
+          }
+          current = <TextSpanModel>[];
+        }
+      }
+    }
+    if (current.any((part) => part.text.trim().isNotEmpty)) {
+      lines.add(current);
+    }
+    return lines;
+  }
+
+  TextSpan _buildStyledQuestionLine(
+    List<TextSpanModel> spans,
+    double lineSpacing,
+  ) {
+    return TextSpan(
+      children: spans.map((span) {
+        Color color = Colors.black87;
+        try {
+          color = Color(int.parse(span.colorHex.replaceFirst('#', '0xFF')));
+        } catch (_) {}
+        return _buildInlineSpanWithFractions(
+          span.text,
+          TextStyle(
+            fontFamily: span.fontFamily,
+            fontWeight: span.isBold ? FontWeight.bold : FontWeight.normal,
+            fontStyle: span.isItalic ? FontStyle.italic : FontStyle.normal,
+            decoration: _questionTextDecoration(span),
+            fontSize: span.fontSize,
+            color: color,
+            backgroundColor: _parseQuestionHighlight(span.highlightHex),
+            height: lineSpacing,
+          ),
+        );
+      }).toList(),
     );
   }
 
