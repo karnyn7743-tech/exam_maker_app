@@ -219,56 +219,57 @@ class _EditableExamTableState extends State<EditableExamTable> {
             ),
           ),
           Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: List.generate(rowCount, (r) => SizedBox(
-                  height: (widget.height - 30).clamp(42.0, 900.0) / rowCount,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: List.generate(colCount, (c) {
-                      if (_covered(r, c)) return const SizedBox.shrink();
-                      final m = _mergeAt(r, c);
-                      final span = m == null ? 1 : (m['colSpan'] ?? 1);
-                      final rowSpan = m == null ? 1 : (m['rowSpan'] ?? 1);
-                      final selected = _hasRange && r >= _bounds[0] && r <= _bounds[2] && c >= _bounds[1] && c <= _bounds[3];
-                      final cell = Expanded(
-                        flex: span,
-                        child: GestureDetector(
-                          onTap: () => _select(r, c),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: selected ? const Color(0xFFE3F2FD) : (hasHeader && r == 0 ? Colors.grey.shade200 : Colors.white),
-                              border: Border.all(color: selected ? Colors.blue : Colors.black87, width: selected ? 1.4 : 0.7),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final cellW = constraints.maxWidth / colCount;
+                final cellH = constraints.maxHeight / rowCount;
+                final children = <Widget>[];
+                for (var r = 0; r < rowCount; r++) {
+                  for (var c = 0; c < colCount; c++) {
+                    if (_covered(r, c)) continue;
+                    final m = _mergeAt(r, c);
+                    final spanC = m == null ? 1 : (m['colSpan'] ?? 1);
+                    final spanR = m == null ? 1 : (m['rowSpan'] ?? 1);
+                    final selected = _hasRange && r >= _bounds[0] && r <= _bounds[2] && c >= _bounds[1] && c <= _bounds[3];
+                    children.add(Positioned(
+                      left: c * cellW,
+                      top: r * cellH,
+                      width: cellW * spanC,
+                      height: cellH * spanR,
+                      child: GestureDetector(
+                        onTap: () => _select(r, c),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: selected ? const Color(0xFFE3F2FD) : (hasHeader && r == 0 ? Colors.grey.shade200 : Colors.white),
+                            border: Border.all(color: selected ? Colors.blue : Colors.black87, width: selected ? 1.4 : 0.7),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                          child: TextFormField(
+                            key: ValueKey('cell-$r-$c-${grid[r][c]}'),
+                            initialValue: grid[r][c],
+                            expands: true,
+                            maxLines: null,
+                            minLines: null,
+                            textAlign: TextAlign.center,
+                            textAlignVertical: TextAlignVertical.center,
+                            style: TextStyle(
+                              fontFamily: widget.isArabic ? 'Amiri' : 'Arial',
+                              fontSize: hasHeader && r == 0 ? 12 : 11,
+                              fontWeight: hasHeader && r == 0 ? FontWeight.bold : FontWeight.normal,
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                            child: TextFormField(
-                              key: ValueKey('cell-$r-$c-${grid[r][c]}'),
-                              initialValue: grid[r][c],
-                              expands: true,
-                              maxLines: null,
-                              minLines: null,
-                              textAlign: TextAlign.center,
-                              textAlignVertical: TextAlignVertical.center,
-                              style: TextStyle(
-                                fontFamily: widget.isArabic ? 'Amiri' : 'Arial',
-                                fontSize: hasHeader && r == 0 ? 12 : 11,
-                                fontWeight: hasHeader && r == 0 ? FontWeight.bold : FontWeight.normal,
-                              ),
-                              decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                              onTap: () => _select(r, c),
-                              onChanged: (v) { grid[r][c] = v; _emit(); },
-                            ),
+                            decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+                            onTap: () => _select(r, c),
+                            onChanged: (v) { grid[r][c] = v; _emit(); },
                           ),
                         ),
-                      );
-                      if (rowSpan > 1) return cell;
-                      return cell;
-                    }),
-                  ),
-                )),
-              ),
+                      ),
+                    ));
+                  }
+                }
+                return SizedBox.expand(child: Stack(clipBehavior: Clip.hardEdge, children: children));
+              },
             ),
-          ),
+          ),,
         ],
       ),
     );
