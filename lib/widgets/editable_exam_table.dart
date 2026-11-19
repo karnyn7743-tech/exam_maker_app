@@ -62,9 +62,34 @@ class _EditableExamTableState extends State<EditableExamTable> {
         return '';
       }));
       hasHeader = map['hasHeader'] as bool? ?? true;
-      merges = (map['merges'] as List? ?? const []).whereType<Map>().map((e) =>
-        Map<String, int>.from(e.map((k, v) => MapEntry(k.toString(), (v as num).toInt())))
-      ).toList();
+      // Ignore malformed, out-of-bounds, or overlapping legacy merge records.
+      merges = [];
+      for (final entry in (map['merges'] as List? ?? const [])) {
+        if (entry is! Map) continue;
+        try {
+          final m = Map<String, int>.from(entry.map(
+            (k, v) => MapEntry(k.toString(), (v as num).toInt()),
+          ));
+          final r = m['row'] ?? -1;
+          final c = m['col'] ?? -1;
+          final rs = m['rowSpan'] ?? 0;
+          final cs = m['colSpan'] ?? 0;
+          if (r < 0 || c < 0 || rs < 1 || cs < 1 ||
+              r + rs > rows || c + cs > cols ||
+              (rs == 1 && cs == 1)) continue;
+          final overlaps = merges.any((existing) {
+            final er = existing['row']!, ec = existing['col']!;
+            final ers = existing['rowSpan']!, ecs = existing['colSpan']!;
+            return !(r + rs <= er || er + ers <= r ||
+                c + cs <= ec || ec + ecs <= c);
+          });
+          if (!overlaps) merges.add({
+            'row': r, 'col': c, 'rowSpan': rs, 'colSpan': cs,
+          });
+        } catch (_) {
+          // Skip only the invalid merge; keep the rest of the table intact.
+        }
+      }
     } catch (_) {
       grid = List.generate(3, (_) => List.filled(3, ''));
       hasHeader = true;
@@ -154,7 +179,21 @@ class _EditableExamTableState extends State<EditableExamTable> {
     if (grid.length <= 1) return;
     final index = _selectedRow.clamp(0, grid.length - 1);
     setState(() {
+      // Capture text for any merged cell whose anchor row is being removed.
+      final carriedText = <int, String>{};
+      for (final m in merges) {
+        if (m['row'] == index && m['rowSpan']! > 1) {
+          carriedText[m['col']!] = grid[index][m['col']!];
+        }
+      }
       grid.removeAt(index);
+      for (final entry in carriedText.entries) {
+        if (entry.key < grid[index.clamp(0, grid.length - 1)].length) {
+          final existing = grid[index.clamp(0, grid.length - 1)][entry.key];
+          grid[index.clamp(0, grid.length - 1)][entry.key] =
+              [entry.value, existing].where((v) => v.isNotEmpty).join('\\n');
+        }
+      }
       final updated = <Map<String, int>>[];
       for (final source in merges) {
         final m = Map<String, int>.from(source);
@@ -206,8 +245,23 @@ class _EditableExamTableState extends State<EditableExamTable> {
     if (grid.first.length <= 1) return;
     final index = _selectedCol.clamp(0, grid.first.length - 1);
     setState(() {
+      // Carry anchor text into the next column when deleting a merged anchor.
+      final carriedText = <int, String>{};
+      for (final m in merges) {
+        if (m['col'] == index && m['colSpan']! > 1) {
+          carriedText[m['row']!] = grid[m['row']!][index];
+        }
+      }
       for (final row in grid) {
         row.removeAt(index);
+      }
+      for (final entry in carriedText.entries) {
+        final r = entry.key;
+        if (r < grid.length && index < grid[r].length) {
+          final existing = grid[r][index];
+          grid[r][index] =
+              [entry.value, existing].where((v) => v.isNotEmpty).join('\\n');
+        }
       }
       final updated = <Map<String, int>>[];
       for (final source in merges) {
