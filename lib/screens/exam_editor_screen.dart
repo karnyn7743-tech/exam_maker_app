@@ -1491,26 +1491,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                   }
                 });
               },
-              onInsertFraction: () => _openQuestionDialog(),
-              onInsertRadical: () {
-                if (_exam.questions.isNotEmpty) {
-                  setState(() {
-                    _exam.questions.last.spans.add(TextSpanModel(
-                      text: _isArabicExam ? ' [جذر:٢٥] ' : ' [sqrt:25] ',
-                      fontFamily: _activeFont,
-                      fontSize: _activeFontSize,
-                    ));
-                  });
-                  _measurePagesHeight();
-                } else {
-                  _openQuestionDialog();
-                }
-              },
-              onInsertEquation: () => _openQuestionDialog(),
-              onInsertVerticalMath: () => _openQuestionDialog(),
-              onInsertLongDivision: () => _openQuestionDialog(),
-              onOpenSymbolsModal: () => _openQuestionDialog(),
-              onOpenTableDesigner: () => _openQuestionDialog(),
+              onInsertFraction: () => _openQuestionTool('fraction'),
+              onInsertRadical: () => _openQuestionTool('radical'),
+              onInsertEquation: () => _openQuestionTool('equation'),
+              onInsertVerticalMath: () => _openQuestionTool('vertical'),
+              onInsertLongDivision: () => _openQuestionTool('longDivision'),
+              onOpenSymbolsModal: () => _openQuestionTool('symbols'),
+              onOpenTableDesigner: () => _openQuestionTool('table'),
               onInsertShape: (kind) {
                 if (_exam.questions.isNotEmpty) {
                   final jsonPayload = jsonEncode({
@@ -3972,9 +3959,19 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     );
   }
 
-  void _openQuestionDialog({int? questionIndex}) {
+  void _openQuestionTool(String tool) {
+    final int questionIndex = _exam.questions.lastIndexWhere(_isActualQuestion);
+    if (questionIndex >= 0) {
+      _openQuestionDialog(questionIndex: questionIndex, initialTool: tool);
+    } else {
+      _openQuestionDialog(initialTool: tool);
+    }
+  }
+
+  void _openQuestionDialog({int? questionIndex, String? initialTool}) {
     final bool isEdit = questionIndex != null;
     final bool isAr = _isArabicExam;
+    bool initialToolScheduled = false;
 
     final q = isEdit
         ? _exam.questions[questionIndex]
@@ -4950,6 +4947,50 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       );
     }
 
+    void showRadicalDialog(void Function(void Function()) setParentState) {
+      final degreeCtrl = TextEditingController();
+      final radicandCtrl = TextEditingController(text: isInputArabic ? '٢٥' : '25');
+
+      showDialog(
+        context: context,
+        builder: (dCtx) => AlertDialog(
+          title: const Text('إدراج جذر رياضي عند موضع المؤشر'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: degreeCtrl,
+                keyboardType: TextInputType.text,
+                decoration: const InputDecoration(labelText: 'درجة الجذر (اختياري، اتركه فارغاً للجذر التربيعي)'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: radicandCtrl,
+                decoration: const InputDecoration(labelText: 'المقدار داخل الجذر'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
+            ElevatedButton(
+              onPressed: () {
+                final radicand = radicandCtrl.text.trim();
+                if (radicand.isEmpty) return;
+                final degree = degreeCtrl.text.trim();
+                final prefix = isInputArabic ? 'جذر' : 'sqrt';
+                final tag = degree.isEmpty
+                    ? '[$prefix:$radicand]'
+                    : '[$prefix:$degree:$radicand]';
+                setParentState(() => insertAtCursor(' $tag '));
+                Navigator.pop(dCtx);
+              },
+              child: const Text('إدراج عند المؤشر'),
+            ),
+          ],
+        ),
+      );
+    }
+
     void showArabicMathTemplates(void Function(void Function()) setParentState) {
       final numCtrl = TextEditingController(text: isAr ? '١' : '1');
       final denCtrl = TextEditingController(text: isAr ? '٣' : '3');
@@ -5556,7 +5597,37 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setModalState) => Directionality(
+        builder: (context, setModalState) {
+          if (initialTool != null && !initialToolScheduled) {
+            initialToolScheduled = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              switch (initialTool) {
+                case 'fraction':
+                  showArabicMathTemplates(setModalState);
+                  break;
+                case 'radical':
+                  showRadicalDialog(setModalState);
+                  break;
+                case 'equation':
+                  showAdvancedEquationDialog(setModalState);
+                  break;
+                case 'vertical':
+                  showVerticalMathDialog(setModalState);
+                  break;
+                case 'longDivision':
+                  showLongDivisionDialog(setModalState);
+                  break;
+                case 'symbols':
+                  showSymbolsModal(setModalState);
+                  break;
+                case 'table':
+                  showTableDesignerDialog(setModalState);
+                  break;
+              }
+            });
+          }
+          return Directionality(
           textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
           child: SizedBox(
           height: MediaQuery.of(ctx).size.height * 0.94,
@@ -5815,7 +5886,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           });
                         },
                         onInsertFraction: () => showArabicMathTemplates(setModalState),
-                        onInsertRadical: () => setModalState(() => insertAtCursor(isInputArabic ? '[جذر:٢٥]' : '[sqrt:25]')),
+                        onInsertRadical: () => showRadicalDialog(setModalState),
                         onInsertEquation: () => showAdvancedEquationDialog(setModalState),
                         onInsertVerticalMath: () => showVerticalMathDialog(setModalState),
                         onInsertLongDivision: () => showLongDivisionDialog(setModalState),
@@ -6052,7 +6123,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ],
           ),
           ),
-        ),
+          );
+        },
       ),
     );
   }
