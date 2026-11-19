@@ -20,6 +20,7 @@ import 'omr_scanner_screen.dart';
 import '../widgets/exam_custom_keyboard.dart';
 import '../widgets/exam_ribbon_toolbar.dart';
 import '../widgets/rich_question_document_view.dart';
+import '../widgets/editable_exam_table.dart';
 
 // A4 page dimensions in logical points.
 const double kA4PaperWidth = 595.28;
@@ -3117,7 +3118,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }) {
     final bool isSelected = _selectedElementId == el.id;
     final void Function(VoidCallback) refreshState = editorSetState ?? setState;
-    final bool canResize = el.type == ElementType.image || el.type == ElementType.shape;
+    final bool canResize = el.type == ElementType.image || el.type == ElementType.shape || el.type == ElementType.table;
 
     void changeWidth(double amount) {
       refreshState(() {
@@ -3169,7 +3170,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         coreWidget = _renderMathOperation(el.content);
         break;
       case ElementType.table:
-        coreWidget = _renderCustomTable(el.content);
+        coreWidget = EditableExamTable(
+          value: el.content,
+          width: el.width,
+          height: el.height,
+          isArabic: _isArabicExam,
+          onChanged: (value) => el.content = value,
+        );
         break;
       case ElementType.shape:
         coreWidget = _renderCustomShape(el.content, el.width, el.height);
@@ -3241,6 +3248,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             title: const Text('حذف العنصر'),
             content: Text(el.type == ElementType.image
                 ? 'هل تريد حذف هذه الصورة من السؤال؟'
+                : el.type == ElementType.table
+                ? 'هل تريد حذف هذا الجدول من السؤال؟'
                 : 'هل تريد حذف هذا الشكل من السؤال؟'),
             actions: [
               TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
