@@ -96,7 +96,8 @@ class _EditableExamTableState extends State<EditableExamTable> {
 
   void _select(int r, int c) {
     setState(() {
-      if (anchorRow == null) {
+      if (anchorRow == null ||
+          (anchorRow == focusRow && anchorCol == focusCol)) {
         anchorRow = focusRow = r;
         anchorCol = focusCol = c;
       } else {
@@ -169,7 +170,7 @@ class _EditableExamTableState extends State<EditableExamTable> {
         final mr = m['row'] ?? 0, mc = m['col'] ?? 0;
         final meR = mr + (m['rowSpan'] ?? 1) - 1;
         final meC = mc + (m['colSpan'] ?? 1) - 1;
-        return mr >= b[0] && mc >= b[1] && meR <= b[2] && meC <= b[3];
+        return !(meR < b[0] || mr > b[2] || meC < b[1] || mc > b[3]);
       });
       merges.add({'row': b[0], 'col': b[1], 'rowSpan': b[2] - b[0] + 1, 'colSpan': b[3] - b[1] + 1});
     });
