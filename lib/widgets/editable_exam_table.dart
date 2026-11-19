@@ -10,6 +10,7 @@ class EditableExamTable extends StatefulWidget {
   final bool isArabic;
   final bool readOnly;
   final ValueChanged<String> onChanged;
+  final VoidCallback? onDelete;
 
   const EditableExamTable({
     super.key,
@@ -19,6 +20,7 @@ class EditableExamTable extends StatefulWidget {
     required this.isArabic,
     this.readOnly = false,
     required this.onChanged,
+    this.onDelete,
   });
 
   @override
@@ -313,6 +315,8 @@ class _EditableExamTableState extends State<EditableExamTable> {
                 _tool(Icons.merge_type, 'دمج الخلايا المحددة', _hasRange ? _merge : null),
                 _tool(Icons.call_split, 'تقسيم الخلية المدمجة', selectedMerge != null ? _split : null),
                 _tool(Icons.crop_free, 'بدء تحديد نطاق جديد', anchorRow != null ? _resetSelection : null),
+                if (widget.onDelete != null)
+                  _tool(Icons.delete_outline, 'حذف الجدول من السؤال', widget.onDelete),
                 const SizedBox(width: 8),
                 Text('${rowCount}×${colCount}', style: const TextStyle(fontSize: 10)),
                 const SizedBox(width: 5),
