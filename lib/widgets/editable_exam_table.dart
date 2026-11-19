@@ -47,8 +47,8 @@ class _EditableExamTableState extends State<EditableExamTable> {
   void _read(String raw) {
     try {
       final map = Map<String, dynamic>.from(jsonDecode(raw) as Map);
-      final rows = (map['rows'] as num?)?.toInt().clamp(1, 30) ?? 2;
-      final cols = (map['cols'] as num?)?.toInt().clamp(1, 16) ?? 2;
+      final rows = (map['rows'] as num?)?.toInt().clamp(1, 30).toInt() ?? 2;
+      final cols = (map['cols'] as num?)?.toInt().clamp(1, 16).toInt() ?? 2;
       final source = map['data'] as List? ?? const [];
       grid = List.generate(rows, (r) => List.generate(cols, (c) {
         if (r < source.length && source[r] is List && c < (source[r] as List).length) {
@@ -124,7 +124,7 @@ class _EditableExamTableState extends State<EditableExamTable> {
     if (grid.length <= 1) return;
     final r = focusRow ?? grid.length - 1;
     setState(() {
-      grid.removeAt(r.clamp(0, grid.length - 1));
+      grid.removeAt(r.clamp(0, grid.length - 1).toInt());
       merges.clear();
       anchorRow = focusRow = null;
     });
@@ -140,7 +140,7 @@ class _EditableExamTableState extends State<EditableExamTable> {
     if (grid.first.length <= 1) return;
     final c = focusCol ?? grid.first.length - 1;
     setState(() {
-      for (final row in grid) { row.removeAt(c.clamp(0, row.length - 1)); }
+      for (final row in grid) { row.removeAt(c.clamp(0, row.length - 1).toInt()); }
       merges.clear();
       anchorCol = focusCol = null;
     });
@@ -245,7 +245,7 @@ class _EditableExamTableState extends State<EditableExamTable> {
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
                           child: TextFormField(
-                            key: ValueKey('cell-$r-$c-${grid[r][c]}'),
+                            key: ValueKey('cell-$r-$c'),
                             initialValue: grid[r][c],
                             expands: true,
                             maxLines: null,
@@ -269,7 +269,7 @@ class _EditableExamTableState extends State<EditableExamTable> {
                 return SizedBox.expand(child: Stack(clipBehavior: Clip.hardEdge, children: children));
               },
             ),
-          ),,
+          ),
         ],
       ),
     );
