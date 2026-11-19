@@ -2175,8 +2175,8 @@ class PdfExportService {
           children.add(pw.Positioned(
             left: visualColumn * cellW,
             top: r * cellH,
-            width: cellW * spanC,
-            height: cellH * spanR,
+            right: tableWidth - ((visualColumn + spanC) * cellW),
+            bottom: tableHeight - ((r + spanR) * cellH),
             child: pw.Container(
               alignment: pw.Alignment.center,
               padding: const pw.EdgeInsets.symmetric(vertical: 3, horizontal: 2),
