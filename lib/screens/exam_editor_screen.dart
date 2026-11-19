@@ -3286,6 +3286,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           isArabic: _isArabicExam,
           readOnly: editorSetState == null,
           onChanged: (value) => el.content = value,
+          onDelete: onDeleteElement == null ? null : confirmDeleteElement,
         );
         break;
       case ElementType.shape:
