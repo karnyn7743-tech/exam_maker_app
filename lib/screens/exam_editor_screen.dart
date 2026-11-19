@@ -4631,6 +4631,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       int rowCount = 3;
       int colCount = 3;
       bool hasHeader = true;
+      List<Map<String, dynamic>> preservedMerges = [];
       List<List<TextEditingController>> controllers = [];
 
       if (existingElement != null && existingElement.type == ElementType.table) {
@@ -4639,6 +4640,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           rowCount = (data['rows'] as num?)?.toInt() ?? 3;
           colCount = (data['cols'] as num?)?.toInt() ?? 3;
           hasHeader = data['hasHeader'] ?? true;
+          preservedMerges = (data['merges'] as List? ?? const []).whereType<Map>()
+              .map((m) => Map<String, dynamic>.from(m)).toList();
           final List<dynamic> gridData = data['data'] ?? [];
 
           controllers = List.generate(rowCount, (r) {
@@ -4746,6 +4749,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     'cols': colCount,
                     'hasHeader': hasHeader,
                     'data': tableData,
+                    'merges': preservedMerges,
                   });
 
                   setParentState(() {
