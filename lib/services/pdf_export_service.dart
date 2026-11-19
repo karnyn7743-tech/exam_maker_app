@@ -806,11 +806,11 @@ class PdfExportService {
                   decoration: const pw.BoxDecoration(
                     border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 0.8)),
                   ),
-                  child: pw.Text(
+                  child: _pdfScriptText(
                     questionText.isNotEmpty
                         ? questionText
                         : '................................................................................................',
-                    style: pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
+                    pw.TextStyle(font: ttf, fontSize: 9.5, fontWeight: pw.FontWeight.bold),
                     textAlign: isAr ? pw.TextAlign.right : pw.TextAlign.left,
                   ),
                 ),
@@ -2180,6 +2180,22 @@ class PdfExportService {
     );
   }
 
+
+  static pw.Widget _pdfScriptText(
+    String text,
+    pw.TextStyle style, {
+    pw.TextAlign? textAlign,
+  }) {
+    final spans = _pdfScriptAwareSpans(text, style);
+    if (spans.length == 1 && spans.first is pw.TextSpan) {
+      return pw.Text(text, style: style, textAlign: textAlign);
+    }
+    return pw.RichText(
+      textAlign: textAlign,
+      text: pw.TextSpan(children: spans, style: style),
+    );
+  }
+
   static pw.Widget _buildPdfElement(InsertableElement el, pw.Font ttf, bool isAr) {
     switch (el.type) {
       case ElementType.image:
@@ -2200,17 +2216,21 @@ class PdfExportService {
           decoration: pw.BoxDecoration(
             border: pw.Border.all(color: PdfColors.black, width: 0.8),
           ),
-          child: pw.Text(el.content,
-              textAlign: pw.TextAlign.center,
-              style: pw.TextStyle(font: ttf, fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+          child: _pdfScriptText(
+            el.content,
+            pw.TextStyle(font: ttf, fontSize: 10.5, fontWeight: pw.FontWeight.bold),
+            textAlign: pw.TextAlign.center,
+          ),
         );
 
       case ElementType.dottedLine:
         return pw.Padding(
           padding: const pw.EdgeInsets.symmetric(vertical: 3),
-          child: pw.Text(el.content,
-              textAlign: pw.TextAlign.center,
-              style: pw.TextStyle(font: ttf, fontSize: 11)),
+          child: _pdfScriptText(
+            el.content,
+            pw.TextStyle(font: ttf, fontSize: 11),
+            textAlign: pw.TextAlign.center,
+          ),
         );
 
       case ElementType.table:
@@ -2371,14 +2391,14 @@ class PdfExportService {
                 color: isHeaderRow ? PdfColors.grey200 : PdfColors.white,
                 border: pw.Border.all(color: PdfColors.black, width: 0.8),
               ),
-              child: pw.Text(
+              child: _pdfScriptText(
                 text,
-                textAlign: pw.TextAlign.center,
-                style: pw.TextStyle(
+                pw.TextStyle(
                   font: ttf,
                   fontSize: isHeaderRow ? 10.0 : 9.0,
                   fontWeight: isHeaderRow ? pw.FontWeight.bold : pw.FontWeight.normal,
                 ),
+                textAlign: pw.TextAlign.center,
               ),
             ),
           ));
@@ -2534,9 +2554,9 @@ class PdfExportService {
                   width: w,
                   height: h,
                   alignment: pw.Alignment.center,
-                  child: pw.Text(
+                  child: _pdfScriptText(
                     label,
-                    style: pw.TextStyle(
+                    pw.TextStyle(
                       font: ttf,
                       fontSize: 10,
                       fontWeight: pw.FontWeight.bold,
