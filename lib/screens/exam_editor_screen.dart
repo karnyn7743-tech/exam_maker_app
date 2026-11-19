@@ -22,6 +22,45 @@ import '../widgets/exam_ribbon_toolbar.dart';
 import '../widgets/rich_question_document_view.dart';
 import '../widgets/editable_exam_table.dart';
 
+
+const Map<String, String> _questionSuperscriptMap = {
+  '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4',
+  '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9',
+  '⁺': '+', '⁻': '-', '⁼': '=', '⁽': '(', '⁾': ')',
+  'ⁿ': 'n', 'ˣ': 'x', 'ʸ': 'y', 'ᵃ': 'a', 'ᵇ': 'b',
+  'ᶜ': 'c', 'ᵈ': 'd', 'ᵉ': 'e', 'ᶠ': 'f', 'ᵍ': 'g',
+  'ʰ': 'h', 'ⁱ': 'i', 'ʲ': 'j', 'ᵏ': 'k', 'ˡ': 'l',
+  'ᵐ': 'm', 'ᵒ': 'o', 'ᵖ': 'p', 'ʳ': 'r', 'ˢ': 's',
+  'ᵗ': 't', 'ᵘ': 'u', 'ᵛ': 'v', 'ʷ': 'w', 'ᶻ': 'z',
+};
+const Map<String, String> _questionSubscriptMap = {
+  '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4',
+  '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9',
+  '₊': '+', '₋': '-', '₌': '=', '₍': '(', '₎': ')',
+  'ₐ': 'a', 'ₑ': 'e', 'ₒ': 'o', 'ₓ': 'x', 'ₙ': 'n',
+  'ₕ': 'h', 'ₖ': 'k', 'ₗ': 'l', 'ₘ': 'm', 'ₚ': 'p',
+  'ₛ': 's', 'ₜ': 't',
+};
+
+MapEntry<bool, String>? _parseQuestionScriptToken(String token) {
+  if (token.startsWith('^{') && token.endsWith('}')) {
+    return MapEntry(true, token.substring(2, token.length - 1));
+  }
+  if (token.startsWith('_{') && token.endsWith('}')) {
+    return MapEntry(false, token.substring(2, token.length - 1));
+  }
+  if (token.startsWith('^')) return MapEntry(true, token.substring(1));
+  if (token.startsWith('_')) return MapEntry(false, token.substring(1));
+  final chars = token.split('');
+  if (chars.isNotEmpty && chars.every(_questionSuperscriptMap.containsKey)) {
+    return MapEntry(true, chars.map((c) => _questionSuperscriptMap[c]!).join());
+  }
+  if (chars.isNotEmpty && chars.every(_questionSubscriptMap.containsKey)) {
+    return MapEntry(false, chars.map((c) => _questionSubscriptMap[c]!).join());
+  }
+  return null;
+}
+
 // A4 page dimensions in logical points.
 const double kA4PaperWidth = 595.28;
 const double kA4PaperHeight = 841.89;
@@ -2283,7 +2322,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   InlineSpan _buildInlineSpanWithFractions(String text, TextStyle baseStyle) {
-    final regExp = RegExp(r'(\[فاصل_صفحة\]|\[(كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):(.*?)\])');
+    final regExp = RegExp(r'(\^\{[^}]+\}|_\{[^}]+\}|\^[0-9٠-٩+\-−=()]+|_[0-9٠-٩+\-−=()]+|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿˣʸᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐᵒᵖʳˢᵗᵘᵛʷᶻ]+|[₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓₙₕₖₗₘₚₛₜ]+)');
     final matches = regExp.allMatches(text);
 
     if (matches.isEmpty) {
@@ -2303,7 +2342,23 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
       final fullMatched = match.group(0) ?? '';
 
-      if (fullMatched == '[فاصل_صفحة]') {
+      final scriptToken = _parseQuestionScriptToken(fullMatched);
+      if (scriptToken != null) {
+        final baseSize = baseStyle.fontSize ?? 14;
+        children.add(WidgetSpan(
+          alignment: scriptToken.key
+              ? PlaceholderAlignment.aboveBaseline
+              : PlaceholderAlignment.belowBaseline,
+          baseline: TextBaseline.alphabetic,
+          child: Text(
+            scriptToken.value,
+            style: baseStyle.copyWith(
+              fontSize: baseSize * 0.62,
+              height: 1.0,
+            ),
+          ),
+        ));
+      } else if (fullMatched == '[فاصل_صفحة]') {
         children.add(
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
@@ -5101,8 +5156,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         'رياضيات عربية RTL': const ['[جذر:س]', '[جذر:٢٥]', '[جذر:٣:٢٧]', 'نهـا', 'مجـ', 'تـ', 'ط', 'هـ', '∆', 'س', 'ص', 'ع', 'د', 'ل', 'ك', 'ن', 'ق'],
         'Mathematics & Physics LTR': const ['[sqrt:x]', '[sqrt:25]', '[sqrt:3:27]', 'lim', '∑', '∫', 'dx', 'dy', 'f(x)', 'kg', 'N', 'J', 'm/s', 'Ω', 'V', 'A', 'cm³', 'm²'],
         'تقييم وأقواس': const ['✔', '✘', '✓', '✗', '(   )', '[   ]', '○', '●', '□', '■', '« »'],
-        'أسس علوية': const ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹', '⁺', '⁻', 'ⁿ', 'ˣ', 'ʸ'],
-        'صيغ كيميائية': const ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉', '₊', '₋', 'ₐ', 'ₑ', 'ₒ', 'ₓ'],
+        'أسس علوية': const ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹', '⁺', '⁻', 'ⁿ', 'ˣ', 'ʸ', '^{٠}', '^{١}', '^{٢}', '^{٣}', '^{٤}', '^{٥}', '^{٦}', '^{٧}', '^{٨}', '^{٩}'],
+        'صيغ كيميائية': const ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉', '₊', '₋', 'ₐ', 'ₑ', 'ₒ', 'ₓ', '_{٠}', '_{١}', '_{٢}', '_{٣}', '_{٤}', '_{٥}', '_{٦}', '_{٧}', '_{٨}', '_{٩}'],
         'عمليات ومقارنات': const ['×', '÷', '+', '-', '=', '≠', '≈', '<', '>', '≤', '≥', '±'],
         'أسهم وتوجيه': const ['←', '→', '↑', '↓', '↔', '⇐', '⇒', '⇔'],
       };

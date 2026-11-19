@@ -15,6 +15,80 @@ import '../utils/app_font_catalog.dart';
 import 'student_excel_service.dart';
 
 class PdfExportService {
+
+  static const Map<String, String> _pdfSuperscriptMap = {
+    '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4',
+    '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9',
+    '⁺': '+', '⁻': '-', '⁼': '=', '⁽': '(', '⁾': ')',
+    'ⁿ': 'n', 'ˣ': 'x', 'ʸ': 'y', 'ᵃ': 'a', 'ᵇ': 'b',
+    'ᶜ': 'c', 'ᵈ': 'd', 'ᵉ': 'e', 'ᶠ': 'f', 'ᵍ': 'g',
+    'ʰ': 'h', 'ⁱ': 'i', 'ʲ': 'j', 'ᵏ': 'k', 'ˡ': 'l',
+    'ᵐ': 'm', 'ᵒ': 'o', 'ᵖ': 'p', 'ʳ': 'r', 'ˢ': 's',
+    'ᵗ': 't', 'ᵘ': 'u', 'ᵛ': 'v', 'ʷ': 'w', 'ᶻ': 'z',
+  };
+  static const Map<String, String> _pdfSubscriptMap = {
+    '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4',
+    '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9',
+    '₊': '+', '₋': '-', '₌': '=', '₍': '(', '₎': ')',
+    'ₐ': 'a', 'ₑ': 'e', 'ₒ': 'o', 'ₓ': 'x', 'ₙ': 'n',
+    'ₕ': 'h', 'ₖ': 'k', 'ₗ': 'l', 'ₘ': 'm', 'ₚ': 'p',
+    'ₛ': 's', 'ₜ': 't',
+  };
+
+  static MapEntry<bool, String>? _parsePdfScriptToken(String token) {
+    if (token.startsWith('^{') && token.endsWith('}')) {
+      return MapEntry(true, token.substring(2, token.length - 1));
+    }
+    if (token.startsWith('_{') && token.endsWith('}')) {
+      return MapEntry(false, token.substring(2, token.length - 1));
+    }
+    if (token.startsWith('^')) return MapEntry(true, token.substring(1));
+    if (token.startsWith('_')) return MapEntry(false, token.substring(1));
+    final chars = token.split('');
+    if (chars.isNotEmpty && chars.every(_pdfSuperscriptMap.containsKey)) {
+      return MapEntry(true, chars.map((c) => _pdfSuperscriptMap[c]!).join());
+    }
+    if (chars.isNotEmpty && chars.every(_pdfSubscriptMap.containsKey)) {
+      return MapEntry(false, chars.map((c) => _pdfSubscriptMap[c]!).join());
+    }
+    return null;
+  }
+
+  static List<pw.InlineSpan> _pdfScriptAwareSpans(
+    String text,
+    pw.TextStyle baseStyle,
+  ) {
+    final pattern = RegExp(r'(\^\{[^}]+\}|_\{[^}]+\}|\^[0-9٠-٩+\-−=()]+|_[0-9٠-٩+\-−=()]+|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿˣʸᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐᵒᵖʳˢᵗᵘᵛʷᶻ]+|[₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓₙₕₖₗₘₚₛₜ]+)');
+    final result = <pw.InlineSpan>[];
+    var lastIndex = 0;
+    for (final match in pattern.allMatches(text)) {
+      if (match.start > lastIndex) {
+        result.add(pw.TextSpan(text: text.substring(lastIndex, match.start)));
+      }
+      final parsed = _parsePdfScriptToken(match.group(0) ?? '');
+      if (parsed == null) {
+        result.add(pw.TextSpan(text: match.group(0) ?? ''));
+      } else {
+        final baseSize = baseStyle.fontSize ?? 11;
+        result.add(pw.WidgetSpan(
+          child: pw.Transform.translate(
+            offset: PdfPoint(0, parsed.key ? baseSize * 0.30 : -baseSize * 0.20),
+            child: pw.Text(
+              parsed.value,
+              style: baseStyle.copyWith(fontSize: baseSize * 0.62),
+            ),
+          ),
+        ));
+      }
+      lastIndex = match.end;
+    }
+    if (lastIndex < text.length) {
+      result.add(pw.TextSpan(text: text.substring(lastIndex)));
+    }
+    if (result.isEmpty) result.add(pw.TextSpan(text: text));
+    return result;
+  }
+
   // The PDF exporter reads the same font catalog used by the editor toolbar.
   static final Map<String, String> _fontAssetPaths = {
     for (final item in appFontsList) item['id']!: item['asset']!,
@@ -1256,9 +1330,10 @@ class PdfExportService {
             final image = _pdfRichInlineImage(child);
             if (image != null) spans.add(pw.WidgetSpan(child: image));
           } else if (child is Fragment) {
+            final childStyle = _pdfRichTextStyle(child, paragraphStyle, font);
             spans.add(pw.TextSpan(
-              text: child.text,
-              style: _pdfRichTextStyle(child, paragraphStyle, font),
+              children: _pdfScriptAwareSpans(child.text, childStyle),
+              style: childStyle,
             ));
           }
         }
@@ -1266,9 +1341,10 @@ class PdfExportService {
         final image = _pdfRichInlineImage(fragment);
         if (image != null) spans.add(pw.WidgetSpan(child: image));
       } else if (fragment is Fragment) {
+        final fragmentStyle = _pdfRichTextStyle(fragment, paragraphStyle, font);
         spans.add(pw.TextSpan(
-          text: fragment.text,
-          style: _pdfRichTextStyle(fragment, paragraphStyle, font),
+          children: _pdfScriptAwareSpans(fragment.text, fragmentStyle),
+          style: fragmentStyle,
         ));
       }
     }
@@ -1579,24 +1655,25 @@ class PdfExportService {
           final highlight = span.highlightHex == null
               ? null
               : _parsePdfColor(span.highlightHex);
+          final spanStyle = pw.TextStyle(
+            font: _pdfFontByFamily[span.fontFamily] ?? fallback,
+            fontSize: span.fontSize,
+            fontWeight:
+                span.isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
+            fontStyle:
+                span.isItalic ? pw.FontStyle.italic : pw.FontStyle.normal,
+            color: _parsePdfColor(span.colorHex),
+            decoration: decorations.isEmpty
+                ? null
+                : pw.TextDecoration.combine(decorations),
+            background: highlight == null
+                ? null
+                : pw.BoxDecoration(color: highlight),
+            lineSpacing: lineSpacing,
+          );
           return pw.TextSpan(
-            text: span.text,
-            style: pw.TextStyle(
-              font: _pdfFontByFamily[span.fontFamily] ?? fallback,
-              fontSize: span.fontSize,
-              fontWeight:
-                  span.isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
-              fontStyle:
-                  span.isItalic ? pw.FontStyle.italic : pw.FontStyle.normal,
-              color: _parsePdfColor(span.colorHex),
-              decoration: decorations.isEmpty
-                  ? null
-                  : pw.TextDecoration.combine(decorations),
-              background: highlight == null
-                  ? null
-                  : pw.BoxDecoration(color: highlight),
-              lineSpacing: lineSpacing,
-            ),
+            children: _pdfScriptAwareSpans(span.text, spanStyle),
+            style: spanStyle,
           );
         }).toList(),
       ),
@@ -1623,26 +1700,31 @@ class PdfExportService {
     final regExp = RegExp(r'(\[(?:كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):.*?\]|✔|✘|✓|✗)');
     final matches = regExp.allMatches(text);
 
+    final baseTextStyle = pw.TextStyle(
+      font: effectiveFont,
+      fontSize: fontSize,
+      color: textColor,
+      fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
+      fontStyle: isItalic ? pw.FontStyle.italic : pw.FontStyle.normal,
+      decoration: [
+        if (isUnderline) pw.TextDecoration.underline,
+        if (isStrikethrough) pw.TextDecoration.lineThrough,
+      ].isEmpty ? null : pw.TextDecoration.combine([
+        if (isUnderline) pw.TextDecoration.underline,
+        if (isStrikethrough) pw.TextDecoration.lineThrough,
+      ]),
+      background: highlightColor == null ? null : pw.BoxDecoration(color: highlightColor),
+      lineSpacing: lineSpacing,
+    );
+
     if (matches.isEmpty) {
-      return pw.Text(
-        text,
+      final scriptSpans = _pdfScriptAwareSpans(text, baseTextStyle);
+      if (scriptSpans.length == 1 && scriptSpans.first is pw.TextSpan) {
+        return pw.Text(text, textAlign: effectiveTextAlign, style: baseTextStyle);
+      }
+      return pw.RichText(
         textAlign: effectiveTextAlign,
-        style: pw.TextStyle(
-          font: effectiveFont,
-          fontSize: fontSize,
-          color: textColor,
-          fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
-          fontStyle: isItalic ? pw.FontStyle.italic : pw.FontStyle.normal,
-          decoration: [
-            if (isUnderline) pw.TextDecoration.underline,
-            if (isStrikethrough) pw.TextDecoration.lineThrough,
-          ].isEmpty ? null : pw.TextDecoration.combine([
-            if (isUnderline) pw.TextDecoration.underline,
-            if (isStrikethrough) pw.TextDecoration.lineThrough,
-          ]),
-          background: highlightColor == null ? null : pw.BoxDecoration(color: highlightColor),
-          lineSpacing: lineSpacing,
-        ),
+        text: pw.TextSpan(children: scriptSpans, style: baseTextStyle),
       );
     }
 
@@ -1651,7 +1733,10 @@ class PdfExportService {
 
     for (final m in matches) {
       if (m.start > lastIdx) {
-        spans.add(pw.TextSpan(text: text.substring(lastIdx, m.start)));
+        spans.addAll(_pdfScriptAwareSpans(
+          text.substring(lastIdx, m.start),
+          baseTextStyle,
+        ));
       }
 
       final matchedStr = m.group(0) ?? '';
@@ -2083,21 +2168,15 @@ class PdfExportService {
     }
 
     if (lastIdx < text.length) {
-      spans.add(pw.TextSpan(text: text.substring(lastIdx)));
+      spans.addAll(_pdfScriptAwareSpans(
+        text.substring(lastIdx),
+        baseTextStyle,
+      ));
     }
 
     return pw.RichText(
       textAlign: effectiveTextAlign,
-      text: pw.TextSpan(
-        children: spans,
-        style: pw.TextStyle(
-          font: effectiveFont,
-          fontSize: fontSize,
-          color: textColor,
-          fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
-          lineSpacing: lineSpacing,
-        ),
-      ),
+      text: pw.TextSpan(children: spans, style: baseTextStyle),
     );
   }
 
