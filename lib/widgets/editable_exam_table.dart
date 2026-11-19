@@ -96,14 +96,18 @@ class _EditableExamTableState extends State<EditableExamTable> {
 
   void _select(int r, int c) {
     setState(() {
-      if (anchorRow == null ||
-          (anchorRow == focusRow && anchorCol == focusCol)) {
-        anchorRow = focusRow = r;
-        anchorCol = focusCol = c;
-      } else {
-        focusRow = r;
-        focusCol = c;
+      if (anchorRow == null || anchorCol == null) {
+        anchorRow = r;
+        anchorCol = c;
       }
+      focusRow = r;
+      focusCol = c;
+    });
+  }
+
+  void _resetSelection() {
+    setState(() {
+      anchorRow = anchorCol = focusRow = focusCol = null;
     });
   }
 
@@ -119,43 +123,124 @@ class _EditableExamTableState extends State<EditableExamTable> {
     return b[0] != b[2] || b[1] != b[3];
   }
 
+  int get _selectedRow => focusRow ?? grid.length - 1;
+  int get _selectedCol => focusCol ?? grid.first.length - 1;
+
   void _addRow() {
-    setState(() { grid.add(List.filled(grid.first.length, '')); revision++; });
+    if (grid.length >= 30) return;
+    final index = (focusRow == null ? grid.length : focusRow! + 1)
+        .clamp(0, grid.length);
+    setState(() {
+      grid.insert(index, List.filled(grid.first.length, ''));
+      for (final m in merges) {
+        final start = m['row']!;
+        final end = start + m['rowSpan']!;
+        if (index <= start) {
+          m['row'] = start + 1;
+        } else if (index < end) {
+          m['rowSpan'] = m['rowSpan']! + 1;
+        }
+      }
+      if (anchorRow != null && anchorRow! >= index) anchorRow = anchorRow! + 1;
+      if (focusRow != null && focusRow! >= index) focusRow = focusRow! + 1;
+      revision++;
+    });
     _emit();
   }
 
   void _removeRow() {
     if (grid.length <= 1) return;
-    final r = focusRow ?? grid.length - 1;
+    final index = _selectedRow.clamp(0, grid.length - 1);
     setState(() {
-      grid.removeAt(r.clamp(0, grid.length - 1).toInt());
-      merges.clear();
-      anchorRow = focusRow = null;
+      grid.removeAt(index);
+      final updated = <Map<String, int>>[];
+      for (final source in merges) {
+        final m = Map<String, int>.from(source);
+        final start = m['row']!;
+        final end = start + m['rowSpan']!;
+        if (index < start) {
+          m['row'] = start - 1;
+          updated.add(m);
+        } else if (index >= end) {
+          updated.add(m);
+        } else {
+          m['rowSpan'] = m['rowSpan']! - 1;
+          if (m['rowSpan']! > 1 || m['colSpan']! > 1) updated.add(m);
+        }
+      }
+      merges = updated;
+      anchorRow = focusRow = index.clamp(0, grid.length - 1);
+      if (anchorCol == null) anchorCol = focusCol = 0;
       revision++;
     });
     _emit();
   }
 
   void _addColumn() {
-    setState(() { for (final row in grid) { row.add(''); } revision++; });
-    _emit();
-  }
-
-  void _removeColumn() {
-    if (grid.first.length <= 1) return;
-    final c = focusCol ?? grid.first.length - 1;
+    if (grid.first.length >= 16) return;
+    final index = (focusCol == null ? grid.first.length : focusCol! + 1)
+        .clamp(0, grid.first.length);
     setState(() {
-      for (final row in grid) { row.removeAt(c.clamp(0, row.length - 1).toInt()); }
-      merges.clear();
-      anchorCol = focusCol = null;
+      for (final row in grid) {
+        row.insert(index, '');
+      }
+      for (final m in merges) {
+        final start = m['col']!;
+        final end = start + m['colSpan']!;
+        if (index <= start) {
+          m['col'] = start + 1;
+        } else if (index < end) {
+          m['colSpan'] = m['colSpan']! + 1;
+        }
+      }
+      if (anchorCol != null && anchorCol! >= index) anchorCol = anchorCol! + 1;
+      if (focusCol != null && focusCol! >= index) focusCol = focusCol! + 1;
       revision++;
     });
     _emit();
   }
 
-  void _merge() {
+  void _removeColumn() {
+    if (grid.first.length <= 1) return;
+    final index = _selectedCol.clamp(0, grid.first.length - 1);
+    setState(() {
+      for (final row in grid) {
+        row.removeAt(index);
+      }
+      final updated = <Map<String, int>>[];
+      for (final source in merges) {
+        final m = Map<String, int>.from(source);
+        final start = m['col']!;
+        final end = start + m['colSpan']!;
+        if (index < start) {
+          m['col'] = start - 1;
+          updated.add(m);
+        } else if (index >= end) {
+          updated.add(m);
+        } else {
+          m['colSpan'] = m['colSpan']! - 1;
+          if (m['rowSpan']! > 1 || m['colSpan']! > 1) updated.add(m);
+        }
+      }
+      merges = updated;
+      anchorCol = focusCol = index.clamp(0, grid.first.length - 1);
+      if (anchorRow == null) anchorRow = focusRow = 0;
+      revision++;
+    });
+    _emit();
+  }
+
+    void _merge() {
     if (!_hasRange) return;
     final b = _bounds;
+    final intersectsExisting = merges.any((m) {
+      final mr = m['row']!, mc = m['col']!;
+      final meR = mr + m['rowSpan']! - 1;
+      final meC = mc + m['colSpan']! - 1;
+      return !(meR < b[0] || mr > b[2] || meC < b[1] || mc > b[3]);
+    });
+    if (intersectsExisting) return;
+
     final texts = <String>[];
     for (var r = b[0]; r <= b[2]; r++) {
       for (var c = b[1]; c <= b[3]; c++) {
@@ -165,21 +250,20 @@ class _EditableExamTableState extends State<EditableExamTable> {
     }
     grid[b[0]][b[1]] = texts.join('\n');
     setState(() {
-      revision++;
-      merges.removeWhere((m) {
-        final mr = m['row'] ?? 0, mc = m['col'] ?? 0;
-        final meR = mr + (m['rowSpan'] ?? 1) - 1;
-        final meC = mc + (m['colSpan'] ?? 1) - 1;
-        return !(meR < b[0] || mr > b[2] || meC < b[1] || mc > b[3]);
+      merges.add({
+        'row': b[0],
+        'col': b[1],
+        'rowSpan': b[2] - b[0] + 1,
+        'colSpan': b[3] - b[1] + 1,
       });
-      merges.add({'row': b[0], 'col': b[1], 'rowSpan': b[2] - b[0] + 1, 'colSpan': b[3] - b[1] + 1});
       anchorRow = focusRow = b[0];
       anchorCol = focusCol = b[1];
+      revision++;
     });
     _emit();
   }
 
-  void _split() {
+    void _split() {
     if (focusRow == null || focusCol == null) return;
     final m = _mergeAt(focusRow!, focusCol!);
     if (m == null) return;
@@ -216,20 +300,24 @@ class _EditableExamTableState extends State<EditableExamTable> {
           if (!widget.readOnly) Container(
             height: 30,
             color: const Color(0xFFE8EEF8),
-            child: Row(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
               children: [
-                _tool(Icons.add, 'إضافة صف', _addRow),
+                _tool(Icons.add, 'إدراج صف بعد الخلية المحددة', grid.length < 30 ? _addRow : null),
                 _tool(Icons.remove, 'حذف الصف المحدد', rowCount > 1 ? _removeRow : null),
                 const VerticalDivider(width: 1),
-                _tool(Icons.view_column, 'إضافة عمود', _addColumn),
+                _tool(Icons.view_column, 'إدراج عمود بعد الخلية المحددة', grid.first.length < 16 ? _addColumn : null),
                 _tool(Icons.remove, 'حذف العمود المحدد', colCount > 1 ? _removeColumn : null),
                 const VerticalDivider(width: 1),
                 _tool(Icons.merge_type, 'دمج الخلايا المحددة', _hasRange ? _merge : null),
-                _tool(Icons.call_split, 'تقسيم الخلية', selectedMerge != null ? _split : null),
+                _tool(Icons.call_split, 'تقسيم الخلية المدمجة', selectedMerge != null ? _split : null),
+                _tool(Icons.crop_free, 'بدء تحديد نطاق جديد', anchorRow != null ? _resetSelection : null),
                 const Spacer(),
                 Text('${rowCount}×${colCount}', style: const TextStyle(fontSize: 10)),
                 const SizedBox(width: 5),
               ],
+              ),
             ),
           ),
           Expanded(
