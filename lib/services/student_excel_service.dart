@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:excel/excel.dart';
+import 'package:path_provider/path_provider.dart';
 
 class StudentData {
   final String seatNo;
@@ -374,6 +375,27 @@ class StudentExcelService {
     );
   }
 
+  /// حفظ نسخة داخل مساحة التطبيق الخاصة لتجاوز اختلاف مسارات Content Provider
+  /// والصلاحيات المؤقتة بين أجهزة Android والشركات المصنّعة.
+  static Future<String> persistImportedExcelBytes(
+    Uint8List bytes,
+    String originalName,
+  ) async {
+    final directory = await getApplicationSupportDirectory();
+    final storageDirectory = Directory('${directory.path}/student_data');
+    if (!await storageDirectory.exists()) {
+      await storageDirectory.create(recursive: true);
+    }
+    final safeName = originalName
+        .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_')
+        .replaceAll(RegExp(r'^\.+'), '');
+    final fileName =
+        'students_${DateTime.now().microsecondsSinceEpoch}_${safeName.isEmpty ? 'workbook.xlsx' : safeName}';
+    final file = File('${storageDirectory.path}/$fileName');
+    await file.writeAsBytes(bytes, flush: true);
+    return file.path;
+  }
+
   static Future<StudentExcelResult> parseExcelFile(
     String filePath, {
     String? expectedSubject,
@@ -381,6 +403,20 @@ class StudentExcelService {
     String? examTitle,
   }) async {
     final bytes = await File(filePath).readAsBytes();
+    return parseExcelBytes(
+      bytes,
+      expectedSubject: expectedSubject,
+      targetGrade: targetGrade,
+      examTitle: examTitle,
+    );
+  }
+
+  static StudentExcelResult parseExcelBytes(
+    Uint8List bytes, {
+    String? expectedSubject,
+    String? targetGrade,
+    String? examTitle,
+  }) {
     final fixedBytes = _fixExcelDimensions(bytes);
     final excel = Excel.decodeBytes(fixedBytes);
 

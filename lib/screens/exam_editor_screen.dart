@@ -25,6 +25,10 @@ import '../widgets/rich_question_document_view.dart';
 const double kA4PaperWidth = 595.28;
 const double kA4PaperHeight = 841.89;
 
+// إحداثيات العناصر العائمة محفوظة بالنسبة إلى ورقة A4.
+const double kQuestionCanvasLeftInset = 38.0;
+const double kQuestionCanvasTopInset = 79.0;
+
 // محرر نصي واحد يدعم تنسيق المقاطع مباشرة داخل ورقة A4 دون إنشاء مساحة محرر منفصلة.
 class QuestionRichTextController extends TextEditingController {
   List<TextSpanModel> _styledSpans = const [];
@@ -1434,6 +1438,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       content: img.path,
                       width: 90,
                       height: 90,
+                      dx: kQuestionCanvasLeftInset,
+                      dy: kQuestionCanvasTopInset,
                     ));
                   });
                   _measurePagesHeight();
@@ -1522,6 +1528,8 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       content: jsonPayload,
                       width: 120.0,
                       height: 70.0,
+                      dx: kQuestionCanvasLeftInset,
+                      dy: kQuestionCanvasTopInset,
                     ));
                   });
                   _measurePagesHeight();
@@ -1932,7 +1940,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           // العناصر العائمة يجب أن تدخل في حساب ارتفاع صف السؤال؛
           // عناصر Positioned وحدها لا توسّع Stack وقد تتداخل مع الأسئلة أو التذييل.
           final double floatingElementsExtent = q.elements
-              .where((el) => el.layer == 'behind' || el.layer == 'front')
+              .where((el) =>
+                  el.type == ElementType.image ||
+                  el.type == ElementType.shape ||
+                  el.type == ElementType.table)
               .fold<double>(
                 0.0,
                 (extent, el) {
@@ -1951,7 +1962,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       : el.height;
                   return math.max(
                     extent,
-                    el.dy + controlsBottom + 12.0,
+                    el.dy - kQuestionCanvasTopInset + controlsBottom + 12.0,
                   ).toDouble();
                 },
               )
@@ -1998,10 +2009,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                               // وتمنعها من الانزلاق بصرياً إلى صف السؤال التالي أو التذييل.
                               SizedBox(height: floatingElementsExtent),
                               ...q.elements
-                                  .where((el) => el.layer == 'behind')
+                                  .where((el) =>
+                                      (el.type == ElementType.image ||
+                                          el.type == ElementType.shape ||
+                                          el.type == ElementType.table) &&
+                                      el.layer == 'behind')
                                   .map((el) => Positioned(
-                                        left: el.dx,
-                                        top: el.dy,
+                                        left: math.max(0.0, el.dx - kQuestionCanvasLeftInset - 6.0),
+                                        top: math.max(0.0, el.dy - kQuestionCanvasTopInset),
                                         child: _buildRenderedElement(
                                           el,
                                           applyOffset: false,
@@ -2012,10 +2027,17 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   _buildQuestionContent(q),
-                                  if (q.elements.any((el) => el.layer == 'inline'))
+                                  if (q.elements.any((el) =>
+                                      el.layer == 'inline' &&
+                                      el.type != ElementType.image &&
+                                      el.type != ElementType.shape &&
+                                      el.type != ElementType.table))
                                     const SizedBox(height: 6),
-                                  ...q.elements
-                                      .where((el) => el.layer == 'inline')
+                                  ...q.elements.where((el) =>
+                                      el.layer == 'inline' &&
+                                      el.type != ElementType.image &&
+                                      el.type != ElementType.shape &&
+                                      el.type != ElementType.table)
                                       .map((el) => _buildRenderedElement(el, gestureScale: _zoomLevel)),
                                   if (_showAnswerKeyMode && q.answerKey.trim().isNotEmpty) ...[
                                     const SizedBox(height: 6),
@@ -2049,10 +2071,14 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 ],
                               ),
                               ...q.elements
-                                  .where((el) => el.layer == 'front')
+                                  .where((el) =>
+                                      (el.type == ElementType.image ||
+                                          el.type == ElementType.shape ||
+                                          el.type == ElementType.table) &&
+                                      (el.layer == 'front' || el.layer == 'inline'))
                                   .map((el) => Positioned(
-                                        left: el.dx,
-                                        top: el.dy,
+                                        left: math.max(0.0, el.dx - kQuestionCanvasLeftInset - 6.0),
+                                        top: math.max(0.0, el.dy - kQuestionCanvasTopInset),
                                         child: _buildRenderedElement(
                                           el,
                                           applyOffset: false,
@@ -3231,6 +3257,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       _selectedElementId = isSelected ? null : el.id;
                     });
                   },
+                  // السحب من جسم العنصر نفسه، وليس من مقبض التحريك الصغير فقط.
+                  onPanStart: (_) {
+                    refreshState(() => _selectedElementId = el.id);
+                  },
+                  onPanUpdate: (details) => moveBy(details.delta),
                   onLongPress: () {
                     refreshState(() => _selectedElementId = el.id);
                     confirmDeleteElement();
@@ -5341,14 +5372,21 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 textDirection: isInputArabic
                                     ? TextDirection.rtl
                                     : TextDirection.ltr,
-                                child: Text(
-                                  titleCtrl.text,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontFamily: isInputArabic ? 'Amiri' : 'Arial',
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black,
+                                child: SizedBox(
+                                  height: 27,
+                                  child: Center(
+                                    child: Text(
+                                      titleCtrl.text,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontFamily: isInputArabic ? 'Amiri' : 'Arial',
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -6071,18 +6109,32 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['xlsx', 'xls', 'xlsm', 'xlsb'],
+        withData: true,
       );
 
-      if (result != null && result.files.single.path != null) {
-        final path = result.files.single.path!;
-        final excelRes = await StudentExcelService.parseExcelFile(
-          path,
-          expectedSubject: _exam.header.subject,
-          targetGrade: _exam.header.grade,
-          examTitle: _exam.header.examTitle,
-        );
+      if (result == null || result.files.isEmpty) return;
+      final pickedFile = result.files.single;
+      final bytes = pickedFile.bytes ??
+          (pickedFile.path != null
+              ? await File(pickedFile.path!).readAsBytes()
+              : null);
+      if (bytes == null || bytes.isEmpty) {
+        throw Exception('تعذر الوصول إلى محتوى الملف من مدير الملفات. أعد اختيار الملف أو انسخه إلى ذاكرة الجهاز.');
+      }
 
-        setDlgState(() {
+      // نحتفظ بنسخة داخل مساحة التطبيق الخاصة حتى لا ينقطع الوصول بعد إغلاق مدير الملفات.
+      final path = await StudentExcelService.persistImportedExcelBytes(
+        bytes,
+        pickedFile.name,
+      );
+      final excelRes = StudentExcelService.parseExcelBytes(
+        bytes,
+        expectedSubject: _exam.header.subject,
+        targetGrade: _exam.header.grade,
+        examTitle: _exam.header.examTitle,
+      );
+
+      setDlgState(() {
           _exam.header.excelFilePath = path;
           _exam.header.subjectCode = excelRes.subjectCode;
           if (_exam.header.studentDataMode == 'none') {
