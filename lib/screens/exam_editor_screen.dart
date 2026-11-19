@@ -3191,12 +3191,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
     if (el.type == ElementType.image || el.type == ElementType.shape || el.type == ElementType.table) {
       final double safeScale = gestureScale.clamp(0.25, 3.0);
-      // أحجام المقابض ثابتة تقريباً على الشاشة مهما تغيّر تكبير الصفحة.
-      // أدوات التحكم طبقة عائمة فوق العنصر ولا تدخل ضمن أبعاده أو تدفق النص.
-      final double controlSize = 32 / safeScale;
-      final double railWidth = canResize ? 36 / safeScale : 0;
-      final double outerWidth = el.width;
-      final double outerHeight = el.height;
+      final bool canAdjustShape = el.type == ElementType.shape;
+      final double handle = 10.0 / safeScale;
+      final double margin = handle / 2;
+      final double topRail = 20.0 / safeScale;
+      final double outerWidth = el.width + margin * 2;
+      final double outerHeight = el.height + margin * 2 + topRail;
 
       void moveBy(Offset delta) {
         refreshState(() {
@@ -3205,21 +3205,57 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
         });
       }
 
+      void resizeFrom(String anchor, Offset delta) {
+        final dx = delta.dx / safeScale;
+        final dy = delta.dy / safeScale;
+        refreshState(() {
+          var nextWidth = el.width;
+          var nextHeight = el.height;
+          var nextX = el.dx;
+          var nextY = el.dy;
+          if (anchor.contains('l')) {
+            nextWidth -= dx;
+            nextX += dx;
+          } else if (anchor.contains('r')) {
+            nextWidth += dx;
+          }
+          if (anchor.contains('t')) {
+            nextHeight -= dy;
+            nextY += dy;
+          } else if (anchor.contains('b')) {
+            nextHeight += dy;
+          }
+          if (nextWidth >= 50 && nextWidth <= 500) {
+            el.width = nextWidth;
+            el.dx = nextX;
+          }
+          if (nextHeight >= 30 && nextHeight <= 500) {
+            el.height = nextHeight;
+            el.dy = nextY;
+          }
+        });
+      }
+
+      void adjustShape(Offset delta) {
+        if (!canAdjustShape) return;
+        try {
+          final data = Map<String, dynamic>.from(jsonDecode(el.content));
+          final current = (data['adjustment'] as num?)?.toDouble() ?? 0.5;
+          data['adjustment'] = (current + (delta.dx - delta.dy) / (safeScale * 180)).clamp(0.05, 0.95);
+          refreshState(() => el.content = jsonEncode(data));
+        } catch (_) {}
+      }
+
       Future<void> confirmDeleteElement() async {
-        final bool? confirmed = await showDialog<bool>(
+        final confirmed = await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
             title: const Text('حذف العنصر'),
-            content: Text(
-              el.type == ElementType.image
-                  ? 'هل تريد حذف هذه الصورة من السؤال؟'
-                  : 'هل تريد حذف هذا الشكل من السؤال؟',
-            ),
+            content: Text(el.type == ElementType.image
+                ? 'هل تريد حذف هذه الصورة من السؤال؟'
+                : 'هل تريد حذف هذا الشكل من السؤال؟'),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('إلغاء'),
-              ),
+              TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
                 style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -3228,16 +3264,33 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             ],
           ),
         );
-        if (confirmed == true) {
-          onDeleteElement?.call();
-        }
+        if (confirmed == true) onDeleteElement?.call();
+      }
+
+      Widget resizeHandle(String anchor, Alignment alignment) {
+        return Align(
+          alignment: alignment,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onPanUpdate: (details) => resizeFrom(anchor, details.delta),
+            child: Container(
+              width: handle,
+              height: handle,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFF1976D2), width: 1.2 / safeScale),
+                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
+              ),
+            ),
+          ),
+        );
       }
 
       return Transform.translate(
-        // نثبت موضع العنصر الأصلي ونبقي جميع مقابضه داخل مساحة اللمس.
         offset: Offset(
-          applyOffset ? el.dx : 0,
-          applyOffset ? el.dy : 0,
+          applyOffset ? el.dx - margin : -margin,
+          applyOffset ? el.dy - margin - topRail : -margin - topRail,
         ),
         child: SizedBox(
           width: outerWidth,
@@ -3246,21 +3299,16 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             clipBehavior: Clip.none,
             children: [
               Positioned(
-                left: 0,
-                top: 0,
+                left: margin,
+                top: topRail + margin,
                 width: el.width,
                 height: el.height,
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    refreshState(() {
-                      _selectedElementId = isSelected ? null : el.id;
-                    });
-                  },
-                  // السحب من جسم العنصر نفسه، وليس من مقبض التحريك الصغير فقط.
-                  onPanStart: (_) {
-                    refreshState(() => _selectedElementId = el.id);
-                  },
+                  onTap: () => refreshState(() {
+                    _selectedElementId = isSelected ? null : el.id;
+                  }),
+                  onPanStart: (_) => refreshState(() => _selectedElementId = el.id),
                   onPanUpdate: (details) => moveBy(details.delta),
                   onLongPress: () {
                     refreshState(() => _selectedElementId = el.id);
@@ -3270,117 +3318,75 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     width: el.width,
                     height: el.height,
                     decoration: BoxDecoration(
-                      border: isSelected
-                          ? Border.all(
-                              color: const Color(0xFF1976D2),
-                              width: 1.5,
-                            )
-                          : null,
+                      border: isSelected ? Border.all(color: const Color(0xFF1976D2), width: 1.0 / safeScale) : null,
                     ),
                     child: coreWidget,
                   ),
                 ),
               ),
               if (isSelected) ...[
-                // زر حذف عائم يظهر عند تحديد الصورة أو الشكل فقط.
-                if (canResize)
-                  Positioned(
-                    left: 2 / safeScale,
-                    top: 2 / safeScale,
-                    child: Material(
-                      color: Colors.red,
-                      shape: const CircleBorder(),
-                      elevation: 4,
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: confirmDeleteElement,
-                        child: SizedBox(
-                          width: controlSize,
-                          height: controlSize,
-                          child: Icon(
-                            Icons.delete_outline,
-                            color: Colors.white,
-                            size: 20 / safeScale,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                // مقبض التحريك في أعلى العنصر.
                 Positioned(
-                  left: outerWidth - controlSize,
-                  top: 2 / safeScale,
+                  left: (outerWidth - handle * 2) / 2,
+                  top: 0,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onPanUpdate: (details) => moveBy(details.delta),
                     child: Container(
-                      width: controlSize,
-                      height: controlSize,
+                      width: handle * 2,
+                      height: topRail,
                       decoration: const BoxDecoration(
                         color: Color(0xFF1976D2),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
+                        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 2)],
                       ),
-                      child: Icon(
-                        Icons.open_with,
-                        color: Colors.white,
-                        size: 24 / safeScale,
-                      ),
+                      child: Icon(Icons.open_with, color: Colors.white, size: 14 / safeScale),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  child: GestureDetector(
+                    onTap: confirmDeleteElement,
+                    child: Container(
+                      width: topRail,
+                      height: topRail,
+                      decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                      child: Icon(Icons.delete_outline, color: Colors.white, size: 13 / safeScale),
                     ),
                   ),
                 ),
                 if (canResize) ...[
-                  // أدوات تغيير الارتفاع عائمة داخل حدود العنصر.
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    width: railWidth,
-                    height: outerHeight,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildSizeStepButton(
-                          Icons.add,
-                          safeScale,
-                          () => changeHeight(8),
-                        ),
-                        _buildSizeStepButton(
-                          Icons.remove,
-                          safeScale,
-                          () => changeHeight(-8),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // أدوات تغيير العرض عائمة أسفل العنصر دون إضافة مساحة تحته.
-                  Positioned(
-                    left: railWidth,
-                    right: 0,
-                    bottom: 0,
-                    height: controlSize,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildSizeStepButton(
-                          Icons.remove,
-                          safeScale,
-                          () => changeWidth(-8),
-                        ),
-                        _buildSizeStepButton(
-                          Icons.add,
-                          safeScale,
-                          () => changeWidth(8),
-                        ),
-                      ],
-                    ),
-                  ),
+                  resizeHandle('tl', Alignment.topLeft),
+                  resizeHandle('t', Alignment.topCenter),
+                  resizeHandle('tr', Alignment.topRight),
+                  resizeHandle('r', Alignment.centerRight),
+                  resizeHandle('br', Alignment.bottomRight),
+                  resizeHandle('b', Alignment.bottomCenter),
+                  resizeHandle('bl', Alignment.bottomLeft),
+                  resizeHandle('l', Alignment.centerLeft),
                 ],
+                if (canAdjustShape)
+                  Positioned(
+                    right: handle * 1.5,
+                    top: topRail + margin + el.height * 0.28,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onPanUpdate: (details) => adjustShape(details.delta),
+                      child: Transform.rotate(
+                        angle: math.pi / 4,
+                        child: Container(
+                          width: handle * 1.35,
+                          height: handle * 1.35,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFC107),
+                            border: Border.all(color: Colors.white, width: 1.0 / safeScale),
+                            boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 2)],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ],
           ),
@@ -3475,6 +3481,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       final double h = customHeight ?? ((data['height'] as num?)?.toDouble() ?? 70.0);
       final String label = data['label'] ?? '';
       final Color strokeColor = Color(int.parse((data['strokeColor'] ?? '#000000').replaceFirst('#', '0xFF')));
+      final double adjustment = (data['adjustment'] as num?)?.toDouble() ?? 0.5;
       final Color fillColor = (data['fillColor'] == null || data['fillColor'] == 'transparent')
           ? Colors.transparent
           : Color(int.parse((data['fillColor'] as String).replaceFirst('#', '0xFF')));
@@ -3485,6 +3492,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           kind: kind,
           strokeColor: strokeColor,
           fillColor: fillColor,
+          adjustment: adjustment,
         ),
         child: SizedBox(
           width: w,
@@ -3983,7 +3991,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     List<InsertableElement> currentElements = List.from(q.elements);
     String? richDocumentJson = q.richDocumentJson;
 
-    TextAlign selectedAlignment = q.alignment ?? _activeAlignment;
+    TextAlign selectedAlignment = isAr ? TextAlign.right : TextAlign.left;
     bool isInputArabic = isAr;
 
     bool showCustomKeyboard = true;
@@ -5400,106 +5408,95 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                   textDirection: isInputArabic
                                       ? TextDirection.rtl
                                       : TextDirection.ltr,
-                                  child: SingleChildScrollView(
-                                    child: SizedBox(
-                                      // اجعل مساحة الكتابة بعرض الورقة الداخلي كاملاً؛
-                                      // وإلا قد ينكمش محتوى التمرير إلى عرض النص نفسه.
-                                      width: kA4PaperWidth - 76,
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          SizedBox(
-                                            // حقل التحرير يملأ مساحة الكتابة الفعلية بين هوامش A4
-                                            // أفقياً ورأسياً، وليس مجرد عدد ثابت من الأسطر.
-                                            width: double.infinity,
-                                            height: kA4PaperHeight - 68,
-                                            child: TextField(
-                                            controller: textCtrl,
-                                            expands: true,
-                                            textAlign: selectedAlignment,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      Expanded(
+                                        child: TextField(
+                                          controller: textCtrl,
+                                          expands: true,
+                                          textAlign: selectedAlignment,
                                           textAlignVertical:
-                                              TextAlignVertical.top,
+                                            TextAlignVertical.top,
                                           readOnly: false,
                                           showCursor: true,
                                           enableInteractiveSelection: true,
                                           keyboardType: useSystemKeyboard
-                                              ? TextInputType.multiline
-                                              : TextInputType.none,
+                                            ? TextInputType.multiline
+                                            : TextInputType.none,
                                           maxLines: null,
                                           style: TextStyle(
-                                            fontFamily: currentFont,
-                                            fontSize: currentFontSize,
-                                            height: currentLineSpacing,
-                                            color: Colors.black,
+                                          fontFamily: currentFont,
+                                          fontSize: currentFontSize,
+                                          height: currentLineSpacing,
+                                          color: Colors.black,
                                           ),
                                           onChanged: (value) {
-                                            setModalState(() {
-                                              richDocumentJson = null;
-                                              syncWorkingSpansWithText();
-                                              lastSelection =
-                                                  textCtrl.selection;
-                                              isTextSelected =
-                                                  textCtrl.selection.isValid &&
-                                                      !textCtrl.selection
-                                                          .isCollapsed;
-                                            });
-                                            Clipboard.hasStrings().then(
-                                              (hasValue) {
-                                                if (hasValue !=
-                                                    hasClipboardContent) {
-                                                  setModalState(() =>
-                                                      hasClipboardContent =
-                                                          hasValue);
-                                                }
-                                              },
-                                            );
+                                          setModalState(() {
+                                            richDocumentJson = null;
+                                            syncWorkingSpansWithText();
+                                            lastSelection =
+                                                textCtrl.selection;
+                                            isTextSelected =
+                                                textCtrl.selection.isValid &&
+                                                    !textCtrl.selection
+                                                        .isCollapsed;
+                                          });
+                                          Clipboard.hasStrings().then(
+                                            (hasValue) {
+                                              if (hasValue !=
+                                                  hasClipboardContent) {
+                                                setModalState(() =>
+                                                    hasClipboardContent =
+                                                        hasValue);
+                                              }
+                                            },
+                                          );
                                           },
                                           onTap: () {
-                                            setModalState(() {
-                                              activeFieldController = textCtrl;
-                                              lastSelection =
-                                                  textCtrl.selection;
-                                              isTextSelected =
-                                                  textCtrl.selection.isValid &&
-                                                      !textCtrl.selection
-                                                          .isCollapsed;
-                                              if (!useSystemKeyboard) {
-                                                showCustomKeyboard = true;
+                                          setModalState(() {
+                                            activeFieldController = textCtrl;
+                                            lastSelection =
+                                                textCtrl.selection;
+                                            isTextSelected =
+                                                textCtrl.selection.isValid &&
+                                                    !textCtrl.selection
+                                                        .isCollapsed;
+                                            if (!useSystemKeyboard) {
+                                              showCustomKeyboard = true;
+                                            }
+                                            showQuestionSettings = false;
+                                          });
+                                          Clipboard.hasStrings().then(
+                                            (hasValue) {
+                                              if (hasValue !=
+                                                  hasClipboardContent) {
+                                                setModalState(() =>
+                                                    hasClipboardContent =
+                                                        hasValue);
                                               }
-                                              showQuestionSettings = false;
-                                            });
-                                            Clipboard.hasStrings().then(
-                                              (hasValue) {
-                                                if (hasValue !=
-                                                    hasClipboardContent) {
-                                                  setModalState(() =>
-                                                      hasClipboardContent =
-                                                          hasValue);
-                                                }
-                                              },
-                                            );
+                                            },
+                                          );
                                           },
                                           decoration: InputDecoration(
-                                            hintText: isInputArabic
-                                                ? 'اكتب نص السؤال هنا...'
-                                                : 'Type your question here...',
-                                            hintStyle: const TextStyle(
-                                              color: Colors.black38,
-                                              fontSize: 14,
-                                            ),
-                                            border: InputBorder.none,
-                                            enabledBorder: InputBorder.none,
-                                            focusedBorder: InputBorder.none,
-                                            contentPadding: EdgeInsets.zero,
-                                            isCollapsed: true,
+                                          hintText: isInputArabic
+                                              ? 'اكتب نص السؤال هنا...'
+                                              : 'Type your question here...',
+                                          hintStyle: const TextStyle(
+                                            color: Colors.black38,
+                                            fontSize: 14,
                                           ),
-                                            ),
+                                          border: InputBorder.none,
+                                          enabledBorder: InputBorder.none,
+                                          focusedBorder: InputBorder.none,
+                                          contentPadding: EdgeInsets.zero,
+                                          isCollapsed: true,
                                           ),
-                                          ...inlineElements,
-                                        ],
+
+                                        ),
                                       ),
-                                    ),
+                                      ...inlineElements,
+                                    ],
                                   ),
                                 ),
                               ),
@@ -6785,11 +6782,13 @@ class _ExamShapePainter extends CustomPainter {
   final String kind;
   final Color strokeColor;
   final Color fillColor;
+  final double adjustment;
 
   _ExamShapePainter({
     required this.kind,
     required this.strokeColor,
     required this.fillColor,
+    this.adjustment = 0.5,
   });
 
   @override
@@ -6807,6 +6806,7 @@ class _ExamShapePainter extends CustomPainter {
 
     final w = size.width;
     final h = size.height;
+    final adjust = adjustment.clamp(0.05, 0.95).toDouble();
 
     switch (kind) {
       case 'circle':
@@ -6817,7 +6817,7 @@ class _ExamShapePainter extends CustomPainter {
 
       case 'triangle':
         final path = Path()
-          ..moveTo(w / 2, 2)
+          ..moveTo(w * adjust, 2)
           ..lineTo(w - 2, h - 2)
           ..lineTo(2, h - 2)
           ..close();
@@ -6841,7 +6841,7 @@ class _ExamShapePainter extends CustomPainter {
         break;
 
       case 'parallelogram':
-        final offset = w * 0.22;
+        final offset = w * (0.08 + adjust * 0.36);
         final path = Path()
           ..moveTo(offset, 2)
           ..lineTo(w - 2, 2)
@@ -6897,7 +6897,7 @@ class _ExamShapePainter extends CustomPainter {
         break;
 
       case 'callout':
-        final bubbleH = h * 0.75;
+        final bubbleH = h * (0.5 + adjust * 0.4);
         final path = Path()
           ..addRRect(RRect.fromRectAndRadius(Rect.fromLTWH(2, 2, w - 4, bubbleH - 2), const Radius.circular(8)))
           ..moveTo(w * 0.35, bubbleH)
@@ -6923,7 +6923,7 @@ class _ExamShapePainter extends CustomPainter {
 
       case 'rectangle':
       default:
-        final rRect = RRect.fromRectAndRadius(Rect.fromLTWH(2, 2, w - 4, h - 4), const Radius.circular(3));
+        final rRect = RRect.fromRectAndRadius(Rect.fromLTWH(2, 2, w - 4, h - 4), Radius.circular(2 + adjust * 18));
         if (fillColor != Colors.transparent) canvas.drawRRect(rRect, fillPaint);
         canvas.drawRRect(rRect, strokePaint);
         break;
@@ -6934,7 +6934,8 @@ class _ExamShapePainter extends CustomPainter {
   bool shouldRepaint(covariant _ExamShapePainter oldDelegate) =>
       oldDelegate.kind != kind ||
       oldDelegate.strokeColor != strokeColor ||
-      oldDelegate.fillColor != fillColor;
+      oldDelegate.fillColor != fillColor ||
+      oldDelegate.adjustment != adjustment;
 }
 
 class _ArabicRadicalPainter extends CustomPainter {
