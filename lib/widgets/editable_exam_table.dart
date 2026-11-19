@@ -313,7 +313,7 @@ class _EditableExamTableState extends State<EditableExamTable> {
                 _tool(Icons.merge_type, 'دمج الخلايا المحددة', _hasRange ? _merge : null),
                 _tool(Icons.call_split, 'تقسيم الخلية المدمجة', selectedMerge != null ? _split : null),
                 _tool(Icons.crop_free, 'بدء تحديد نطاق جديد', anchorRow != null ? _resetSelection : null),
-                const Spacer(),
+                const SizedBox(width: 8),
                 Text('${rowCount}×${colCount}', style: const TextStyle(fontSize: 10)),
                 const SizedBox(width: 5),
               ],
