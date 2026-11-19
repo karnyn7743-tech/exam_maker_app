@@ -173,6 +173,8 @@ class _EditableExamTableState extends State<EditableExamTable> {
         return !(meR < b[0] || mr > b[2] || meC < b[1] || mc > b[3]);
       });
       merges.add({'row': b[0], 'col': b[1], 'rowSpan': b[2] - b[0] + 1, 'colSpan': b[3] - b[1] + 1});
+      anchorRow = focusRow = b[0];
+      anchorCol = focusCol = b[1];
     });
     _emit();
   }
@@ -181,7 +183,12 @@ class _EditableExamTableState extends State<EditableExamTable> {
     if (focusRow == null || focusCol == null) return;
     final m = _mergeAt(focusRow!, focusCol!);
     if (m == null) return;
-    setState(() { merges.remove(m); revision++; });
+    setState(() {
+      merges.remove(m);
+      revision++;
+      anchorRow = focusRow = m['row'];
+      anchorCol = focusCol = m['col'];
+    });
     _emit();
   }
 
