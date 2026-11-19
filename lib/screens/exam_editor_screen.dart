@@ -6119,7 +6119,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               ? await File(pickedFile.path!).readAsBytes()
               : null);
       if (bytes == null || bytes.isEmpty) {
-        throw Exception('تعذر الوصول إلى محتوى الملف من مدير الملفات. أعد اختيار الملف أو انسخه إلى ذاكرة الجهاز.');
+        throw Exception(
+          'تعذر الوصول إلى محتوى الملف من مدير الملفات. أعد اختيار الملف أو انسخه إلى ذاكرة الجهاز.',
+        );
       }
 
       // نحتفظ بنسخة داخل مساحة التطبيق الخاصة حتى لا ينقطع الوصول بعد إغلاق مدير الملفات.
@@ -6135,25 +6137,24 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       );
 
       setDlgState(() {
-          _exam.header.excelFilePath = path;
-          _exam.header.subjectCode = excelRes.subjectCode;
-          if (_exam.header.studentDataMode == 'none') {
-            _exam.header.studentDataMode = 'namesOnly';
-          }
-        });
-        setState(() {});
-        _measurePagesHeight();
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'تم تنشيط ورقة [${excelRes.matchedSubjectName}] لمادة (${_exam.header.subject})\nتم تحميل ${excelRes.students.length} طالباً لصف (${_exam.header.grade}).',
-              ),
-              backgroundColor: Colors.green.shade800,
-            ),
-          );
+        _exam.header.excelFilePath = path;
+        _exam.header.subjectCode = excelRes.subjectCode;
+        if (_exam.header.studentDataMode == 'none') {
+          _exam.header.studentDataMode = 'namesOnly';
         }
+      });
+      setState(() {});
+      _measurePagesHeight();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'تم تنشيط ورقة [${excelRes.matchedSubjectName}] لمادة (${_exam.header.subject})\\nتم تحميل ${excelRes.students.length} طالباً لصف (${_exam.header.grade}).',
+            ),
+            backgroundColor: Colors.green.shade800,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
