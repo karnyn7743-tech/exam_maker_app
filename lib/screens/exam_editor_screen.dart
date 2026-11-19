@@ -3229,6 +3229,32 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     final void Function(VoidCallback) refreshState = editorSetState ?? setState;
     final bool canResize = el.type == ElementType.image || el.type == ElementType.shape || el.type == ElementType.table;
 
+    Future<void> confirmDeleteElement() async {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('حذف العنصر'),
+          content: Text(el.type == ElementType.image
+              ? 'هل تريد حذف هذه الصورة من السؤال؟'
+              : el.type == ElementType.table
+                  ? 'هل تريد حذف هذا الجدول من السؤال؟'
+                  : 'هل تريد حذف هذا الشكل من السؤال؟'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('حذف'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed == true) onDeleteElement?.call();
+    }
+
     void changeWidth(double amount) {
       refreshState(() {
         el.width = (el.width + amount).clamp(50.0, 500.0).toDouble();
@@ -3350,29 +3376,6 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           data['adjustment'] = (current + (delta.dx - delta.dy) / (safeScale * 180)).clamp(0.05, 0.95);
           refreshState(() => el.content = jsonEncode(data));
         } catch (_) {}
-      }
-
-      Future<void> confirmDeleteElement() async {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: const Text('حذف العنصر'),
-            content: Text(el.type == ElementType.image
-                ? 'هل تريد حذف هذه الصورة من السؤال؟'
-                : el.type == ElementType.table
-                ? 'هل تريد حذف هذا الجدول من السؤال؟'
-                : 'هل تريد حذف هذا الشكل من السؤال؟'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('حذف'),
-              ),
-            ],
-          ),
-        );
-        if (confirmed == true) onDeleteElement?.call();
       }
 
       Widget resizeHandle(String anchor, Alignment alignment) {
