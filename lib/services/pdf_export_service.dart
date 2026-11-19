@@ -2027,7 +2027,7 @@ class PdfExportService {
         );
 
       case ElementType.table:
-        return _buildPdfCustomTable(el.content, ttf, isAr);
+        return _buildPdfCustomTable(el.content, ttf, isAr, el.width, el.height);
 
       case ElementType.shape:
         return _buildPdfCustomShape(el.content, ttf);
@@ -2127,45 +2127,82 @@ class PdfExportService {
     }
   }
 
-  static pw.Widget _buildPdfCustomTable(String jsonStr, pw.Font ttf, bool isAr) {
+  static pw.Widget _buildPdfCustomTable(
+    String jsonStr,
+    pw.Font ttf,
+    bool isAr, [
+    double tableWidth = 320,
+    double tableHeight = 120,
+  ]) {
     try {
       final Map<String, dynamic> data = jsonDecode(jsonStr);
-      final int rows = data['rows'] ?? 2;
-      final int cols = data['cols'] ?? 2;
+      final int rows = (data['rows'] as num?)?.toInt() ?? 2;
+      final int cols = (data['cols'] as num?)?.toInt() ?? 2;
       final bool hasHeader = data['hasHeader'] ?? true;
       final List<dynamic> rawGrid = data['data'] ?? [];
-
-      return pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(vertical: 4),
-        child: pw.Table(
-          border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
-          children: List.generate(rows, (r) {
-            final isHeaderRow = (r == 0 && hasHeader);
-            return pw.TableRow(
+      final List<Map<String, int>> merges =
+          (data['merges'] as List? ?? const []).whereType<Map>().map((m) =>
+            Map<String, int>.from(m.map((k, v) =>
+              MapEntry(k.toString(), (v as num).toInt())))
+          ).toList();
+      Map<String, int>? mergeAt(int r, int c) {
+        for (final m in merges) {
+          final mr = m['row'] ?? 0, mc = m['col'] ?? 0;
+          final rs = m['rowSpan'] ?? 1, cs = m['colSpan'] ?? 1;
+          if (r >= mr && r < mr + rs && c >= mc && c < mc + cs) return m;
+        }
+        return null;
+      }
+      final cellW = tableWidth / cols;
+      final cellH = tableHeight / rows;
+      final children = <pw.Widget>[];
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < cols; c++) {
+          final merge = mergeAt(r, c);
+          if (merge != null &&
+              ((merge['row'] ?? 0) != r || (merge['col'] ?? 0) != c)) {
+            continue;
+          }
+          final spanC = merge == null ? 1 : (merge['colSpan'] ?? 1);
+          final spanR = merge == null ? 1 : (merge['rowSpan'] ?? 1);
+          String text = '';
+          if (r < rawGrid.length && rawGrid[r] is List &&
+              c < (rawGrid[r] as List).length) {
+            text = rawGrid[r][c]?.toString() ?? '';
+          }
+          final visualColumn = isAr ? cols - c - spanC : c;
+          final isHeaderRow = r == 0 && hasHeader;
+          children.add(pw.Positioned(
+            left: visualColumn * cellW,
+            top: r * cellH,
+            width: cellW * spanC,
+            height: cellH * spanR,
+            child: pw.Container(
+              alignment: pw.Alignment.center,
+              padding: const pw.EdgeInsets.symmetric(vertical: 3, horizontal: 2),
               decoration: pw.BoxDecoration(
                 color: isHeaderRow ? PdfColors.grey200 : PdfColors.white,
+                border: pw.Border.all(color: PdfColors.black, width: 0.8),
               ),
-              children: List.generate(cols, (colIndex) {
-                final c = isAr ? (cols - 1 - colIndex) : colIndex;
-                String text = '';
-                if (r < rawGrid.length && c < (rawGrid[r] as List).length) {
-                  text = rawGrid[r][c]?.toString() ?? '';
-                }
-                return pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 3),
-                  child: pw.Text(
-                    text,
-                    textAlign: pw.TextAlign.center,
-                    style: pw.TextStyle(
-                      font: ttf,
-                      fontSize: isHeaderRow ? 10.0 : 9.0,
-                      fontWeight: isHeaderRow ? pw.FontWeight.bold : pw.FontWeight.normal,
-                    ),
-                  ),
-                );
-              }),
-            );
-          }),
+              child: pw.Text(
+                text,
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(
+                  font: ttf,
+                  fontSize: isHeaderRow ? 10.0 : 9.0,
+                  fontWeight: isHeaderRow ? pw.FontWeight.bold : pw.FontWeight.normal,
+                ),
+              ),
+            ),
+          ));
+        }
+      }
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 4),
+        child: pw.SizedBox(
+          width: tableWidth,
+          height: tableHeight,
+          child: pw.Stack(children: children),
         ),
       );
     } catch (_) {
