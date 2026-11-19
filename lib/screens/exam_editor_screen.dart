@@ -2322,7 +2322,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   InlineSpan _buildInlineSpanWithFractions(String text, TextStyle baseStyle) {
-    final regExp = RegExp(r'(\^\{[^}]+\}|_\{[^}]+\}|\^[0-9٠-٩+\-−=()]+|_[0-9٠-٩+\-−=()]+|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿˣʸᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐᵒᵖʳˢᵗᵘᵛʷᶻ]+|[₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓₙₕₖₗₘₚₛₜ]+)');
+    final regExp = RegExp(r'(\^\{[^}]+\}|_\{[^}]+\}|\^[0-9٠-٩+\-−=()]+|_[0-9٠-٩+\-−=()]+|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿˣʸᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐᵒᵖʳˢᵗᵘᵛʷᶻ]+|[₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓₙₕₖₗₘₚₛₜ]+|\[(كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة|تفاضل|لوغاريتم|مثلثية|جداء):(.*?)\]|✔|✘|✓|✗)');
     final matches = regExp.allMatches(text);
 
     if (matches.isEmpty) {
@@ -2621,6 +2621,25 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               ),
             ),
           );
+        } else if (type == 'تفاضل') {
+          final variable = parts.isNotEmpty ? parts[0] : (_isArabicExam ? 'س' : 'x');
+          final fn = parts.length > 1 ? parts[1] : 'f($variable)';
+          final order = parts.length > 2 ? parts[2] : '1';
+          final power = order == '1' ? '' : order;
+          children.add(WidgetSpan(alignment: PlaceholderAlignment.middle, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: Column(mainAxisSize: MainAxisSize.min, children: [Text('d$power($fn)', style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.85, fontWeight: FontWeight.bold)), Container(width: 34, height: 1, color: baseStyle.color ?? Colors.black87), Text('d$variable$power', style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.78, fontWeight: FontWeight.bold))]))));
+        } else if (type == 'لوغاريتم') {
+          final base = parts.isNotEmpty ? parts[0] : '';
+          final arg = parts.length > 1 ? parts.sublist(1).join(':') : '';
+          children.add(WidgetSpan(alignment: PlaceholderAlignment.middle, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 3), child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [Text(_isArabicExam ? 'لو' : 'log', style: baseStyle.copyWith(fontWeight: FontWeight.bold)), if (base.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 1), child: Text(base, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.62))), Text('($arg)', style: baseStyle.copyWith(fontWeight: FontWeight.bold))]))));
+        } else if (type == 'مثلثية') {
+          final fn = parts.isNotEmpty ? parts[0] : (_isArabicExam ? 'جا' : 'sin');
+          final arg = parts.length > 1 ? parts.sublist(1).join(':') : '';
+          children.add(WidgetSpan(alignment: PlaceholderAlignment.middle, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 3), child: Text('$fn($arg)', style: baseStyle.copyWith(fontWeight: FontWeight.bold)))));
+        } else if (type == 'جداء') {
+          final from = parts.isNotEmpty ? parts[0] : '';
+          final to = parts.length > 1 ? parts[1] : '';
+          final body = parts.length > 2 ? parts.sublist(2).join(':') : '';
+          children.add(WidgetSpan(alignment: PlaceholderAlignment.middle, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: Row(mainAxisSize: MainAxisSize.min, children: [Column(mainAxisSize: MainAxisSize.min, children: [Text(to, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.65, fontWeight: FontWeight.bold)), Text('Π', style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 1.25, fontWeight: FontWeight.bold)), Text(from, style: baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14) * 0.65, fontWeight: FontWeight.bold))]), if (body.isNotEmpty) Padding(padding: const EdgeInsets.only(left: 4), child: Text(body, style: baseStyle.copyWith(fontWeight: FontWeight.bold))) ]))));
         } else if (type == 'متجه') {
           final symbol = parts.isNotEmpty ? parts[0] : (_isArabicExam ? 'ق' : 'v');
           children.add(
@@ -4521,6 +4540,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       DropdownMenuItem(value: 'بار', child: Text('متوسط حسابي (شَرطة علوية ¯)')),
                       DropdownMenuItem(value: 'محدد', child: Text('محدد ثنائي 2×2 (| |)')),
                       DropdownMenuItem(value: 'مصفوفة', child: Text('مصفوفة ثنائية 2×2 ([ ])')),
+                      DropdownMenuItem(value: 'تفاضل', child: Text('مشتقة / تفاضل (d/dx)')),
+                      DropdownMenuItem(value: 'لوغاريتم', child: Text('لوغاريتم بأساس محدد (log)')),
+                      DropdownMenuItem(value: 'مثلثية', child: Text('دوال مثلثية (جا، جتا، ظا / sin, cos, tan)')),
+                      DropdownMenuItem(value: 'جداء', child: Text('رمز الجداء (Π)')),
                     ],
                     onChanged: (v) {
                       if (v != null) {
@@ -4534,6 +4557,10 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           if (v == 'متجه') { f1Ctrl.text = isAr ? 'ق' : 'v'; }
                           if (v == 'بار') { f1Ctrl.text = isAr ? 'س' : 'x'; }
                           if (v == 'محدد' || v == 'مصفوفة') { f1Ctrl.text = '2'; f2Ctrl.text = '3'; f3Ctrl.text = '1'; f4Ctrl.text = '4'; }
+                          if (v == 'تفاضل') { f1Ctrl.text = isAr ? 'س' : 'x'; f2Ctrl.text = isAr ? 'س³+٢س' : 'x^3+2x'; f3Ctrl.text = '1'; }
+                          if (v == 'لوغاريتم') { f1Ctrl.text = '10'; f2Ctrl.text = isAr ? '١٠٠' : '100'; }
+                          if (v == 'مثلثية') { f1Ctrl.text = isAr ? 'جا' : 'sin'; f2Ctrl.text = isAr ? 'س' : 'x'; }
+                          if (v == 'جداء') { f1Ctrl.text = isAr ? 'ر=١' : 'r=1'; f2Ctrl.text = isAr ? '٥' : '5'; f3Ctrl.text = isAr ? 'ر' : 'r'; }
                         });
                       }
                     },
@@ -4557,6 +4584,26 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     TextField(controller: f3Ctrl, decoration: const InputDecoration(labelText: 'المقدار المراد حسابه')),
                   ] else if (eqType == 'متجه' || eqType == 'بار') ...[
                     TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'اسم الرمز أو الكمية')),
+                  ] else if (eqType == 'تفاضل') ...[
+                    TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'متغير الاشتقاق (س أو x)')),
+                    const SizedBox(height: 6),
+                    TextField(controller: f2Ctrl, decoration: const InputDecoration(labelText: 'الدالة المراد اشتقاقها')),
+                    const SizedBox(height: 6),
+                    TextField(controller: f3Ctrl, decoration: const InputDecoration(labelText: 'رتبة المشتقة (1 أو 2 أو 3)')),
+                  ] else if (eqType == 'لوغاريتم') ...[
+                    TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'أساس اللوغاريتم (اتركه فارغاً للوغاريتم الطبيعي)')),
+                    const SizedBox(height: 6),
+                    TextField(controller: f2Ctrl, decoration: const InputDecoration(labelText: 'المقدار داخل اللوغاريتم')),
+                  ] else if (eqType == 'مثلثية') ...[
+                    TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'الدالة: جا / جتا / ظا أو sin / cos / tan')),
+                    const SizedBox(height: 6),
+                    TextField(controller: f2Ctrl, decoration: const InputDecoration(labelText: 'الزاوية أو المقدار')),
+                  ] else if (eqType == 'جداء') ...[
+                    TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'حد البداية / الأدنى')),
+                    const SizedBox(height: 6),
+                    TextField(controller: f2Ctrl, decoration: const InputDecoration(labelText: 'حد النهاية / الأعلى')),
+                    const SizedBox(height: 6),
+                    TextField(controller: f3Ctrl, decoration: const InputDecoration(labelText: 'الحد العام للجداء')),
                   ] else if (eqType == 'محدد' || eqType == 'مصفوفة') ...[
                     Row(children: [
                       Expanded(child: TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'صف١ عمود١'))),
@@ -4584,6 +4631,13 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     tag = '[$eqType:${f1Ctrl.text.trim()}]';
                   } else if (eqType == 'محدد' || eqType == 'مصفوفة') {
                     tag = '[$eqType:${f1Ctrl.text.trim()}:${f2Ctrl.text.trim()}:${f3Ctrl.text.trim()}:${f4Ctrl.text.trim()}]';
+                  } else if (eqType == 'تفاضل') {
+                    final order = f3Ctrl.text.trim().isEmpty ? '1' : f3Ctrl.text.trim();
+                    tag = '[تفاضل:${f1Ctrl.text.trim()}:${f2Ctrl.text.trim()}:$order]';
+                  } else if (eqType == 'لوغاريتم' || eqType == 'مثلثية') {
+                    tag = '[$eqType:${f1Ctrl.text.trim()}:${f2Ctrl.text.trim()}]';
+                  } else if (eqType == 'جداء') {
+                    tag = '[جداء:${f1Ctrl.text.trim()}:${f2Ctrl.text.trim()}:${f3Ctrl.text.trim()}]';
                   } else {
                     tag = '[$eqType:${f1Ctrl.text.trim()}:${f2Ctrl.text.trim()}:${f3Ctrl.text.trim()}]';
                   }

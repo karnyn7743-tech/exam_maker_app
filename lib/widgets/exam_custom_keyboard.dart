@@ -339,8 +339,8 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
   // 3. لوحة الرياضيات العربية بأزرار واسعة
   Widget _buildMathArabicLayout() {
     final r1 = ['س', 'ص', 'ع', 'د', 'ن', 'ل', 'ك', 'ق'];
-    final r2 = ['نهـا', 'مجـ', 'جا', 'جتا', 'ظا', 'لو', '∆', 'ط'];
-    final r3 = ['س²', 'ص²', 'س³', '½', '¼', '¾', '(   )'];
+    final r2 = ['نهـا', 'مجـ', 'جا', 'جتا', 'ظا', 'قتا', 'لو', '∆'];
+    final r3 = ['س²', 'س³', 'د/دس', '∫', '∑', 'Π', '∞'];
     final r4 = ['+', '-', '×', '÷', '=', '≠', '<', '>'];
 
     return Column(
@@ -401,8 +401,8 @@ class _ExamCustomKeyboardState extends State<ExamCustomKeyboard> {
   // 4. لوحة الرياضيات الإنجليزية
   Widget _buildMathEnglishLayout() {
     final r1 = ['x', 'y', 'z', 'a', 'b', 'c', 'f(x)', 'lim'];
-    final r2 = ['sin', 'cos', 'tan', 'log', 'ln', 'π', 'θ', 'Δ'];
-    final r3 = ['∫', '∑', '∞', 'x²', 'y²', '(', ')'];
+    final r2 = ['sin', 'cos', 'tan', 'cot', 'log', 'ln', 'π', 'θ'];
+    final r3 = ['∫', '∑', 'Π', 'd/dx', '∞', 'x²', '(', ')'];
     final r4 = ['+', '-', '×', '÷', '=', '≠', '≤', '≥'];
 
     return Column(

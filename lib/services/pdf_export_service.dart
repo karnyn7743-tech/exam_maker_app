@@ -1600,7 +1600,7 @@ class PdfExportService {
     // symbolic token. Ordinary styled text uses one rich run preserving fonts.
     final combined = spans.map((span) => span.text).join();
     final hasInlineSymbol = RegExp(
-      r'(\\[(?:كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):.*?\\]|✔|✘|✓|✗)',
+      r'(\\[(?:كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة|تفاضل|لوغاريتم|مثلثية|جداء):.*?\\]|✔|✘|✓|✗)',
     ).hasMatch(combined);
     if (hasInlineSymbol) {
       if (spans.length == 1) {
@@ -1697,7 +1697,7 @@ class PdfExportService {
   }) {
     final effectiveFont = fontOverride ?? ttf;
     final effectiveTextAlign = textAlign ?? (isAr ? pw.TextAlign.right : pw.TextAlign.left);
-    final regExp = RegExp(r'(\[(?:كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة):.*?\]|✔|✘|✓|✗)');
+    final regExp = RegExp(r'(\[(?:كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة|تفاضل|لوغاريتم|مثلثية|جداء):.*?\]|✔|✘|✓|✗)');
     final matches = regExp.allMatches(text);
 
     final baseTextStyle = pw.TextStyle(
@@ -1957,6 +1957,25 @@ class PdfExportService {
               ),
             ),
           );
+        } else if (type == 'تفاضل') {
+          final variable = parts.isNotEmpty ? parts[0] : (isAr ? 'س' : 'x');
+          final fn = parts.length > 1 ? parts[1] : 'f($variable)';
+          final order = parts.length > 2 ? parts[2] : '1';
+          final power = order == '1' ? '' : order;
+          spans.add(pw.WidgetSpan(child: pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 3), child: pw.Column(mainAxisSize: pw.MainAxisSize.min, children: [pw.Text('d$power($fn)', style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.82, color: textColor, fontWeight: pw.FontWeight.bold)), pw.Container(width: 34, height: 0.8, color: textColor), pw.Text('d$variable$power', style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.75, color: textColor, fontWeight: pw.FontWeight.bold))])));
+        } else if (type == 'لوغاريتم') {
+          final base = parts.isNotEmpty ? parts[0] : '';
+          final arg = parts.length > 1 ? parts.sublist(1).join(':') : '';
+          spans.add(pw.WidgetSpan(child: pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 2), child: pw.Row(mainAxisSize: pw.MainAxisSize.min, crossAxisAlignment: pw.CrossAxisAlignment.end, children: [pw.Text(isAr ? 'لو' : 'log', style: pw.TextStyle(font: effectiveFont, fontSize: fontSize, color: textColor, fontWeight: pw.FontWeight.bold)), if (base.isNotEmpty) pw.Padding(padding: const pw.EdgeInsets.only(bottom: 1), child: pw.Text(base, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.6, color: textColor))), pw.Text('($arg)', style: pw.TextStyle(font: effectiveFont, fontSize: fontSize, color: textColor, fontWeight: pw.FontWeight.bold))])));
+        } else if (type == 'مثلثية') {
+          final fn = parts.isNotEmpty ? parts[0] : (isAr ? 'جا' : 'sin');
+          final arg = parts.length > 1 ? parts.sublist(1).join(':') : '';
+          spans.add(pw.WidgetSpan(child: pw.Text('$fn($arg)', style: pw.TextStyle(font: effectiveFont, fontSize: fontSize, color: textColor, fontWeight: pw.FontWeight.bold))));
+        } else if (type == 'جداء') {
+          final from = parts.isNotEmpty ? parts[0] : '';
+          final to = parts.length > 1 ? parts[1] : '';
+          final body = parts.length > 2 ? parts.sublist(2).join(':') : '';
+          spans.add(pw.WidgetSpan(child: pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 3), child: pw.Row(mainAxisSize: pw.MainAxisSize.min, children: [pw.Column(mainAxisSize: pw.MainAxisSize.min, children: [pw.Text(to, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.62, color: textColor, fontWeight: pw.FontWeight.bold)), pw.Text('Π', style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 1.2, color: textColor, fontWeight: pw.FontWeight.bold)), pw.Text(from, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize * 0.62, color: textColor, fontWeight: pw.FontWeight.bold))]), if (body.isNotEmpty) pw.Padding(padding: const pw.EdgeInsets.only(left: 3), child: pw.Text(body, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize, color: textColor, fontWeight: pw.FontWeight.bold))) ])));
         } else if (type == 'متجه') {
           final s = parts.isNotEmpty ? parts[0] : (isAr ? 'ق' : 'v');
           spans.add(
