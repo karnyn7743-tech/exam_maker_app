@@ -3200,39 +3200,40 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
       void moveBy(Offset delta) {
         refreshState(() {
-          el.dx += delta.dx / safeScale;
-          el.dy += delta.dy / safeScale;
+          final nextX = el.dx + delta.dx / safeScale;
+          final nextY = el.dy + delta.dy / safeScale;
+          el.dx = nextX.clamp(0.0, math.max(0.0, kA4PaperWidth - el.width)).toDouble();
+          el.dy = nextY.clamp(0.0, math.max(0.0, kA4PaperHeight - el.height)).toDouble();
         });
       }
 
-      void resizeFrom(String anchor, Offset delta) {
-        final dx = delta.dx / safeScale;
-        final dy = delta.dy / safeScale;
+      void resizeFrom(String anchor, Offset totalDelta, double startX,
+          double startY, double startWidth, double startHeight) {
+        final dx = totalDelta.dx / safeScale;
+        final dy = totalDelta.dy / safeScale;
         refreshState(() {
-          var nextWidth = el.width;
-          var nextHeight = el.height;
-          var nextX = el.dx;
-          var nextY = el.dy;
+          var nextX = startX;
+          var nextY = startY;
+          var nextWidth = startWidth;
+          var nextHeight = startHeight;
           if (anchor.contains('l')) {
-            nextWidth -= dx;
-            nextX += dx;
+            final fixedRight = startX + startWidth;
+            nextWidth = (startWidth - dx).clamp(50.0, fixedRight).toDouble();
+            nextX = fixedRight - nextWidth;
           } else if (anchor.contains('r')) {
-            nextWidth += dx;
+            nextWidth = (startWidth + dx).clamp(50.0, kA4PaperWidth - startX).toDouble();
           }
           if (anchor.contains('t')) {
-            nextHeight -= dy;
-            nextY += dy;
+            final fixedBottom = startY + startHeight;
+            nextHeight = (startHeight - dy).clamp(30.0, fixedBottom).toDouble();
+            nextY = fixedBottom - nextHeight;
           } else if (anchor.contains('b')) {
-            nextHeight += dy;
+            nextHeight = (startHeight + dy).clamp(30.0, kA4PaperHeight - startY).toDouble();
           }
-          if (nextWidth >= 50 && nextWidth <= 500) {
-            el.width = nextWidth;
-            el.dx = nextX;
-          }
-          if (nextHeight >= 30 && nextHeight <= 500) {
-            el.height = nextHeight;
-            el.dy = nextY;
-          }
+          el.dx = nextX.clamp(0.0, kA4PaperWidth - nextWidth).toDouble();
+          el.dy = nextY.clamp(0.0, kA4PaperHeight - nextHeight).toDouble();
+          el.width = nextWidth;
+          el.height = nextHeight;
         });
       }
 
@@ -3268,11 +3269,37 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
       }
 
       Widget resizeHandle(String anchor, Alignment alignment) {
+        Offset? startGlobal;
+        double startX = el.dx;
+        double startY = el.dy;
+        double startWidth = el.width;
+        double startHeight = el.height;
         return Align(
           alignment: alignment,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onPanUpdate: (details) => resizeFrom(anchor, details.delta),
+            onPanStart: (details) {
+              startGlobal = details.globalPosition;
+              startX = el.dx.clamp(0.0, kA4PaperWidth - 50.0).toDouble();
+              startY = el.dy.clamp(0.0, kA4PaperHeight - 30.0).toDouble();
+              startWidth = el.width.clamp(50.0, kA4PaperWidth - startX).toDouble();
+              startHeight = el.height.clamp(30.0, kA4PaperHeight - startY).toDouble();
+              if (startX != el.dx || startY != el.dy ||
+                  startWidth != el.width || startHeight != el.height) {
+                refreshState(() {
+                  el.dx = startX;
+                  el.dy = startY;
+                  el.width = startWidth;
+                  el.height = startHeight;
+                });
+              }
+            },
+            onPanUpdate: (details) {
+              final origin = startGlobal;
+              if (origin == null) return;
+              resizeFrom(anchor, details.globalPosition - origin,
+                  startX, startY, startWidth, startHeight);
+            },
             child: Container(
               width: handle,
               height: handle,
@@ -5403,18 +5430,18 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                 height: 22,
                                 thickness: 0.8,
                               ),
-                              Expanded(
-                                child: Directionality(
-                                  textDirection: isInputArabic
-                                      ? TextDirection.rtl
-                                      : TextDirection.ltr,
+                              Directionality(
+                                textDirection: isInputArabic
+                                    ? TextDirection.rtl
+                                    : TextDirection.ltr,
+                                child: SingleChildScrollView(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.stretch,
                                     children: [
-                                      Expanded(
+                                      SizedBox(
+                                        width: double.infinity,
                                         child: TextField(
                                           controller: textCtrl,
-                                          expands: true,
                                           textAlign: selectedAlignment,
                                           textAlignVertical:
                                             TextAlignVertical.top,
@@ -5424,7 +5451,9 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                           keyboardType: useSystemKeyboard
                                             ? TextInputType.multiline
                                             : TextInputType.none,
+                                          minLines: 1,
                                           maxLines: null,
+                                          textDirection: isInputArabic ? TextDirection.rtl : TextDirection.ltr,
                                           style: TextStyle(
                                           fontFamily: currentFont,
                                           fontSize: currentFontSize,
@@ -5492,6 +5521,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                                           contentPadding: EdgeInsets.zero,
                                           isCollapsed: true,
                                           ),
+
 
                                         ),
                                       ),
