@@ -2322,7 +2322,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
   }
 
   InlineSpan _buildInlineSpanWithFractions(String text, TextStyle baseStyle) {
-    final regExp = RegExp(r'(\^\{[^}]+\}|_\{[^}]+\}|\^[0-9٠-٩+\-−=()]+|_[0-9٠-٩+\-−=()]+|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿˣʸᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐᵒᵖʳˢᵗᵘᵛʷᶻ]+|[₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓₙₕₖₗₘₚₛₜ]+|\[(كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة|تفاضل|لوغاريتم|مثلثية|جداء):(.*?)\]|✔|✘|✓|✗)');
+    final regExp = RegExp(r'(\^\{[^}]+\}|_\{[^}]+\}|\^[0-9٠-٩+\-−=()]+|_[0-9٠-٩+\-−=()]+|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿˣʸᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐᵒᵖʳˢᵗᵘᵛʷᶻ]+|[₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓₙₕₖₗₘₚₛₜ]+|\[(كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة|مصفوفة_عامة|تفاضل|لوغاريتم|مثلثية|جداء):(.*?)\]|✔|✘|✓|✗)');
     final matches = regExp.allMatches(text);
 
     if (matches.isEmpty) {
@@ -2668,6 +2668,41 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               ),
             ),
           );
+        } else if (type == 'مصفوفة_عامة') {
+          try {
+            final payload = parts.isNotEmpty ? jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts.join(':'))))) as Map<String, dynamic> : <String, dynamic>{};
+            final rows = (payload['rows'] as num?)?.toInt() ?? 0;
+            final cols = (payload['cols'] as num?)?.toInt() ?? 0;
+            final cells = (payload['cells'] as List?)?.map((e) => e.toString()).toList() ?? <String>[];
+            if (rows < 1 || rows > 6 || cols < 1 || cols > 6 || cells.length != rows * cols) {
+              children.add(Text(match.group(0) ?? '', style: baseStyle));
+            } else {
+              children.add(WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      left: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
+                      right: BorderSide(color: baseStyle.color ?? Colors.black87, width: 1.5),
+                    ),
+                  ),
+                  child: Table(
+                    defaultColumnWidth: const IntrinsicColumnWidth(),
+                    children: List.generate(rows, (ri) => TableRow(
+                      children: List.generate(cols, (ci) => Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        child: Text(cells[ri * cols + ci], textAlign: TextAlign.center, style: baseStyle),
+                      )),
+                    )),
+                  ),
+                ),
+              ));
+            }
+          } catch (_) {
+            children.add(Text(match.group(0) ?? '', style: baseStyle));
+          }
         } else if (type == 'محدد' || type == 'مصفوفة') {
           final isMatrix = type == 'مصفوفة';
           final a = parts.isNotEmpty ? parts[0] : '';
