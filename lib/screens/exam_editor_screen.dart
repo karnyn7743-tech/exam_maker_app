@@ -3175,6 +3175,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           width: el.width,
           height: el.height,
           isArabic: _isArabicExam,
+          readOnly: editorSetState == null,
           onChanged: (value) => el.content = value,
         );
         break;
