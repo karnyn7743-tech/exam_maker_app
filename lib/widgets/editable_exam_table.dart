@@ -8,6 +8,7 @@ class EditableExamTable extends StatefulWidget {
   final double width;
   final double height;
   final bool isArabic;
+  final bool readOnly;
   final ValueChanged<String> onChanged;
 
   const EditableExamTable({
@@ -16,6 +17,7 @@ class EditableExamTable extends StatefulWidget {
     required this.width,
     required this.height,
     required this.isArabic,
+    this.readOnly = false,
     required this.onChanged,
   });
 
@@ -31,6 +33,7 @@ class _EditableExamTableState extends State<EditableExamTable> {
   int? anchorCol;
   int? focusRow;
   int? focusCol;
+  int revision = 0;
 
   @override
   void initState() {
@@ -116,7 +119,7 @@ class _EditableExamTableState extends State<EditableExamTable> {
   }
 
   void _addRow() {
-    setState(() => grid.add(List.filled(grid.first.length, '')));
+    setState(() { grid.add(List.filled(grid.first.length, '')); revision++; });
     _emit();
   }
 
@@ -127,12 +130,13 @@ class _EditableExamTableState extends State<EditableExamTable> {
       grid.removeAt(r.clamp(0, grid.length - 1).toInt());
       merges.clear();
       anchorRow = focusRow = null;
+      revision++;
     });
     _emit();
   }
 
   void _addColumn() {
-    setState(() { for (final row in grid) { row.add(''); } });
+    setState(() { for (final row in grid) { row.add(''); } revision++; });
     _emit();
   }
 
@@ -143,6 +147,7 @@ class _EditableExamTableState extends State<EditableExamTable> {
       for (final row in grid) { row.removeAt(c.clamp(0, row.length - 1).toInt()); }
       merges.clear();
       anchorCol = focusCol = null;
+      revision++;
     });
     _emit();
   }
@@ -159,6 +164,7 @@ class _EditableExamTableState extends State<EditableExamTable> {
     }
     grid[b[0]][b[1]] = texts.join('\n');
     setState(() {
+      revision++;
       merges.removeWhere((m) {
         final mr = m['row'] ?? 0, mc = m['col'] ?? 0;
         final meR = mr + (m['rowSpan'] ?? 1) - 1;
@@ -174,7 +180,7 @@ class _EditableExamTableState extends State<EditableExamTable> {
     if (focusRow == null || focusCol == null) return;
     final m = _mergeAt(focusRow!, focusCol!);
     if (m == null) return;
-    setState(() => merges.remove(m));
+    setState(() { merges.remove(m); revision++; });
     _emit();
   }
 
@@ -199,7 +205,7 @@ class _EditableExamTableState extends State<EditableExamTable> {
       height: widget.height,
       child: Column(
         children: [
-          Container(
+          if (!widget.readOnly) Container(
             height: 30,
             color: const Color(0xFFE8EEF8),
             child: Row(
@@ -245,8 +251,9 @@ class _EditableExamTableState extends State<EditableExamTable> {
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
                           child: TextFormField(
-                            key: ValueKey('cell-$r-$c'),
+                            key: ValueKey('cell-$r-$c-$revision'),
                             initialValue: grid[r][c],
+                            readOnly: widget.readOnly,
                             expands: true,
                             maxLines: null,
                             minLines: null,
@@ -258,8 +265,8 @@ class _EditableExamTableState extends State<EditableExamTable> {
                               fontWeight: hasHeader && r == 0 ? FontWeight.bold : FontWeight.normal,
                             ),
                             decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                            onTap: () => _select(r, c),
-                            onChanged: (v) { grid[r][c] = v; _emit(); },
+                            onTap: widget.readOnly ? null : () => _select(r, c),
+                            onChanged: widget.readOnly ? null : (v) { grid[r][c] = v; _emit(); },
                           ),
                         ),
                       ),
