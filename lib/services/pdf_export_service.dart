@@ -858,9 +858,9 @@ class PdfExportService {
                               ),
                               pw.Expanded(
                                 child: pw.Center(
-                                  child: pw.Text(
+                                  child: _pdfScriptText(
                                     choiceTxt,
-                                    style: pw.TextStyle(font: ttf, fontSize: 8.5),
+                                    pw.TextStyle(font: ttf, fontSize: 8.5),
                                     maxLines: 1,
                                   ),
                                 ),
@@ -2185,13 +2185,23 @@ class PdfExportService {
     String text,
     pw.TextStyle style, {
     pw.TextAlign? textAlign,
+    int? maxLines,
+    bool? softWrap,
   }) {
     final spans = _pdfScriptAwareSpans(text, style);
     if (spans.length == 1 && spans.first is pw.TextSpan) {
-      return pw.Text(text, style: style, textAlign: textAlign);
+      return pw.Text(
+        text,
+        style: style,
+        textAlign: textAlign,
+        maxLines: maxLines,
+        softWrap: softWrap,
+      );
     }
     return pw.RichText(
       textAlign: textAlign,
+      maxLines: maxLines,
+      softWrap: softWrap,
       text: pw.TextSpan(children: spans, style: style),
     );
   }
@@ -2273,9 +2283,9 @@ class PdfExportService {
                                       fontSize: 13,
                                       fontWeight: pw.FontWeight.bold)),
                             ),
-                          pw.Text(
+                          _pdfScriptText(
                             val,
-                            style: pw.TextStyle(
+                            pw.TextStyle(
                               font: ttf,
                               fontSize: 13,
                               fontWeight: pw.FontWeight.bold,
@@ -2311,9 +2321,9 @@ class PdfExportService {
                 mainAxisSize: pw.MainAxisSize.min,
                 crossAxisAlignment: pw.CrossAxisAlignment.center,
                 children: [
-                  pw.Text(
+                  _pdfScriptText(
                     num,
-                    style: pw.TextStyle(font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                    pw.TextStyle(font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold),
                   ),
                   pw.Container(
                     width: lineWidth,
@@ -2321,9 +2331,9 @@ class PdfExportService {
                     color: PdfColors.black,
                     margin: const pw.EdgeInsets.symmetric(vertical: 1.5),
                   ),
-                  pw.Text(
+                  _pdfScriptText(
                     den,
-                    style: pw.TextStyle(font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                    pw.TextStyle(font: ttf, fontSize: 11, fontWeight: pw.FontWeight.bold),
                   ),
                 ],
               ),
