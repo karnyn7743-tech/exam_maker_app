@@ -4679,7 +4679,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أبعاد المصفوفة يجب أن تكون بين 1 و6')));
                       return;
                     }
-                    final matrixRows = f3Ctrl.text.trim().split(RegExp(r'\\r?\\n'));
+                    final matrixRows = f3Ctrl.text.trim().split('\n');
                     final matrixCells = <String>[];
                     for (var ri = 0; ri < rows; ri++) {
                       final rowCells = ri < matrixRows.length ? matrixRows[ri].split(',') : <String>[];
