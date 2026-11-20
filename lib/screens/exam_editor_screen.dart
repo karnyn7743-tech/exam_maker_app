@@ -2675,7 +2675,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
             final cols = (payload['cols'] as num?)?.toInt() ?? 0;
             final cells = (payload['cells'] as List?)?.map((e) => e.toString()).toList() ?? <String>[];
             if (rows < 1 || rows > 6 || cols < 1 || cols > 6 || cells.length != rows * cols) {
-              children.add(Text(match.group(0) ?? '', style: baseStyle));
+              children.add(TextSpan(text: match.group(0) ?? '', style: baseStyle));
             } else {
               children.add(WidgetSpan(
                 alignment: PlaceholderAlignment.middle,
@@ -2701,7 +2701,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
               ));
             }
           } catch (_) {
-            children.add(Text(match.group(0) ?? '', style: baseStyle));
+            children.add(TextSpan(text: match.group(0) ?? '', style: baseStyle));
           }
         } else if (type == 'محدد' || type == 'مصفوفة') {
           final isMatrix = type == 'مصفوفة';
