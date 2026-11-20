@@ -98,6 +98,8 @@ class PdfExportService {
   };
   static final Map<String, pw.Font> _pdfFontByFamily = {};
   static final Set<String> _attemptedFontFamilies = {};
+  // Reuse rich-document images across repeated student copies during one export.
+  static final Map<String, pw.MemoryImage> _pdfRichImageCache = {};
 
   static const double cm = 28.3465;
   static const double mm = 2.83465;
@@ -121,12 +123,14 @@ class PdfExportService {
     _isExporting = true;
     _pdfFontByFamily.clear();
     _attemptedFontFamilies.clear();
+    _pdfRichImageCache.clear();
     try {
       return await _exportToDownloadsPdfInternal(exam);
     } finally {
       // لا نحتفظ بكائنات الخطوط المرتبطة بمستند PDF بعد انتهاء التصدير.
       _pdfFontByFamily.clear();
       _attemptedFontFamilies.clear();
+      _pdfRichImageCache.clear();
       _isExporting = false;
     }
   }
@@ -173,7 +177,11 @@ class PdfExportService {
     }
   }
 
-  static Future<void> _preloadExamFonts(ExamModel exam, pw.Font fallback) async {
+  static Future<void> _preloadExamFonts(
+    ExamModel exam,
+    pw.Font fallback,
+    Iterable<QuestionModel> renderedQuestions,
+  ) async {
     final families = <String>{
       exam.header.adminFont,
       exam.header.basmalaFont,
@@ -181,7 +189,7 @@ class PdfExportService {
       exam.header.titleFont,
     };
 
-    for (final q in exam.questions) {
+    for (final q in renderedQuestions) {
       for (final span in q.spans) {
         if (span.fontFamily.trim().isNotEmpty) {
           families.add(span.fontFamily);
@@ -255,9 +263,6 @@ class PdfExportService {
     _pdfFontByFamily['Arial'] = ttf;
     _pdfFontByFamily['Amiri'] = ttf;
 
-    // تحميل الخطوط المستخدمة فعلياً في هذا الاختبار فقط لتوفير الذاكرة.
-    await _preloadExamFonts(exam, ttf);
-
     pw.MemoryImage? logoImage;
     if (exam.header.logoImagePath != null &&
         File(exam.header.logoImagePath!).existsSync()) {
@@ -265,14 +270,9 @@ class PdfExportService {
       logoImage = pw.MemoryImage(bytes);
     }
 
+    // Imported page images are loaded only when their page is actually added.
+    // The cache prevents re-reading the same page for every student's copy.
     final Map<String, pw.MemoryImage> importedPdfImages = {};
-    for (final imagePath in exam.importedPdfPagePaths) {
-      final imageFile = File(imagePath);
-      if (await imageFile.exists()) {
-        importedPdfImages[imagePath] =
-            pw.MemoryImage(await imageFile.readAsBytes());
-      }
-    }
 
     List<StudentData> studentList = [];
     int currentSubjectCode = 1;
@@ -320,6 +320,19 @@ class PdfExportService {
         pagesQuestions.last.add(q);
       }
     }
+    // Scan fonts only in content that will really be rendered. Imported PDF
+    // pages replace their corresponding questions, and automated exams do
+    // not render the ordinary question editor content.
+    final renderedFontQuestions = <QuestionModel>[];
+    if (!isAutomated) {
+      for (var i = 0; i < pagesQuestions.length; i++) {
+        final hasImportedPage = i < exam.importedPdfPagePaths.length &&
+            File(exam.importedPdfPagePaths[i]).existsSync();
+        if (!hasImportedPage) renderedFontQuestions.addAll(pagesQuestions[i]);
+      }
+    }
+    await _preloadExamFonts(exam, ttf, renderedFontQuestions);
+
 
     for (final student in studentsToIterate) {
       final bool hasStudent = student.seatNo.isNotEmpty;
@@ -340,6 +353,21 @@ class PdfExportService {
                 : null;
         final bool hasImportedPdfPage = importedPdfPagePath != null &&
             File(importedPdfPagePath).existsSync();
+
+        pw.MemoryImage? importedPdfImage;
+        if (hasImportedPdfPage) {
+          importedPdfImage = importedPdfImages[importedPdfPagePath];
+          if (importedPdfImage == null) {
+            try {
+              importedPdfImage = pw.MemoryImage(
+                await File(importedPdfPagePath).readAsBytes(),
+              );
+              importedPdfImages[importedPdfPagePath] = importedPdfImage;
+            } catch (_) {
+              importedPdfImage = null;
+            }
+          }
+        }
 
         pdf.addPage(
           pw.MultiPage(
@@ -499,10 +527,9 @@ class PdfExportService {
                       ),
                     ],
                     pw.SizedBox(height: 5),
-                    if (hasImportedPdfPage &&
-                        importedPdfImages.containsKey(importedPdfPagePath))
+                    if (importedPdfImage != null)
                       pw.Image(
-                        importedPdfImages[importedPdfPagePath]!,
+                        importedPdfImage,
                         width: PdfPageFormat.a4.width - 40.0,
                         fit: pw.BoxFit.fitWidth,
                         alignment: pw.Alignment.topLeft,
@@ -1551,6 +1578,16 @@ class PdfExportService {
 
   static pw.Widget? _pdfRichImage(FluentImage image) {
     try {
+      final cachedImage = _pdfRichImageCache[image.src];
+      if (cachedImage != null) {
+        const double logicalPixelToPdfPoint = 72.0 / 96.0;
+        return pw.Image(
+          cachedImage,
+          width: image.width == null ? null : image.width! * logicalPixelToPdfPoint,
+          height: image.height == null ? null : image.height! * logicalPixelToPdfPoint,
+          fit: pw.BoxFit.contain,
+        );
+      }
       Uint8List? bytes;
       if (image.src.startsWith('data:')) {
         final comma = image.src.indexOf(',');
@@ -1560,8 +1597,10 @@ class PdfExportService {
       }
       if (bytes == null) return null;
       const double logicalPixelToPdfPoint = 72.0 / 96.0;
+      final memoryImage = pw.MemoryImage(bytes);
+      _pdfRichImageCache[image.src] = memoryImage;
       return pw.Image(
-        pw.MemoryImage(bytes),
+        memoryImage,
         width: image.width == null
             ? null
             : image.width! * logicalPixelToPdfPoint,
