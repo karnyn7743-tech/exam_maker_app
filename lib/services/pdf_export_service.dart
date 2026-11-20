@@ -2570,12 +2570,15 @@ class PdfExportService {
       final int rows = (data['rows'] as num?)?.toInt() ?? 2;
       final int cols = (data['cols'] as num?)?.toInt() ?? 2;
       final bool hasHeader = data['hasHeader'] ?? true;
-            final List<dynamic> rawGrid = data['data'] ?? [];
-      final List> merges =
-          (data['merges'] as List? ?? const []).whereType().map((m) =>
-            Map<String, int>.from(m.map((k, v) =>
-              MapEntry(k.toString(), (v as num).toInt())))
-          ).toList();
+      final rawGrid = (data['data'] as List?) ?? [];
+      final rawMerges = (data['merges'] as List?) ?? const [];
+      final merges = [
+        for (final item in rawMerges)
+          if (item is Map)
+            Map<String, int>.from(
+              item.map((k, v) => MapEntry(k.toString(), (v as num).toInt())),
+            ),
+      ];
       Map<String, int>? mergeAt(int r, int c) {
         for (final m in merges) {
           final mr = m['row'] ?? 0, mc = m['col'] ?? 0;
