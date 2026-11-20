@@ -2570,7 +2570,7 @@ class PdfExportService {
       final int rows = (data['rows'] as num?)?.toInt() ?? 2;
       final int cols = (data['cols'] as num?)?.toInt() ?? 2;
       final bool hasHeader = data['hasHeader'] ?? true;
-      final List<dynamic> rawGrid = data['data'] ?? [];
+            final List<dynamic> rawGrid = data['data'] ?? [];
       final List> merges =
           (data['merges'] as List? ?? const []).whereType().map((m) =>
             Map<String, int>.from(m.map((k, v) =>
