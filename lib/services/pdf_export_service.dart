@@ -100,6 +100,8 @@ class PdfExportService {
   static final Set<String> _attemptedFontFamilies = {};
   // Reuse rich-document images across repeated student copies during one export.
   static final Map<String, pw.MemoryImage> _pdfRichImageCache = {};
+  // Reuse ordinary inserted question images across repeated student copies.
+  static final Map<String, pw.MemoryImage> _pdfElementImageCache = {};
 
   static const double cm = 28.3465;
   static const double mm = 2.83465;
@@ -124,6 +126,7 @@ class PdfExportService {
     _pdfFontByFamily.clear();
     _attemptedFontFamilies.clear();
     _pdfRichImageCache.clear();
+    _pdfElementImageCache.clear();
     try {
       return await _exportToDownloadsPdfInternal(exam);
     } finally {
@@ -131,6 +134,7 @@ class PdfExportService {
       _pdfFontByFamily.clear();
       _attemptedFontFamilies.clear();
       _pdfRichImageCache.clear();
+      _pdfElementImageCache.clear();
       _isExporting = false;
     }
   }
@@ -2462,9 +2466,15 @@ class PdfExportService {
   static pw.Widget _buildPdfElement(InsertableElement el, pw.Font ttf, bool isAr) {
     switch (el.type) {
       case ElementType.image:
-        if (File(el.content).existsSync()) {
+        // The same question image is repeated for each student copy.
+        // Reuse one MemoryImage object instead of reading/allocating it again.
+        pw.MemoryImage? img = _pdfElementImageCache[el.content];
+        if (img == null && File(el.content).existsSync()) {
           final bytes = File(el.content).readAsBytesSync();
-          final img = pw.MemoryImage(bytes);
+          img = pw.MemoryImage(bytes);
+          _pdfElementImageCache[el.content] = img;
+        }
+        if (img != null) {
           return pw.Padding(
             padding: const pw.EdgeInsets.symmetric(vertical: 4),
             child: pw.Center(child: pw.Image(img, height: el.height, width: el.width)),
