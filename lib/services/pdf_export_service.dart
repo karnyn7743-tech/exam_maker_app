@@ -1976,7 +1976,6 @@ class PdfExportService {
                 ),
               ),
             ),
-            ),
           );
         } else if (type == 'لوغاريتم') {
           final base = parts.isNotEmpty ? parts[0] : '';
@@ -1999,7 +1998,6 @@ class PdfExportService {
                   ],
                 ),
               ),
-            ),
             ),
           );
         } else if (type == 'مثلثية') {
