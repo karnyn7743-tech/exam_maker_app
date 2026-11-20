@@ -33,7 +33,7 @@ dependencies:
   file_picker: ^8.0.0
   image_picker: ^1.1.0
   excel: ^4.0.6
-  xml: ^6.5.0
+  xml: ^7.1.0
   open_filex: ^4.5.0
   barcode: ^2.2.8
   uuid: ^4.4.0
@@ -50,9 +50,9 @@ dev_dependencies:
   flutter_lints: ^3.0.0
 
 dependency_overrides:
-  # pdf 3.13.1 uses only XML APIs that remain compatible with 6.6.1;
-  # keep Excel 4.x on its supported XML major while using PDF file streaming.
-  xml: 6.6.1
+  # pdf 3.13.1 requires XML 7. Excel 4.x declares XML 6, but the XML
+  # operations used by its parser remain source-compatible with XML 7.1.
+  xml: 7.1.0
 
 flutter:
   uses-material-design: true
