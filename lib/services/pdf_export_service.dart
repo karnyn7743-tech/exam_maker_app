@@ -72,13 +72,17 @@ class PdfExportService {
       } else {
         final baseSize = baseStyle.fontSize ?? 11;
         result.add(pw.WidgetSpan(
-          // PDF WidgetSpan positions its child from the text baseline.
-          // A negative baseline raises superscripts; a positive baseline
-          // lowers subscripts while keeping both on the same text line.
-          baseline: parsed.key ? -baseSize * 0.30 : baseSize * 0.20,
-          child: pw.Text(
-            parsed.value,
-            style: baseStyle.copyWith(fontSize: baseSize * 0.62),
+          // Translate the smaller script glyph visually without increasing
+          // the parent line's layout height or forcing a new wrapped line.
+          child: pw.Transform.translate(
+            offset: PdfPoint(
+              0,
+              parsed.key ? baseSize * 0.30 : -baseSize * 0.20,
+            ),
+            child: pw.Text(
+              parsed.value,
+              style: baseStyle.copyWith(fontSize: baseSize * 0.62),
+            ),
           ),
         ));
       }
@@ -110,7 +114,43 @@ class PdfExportService {
     return '$mark $unit';
   }
 
+  static bool _isExporting = false;
+
+  static String _normalizePdfFontFamily(String? family) =>
+      (family ?? '').toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  static void _collectPdfFontFamilies(dynamic value, Set<String> families) {
+    if (value is Map) {
+      final family = value['fontFamily'];
+      if (family is String && family.trim().isNotEmpty) {
+        families.add(_normalizePdfFontFamily(family));
+      }
+      for (final child in value.values) {
+        _collectPdfFontFamilies(child, families);
+      }
+    } else if (value is Iterable) {
+      for (final child in value) {
+        _collectPdfFontFamilies(child, families);
+      }
+    }
+  }
+
   static Future<String> exportToDownloadsPdf(ExamModel exam) async {
+    if (_isExporting) {
+      throw StateError('توجد عملية تصدير PDF أخرى قيد التنفيذ.');
+    }
+    _isExporting = true;
+    _pdfFontByFamily.clear();
+    try {
+      return await _exportToDownloadsPdfInternal(exam);
+    } finally {
+      // لا نحتفظ بكائنات الخطوط المرتبطة بمستند PDF بعد انتهاء التصدير.
+      _pdfFontByFamily.clear();
+      _isExporting = false;
+    }
+  }
+
+  static Future<String> _exportToDownloadsPdfInternal(ExamModel exam) async {
     final pdf = pw.Document();
 
     ByteData fontData;
@@ -128,8 +168,38 @@ class PdfExportService {
       }
     }
     final ttf = pw.Font.ttf(fontData);
-    _pdfFontByFamily.clear();
+
+    // Load only font families actually referenced by this exam. Loading the
+    // entire application font catalog for every PDF export wastes substantial
+    // memory, especially on devices with limited RAM.
+    final requiredFontFamilies = <String>{
+      'arial',
+      'amiri',
+      _normalizePdfFontFamily(exam.header.basmalaFont),
+      _normalizePdfFontFamily(exam.header.titleFont),
+      _normalizePdfFontFamily(exam.header.adminFont),
+      _normalizePdfFontFamily(exam.header.detailsFont),
+    };
+    for (final question in exam.questions) {
+      for (final span in question.spans) {
+        requiredFontFamilies.add(_normalizePdfFontFamily(span.fontFamily));
+      }
+      final richJson = question.richDocumentJson;
+      if (richJson != null && richJson.isNotEmpty) {
+        try {
+          _collectPdfFontFamilies(jsonDecode(richJson), requiredFontFamilies);
+        } catch (_) {
+          // Invalid rich JSON is handled by the existing plain-text fallback.
+        }
+      }
+    }
+
     for (final entry in _fontAssetPaths.entries) {
+      final normalizedFamily = _normalizePdfFontFamily(entry.key);
+      if (!requiredFontFamilies.contains(normalizedFamily) ||
+          normalizedFamily == 'arial') {
+        continue;
+      }
       try {
         final data = await rootBundle.load(entry.value);
         _pdfFontByFamily[entry.key] = pw.Font.ttf(data);
@@ -137,7 +207,7 @@ class PdfExportService {
         // A missing optional font falls back to the document's base font.
       }
     }
-    _pdfFontByFamily.putIfAbsent('Arial', () => ttf);
+    _pdfFontByFamily['Arial'] = ttf;
     _pdfFontByFamily.putIfAbsent('Amiri', () => ttf);
 
     pw.MemoryImage? logoImage;
@@ -1311,6 +1381,33 @@ class PdfExportService {
     return widgets;
   }
 
+  static List<pw.InlineSpan> _pdfRichFragmentSpans(
+    Fragment fragment,
+    pw.TextStyle style,
+  ) {
+    final styles = fragment.styles ?? const <String>[];
+    final isSuperscript = styles.contains('superscript');
+    final isSubscript = styles.contains('subscript');
+    if (isSuperscript || isSubscript) {
+      final baseSize = style.fontSize ?? 11;
+      return [
+        pw.WidgetSpan(
+          child: pw.Transform.translate(
+            offset: PdfPoint(
+              0,
+              isSuperscript ? baseSize * 0.30 : -baseSize * 0.20,
+            ),
+            child: pw.Text(
+              fragment.text,
+              style: style.copyWith(fontSize: baseSize * 0.62),
+            ),
+          ),
+        ),
+      ];
+    }
+    return _pdfScriptAwareSpans(fragment.text, style);
+  }
+
   static pw.Widget _buildPdfRichParagraph(
     Paragraph paragraph,
     pw.Font font,
@@ -1334,7 +1431,7 @@ class PdfExportService {
           } else if (child is Fragment) {
             final childStyle = _pdfRichTextStyle(child, paragraphStyle, font);
             spans.add(pw.TextSpan(
-              children: _pdfScriptAwareSpans(child.text, childStyle),
+              children: _pdfRichFragmentSpans(child, childStyle),
               style: childStyle,
             ));
           }
@@ -1345,7 +1442,7 @@ class PdfExportService {
       } else if (fragment is Fragment) {
         final fragmentStyle = _pdfRichTextStyle(fragment, paragraphStyle, font);
         spans.add(pw.TextSpan(
-          children: _pdfScriptAwareSpans(fragment.text, fragmentStyle),
+          children: _pdfRichFragmentSpans(fragment, fragmentStyle),
           style: fragmentStyle,
         ));
       }
