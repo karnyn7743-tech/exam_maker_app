@@ -1600,7 +1600,7 @@ class PdfExportService {
     // symbolic token. Ordinary styled text uses one rich run preserving fonts.
     final combined = spans.map((span) => span.text).join();
     final hasInlineSymbol = RegExp(
-      r'(\[(?:كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة|تفاضل|لوغاريتم|مثلثية|جداء):.*?\]|✔|✘|✓|✗)',
+      r'(\[(?:كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة|مصفوفة_عامة|تفاضل|لوغاريتم|مثلثية|جداء):.*?\]|✔|✘|✓|✗)',
     ).hasMatch(combined);
     if (hasInlineSymbol) {
       if (spans.length == 1) {
@@ -2059,6 +2059,41 @@ class PdfExportService {
               ),
             ),
           );
+        } else if (type == 'مصفوفة_عامة') {
+          try {
+            final payload = parts.isNotEmpty
+                ? jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts.join(':'))))) as Map<String, dynamic>
+                : <String, dynamic>{};
+            final rows = (payload['rows'] as num?)?.toInt() ?? 0;
+            final cols = (payload['cols'] as num?)?.toInt() ?? 0;
+            final cells = (payload['cells'] as List?)?.map((e) => e.toString()).toList() ?? <String>[];
+            if (rows < 1 || rows > 6 || cols < 1 || cols > 6 || cells.length != rows * cols) {
+              spans.add(pw.Text(match.group(0) ?? '', style: pw.TextStyle(font: effectiveFont, fontSize: fontSize, color: textColor)));
+            } else {
+              spans.add(pw.WidgetSpan(
+                child: pw.Container(
+                  margin: const pw.EdgeInsets.symmetric(horizontal: 4),
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border(
+                      left: pw.BorderSide(color: textColor, width: 1.5),
+                      right: pw.BorderSide(color: textColor, width: 1.5),
+                    ),
+                  ),
+                  child: pw.Table(
+                    children: List.generate(rows, (ri) => pw.TableRow(
+                      children: List.generate(cols, (ci) => pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        child: pw.Text(cells[ri * cols + ci], textAlign: pw.TextAlign.center, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize, color: textColor)),
+                      )),
+                    )),
+                  ),
+                ),
+              ));
+            }
+          } catch (_) {
+            spans.add(pw.Text(match.group(0) ?? '', style: pw.TextStyle(font: effectiveFont, fontSize: fontSize, color: textColor)));
+          }
         } else if (type == 'محدد' || type == 'مصفوفة') {
           final isMatrix = type == 'مصفوفة';
           final a = parts.isNotEmpty ? parts[0] : '';
