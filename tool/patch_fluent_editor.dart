@@ -23,6 +23,7 @@ Future<void> main() async {
 
   final rootUri = Uri.parse(package['rootUri'] as String);
   await patchTouchSelection(rootUri);
+  await patchCaretLineResolution(rootUri);
   await patchImageFloating(rootUri);
   await patchCaretLineResolution(rootUri);
 }
@@ -390,4 +391,88 @@ Future<void> patchCaretLineResolution(Uri rootUri) async {
   source = source.replaceFirst(oldBlock, newBlock);
   await file.writeAsString(source);
   stdout.writeln('Applied baseline-aware caret line resolution for superscript/subscript text.');
+}
+
+/// Uses TextPainter's canonical caret geometry for vertical navigation.
+/// Character boxes can have different heights (Arabic marks, superscripts,
+/// subscripts and mixed fonts); using their centers makes positions on the
+/// same visual line appear to have different Y coordinates.
+Future<void> patchCaretLineResolution(Uri rootUri) async {
+  final uri = rootUri.resolve('lib/renderers/render_paragraph.dart');
+  final file = File.fromUri(uri);
+  if (!await file.exists()) {
+    stderr.writeln('Fluent Editor paragraph renderer was not found: $uri');
+    exitCode = 1;
+    return;
+  }
+
+  var source = await file.readAsString();
+  const oldMethod = '''  double? getCaretY(String fragmentId, int localOffset) {
+    final globalOffset = _localToGlobal(fragmentId, localOffset);
+    if (globalOffset == null) return null;
+
+    TextBox? charBox;
+    final textLength = _painter.text?.toPlainText().length ?? 0;
+    if (globalOffset > 0 && globalOffset <= textLength) {
+      final boxes = _painter.getBoxesForSelection(
+        TextSelection(baseOffset: globalOffset - 1, extentOffset: globalOffset),
+      );
+      if (boxes.isNotEmpty) charBox = boxes.first;
+    } else if (globalOffset == 0 && textLength > 0) {
+      final boxes = _painter.getBoxesForSelection(
+        TextSelection(baseOffset: 0, extentOffset: 1),
+      );
+      if (boxes.isNotEmpty) charBox = boxes.first;
+    }
+
+    if (charBox != null) {
+      if (_lineMetricsDirty || _cachedLineMetrics == null) {
+        _cachedLineMetrics = _painter.computeLineMetrics();
+        _lineMetricsDirty = false;
+      }
+      final lineMetrics = _cachedLineMetrics!;
+      for (final lm in lineMetrics) {
+        if (lm.baseline >= charBox.top && lm.baseline <= charBox.bottom) {
+          return localToGlobal(Offset(0, lm.baseline)).dy;
+        }
+      }
+      return localToGlobal(Offset(0, (charBox.top + charBox.bottom) / 2)).dy;
+    }
+
+    final caretOffset = _painter.getOffsetForCaret(
+      TextPosition(offset: globalOffset),
+      Rect.zero,
+    );
+    return localToGlobal(caretOffset).dy;
+  }''';
+
+  const patchedMethod = '''  double? getCaretY(String fragmentId, int localOffset) {
+    final globalOffset = _localToGlobal(fragmentId, localOffset);
+    if (globalOffset == null) return null;
+
+    // Always use the same TextPainter caret geometry for every character.
+    // Character selection boxes are glyph-dependent: diacritics, tall Arabic
+    // letters and superscript/subscript fragments have different bounds even
+    // when they occupy one visual line. Their centers must not be interpreted
+    // as separate lines by ArrowUp/ArrowDown navigation.
+    final caretOffset = _painter.getOffsetForCaret(
+      TextPosition(offset: globalOffset),
+      Rect.zero,
+    );
+    return localToGlobal(Offset(0, caretOffset.dy)).dy;
+  }''';
+
+  if (source.contains(patchedMethod)) {
+    stdout.writeln('Caret line-resolution patch already applied.');
+    return;
+  }
+  if (!source.contains(oldMethod)) {
+    stderr.writeln('Expected getCaretY implementation was not found; refusing unsafe caret patch.');
+    exitCode = 1;
+    return;
+  }
+
+  source = source.replaceFirst(oldMethod, patchedMethod);
+  await file.writeAsString(source);
+  stdout.writeln('Applied consistent TextPainter caret-line resolution patch.');
 }
