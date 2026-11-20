@@ -24,6 +24,7 @@ Future<void> main() async {
   final rootUri = Uri.parse(package['rootUri'] as String);
   await patchTouchSelection(rootUri);
   await patchImageFloating(rootUri);
+  await patchCaretLineResolution(rootUri);
 }
 
 Future<void> patchTouchSelection(Uri rootUri) async {
@@ -329,4 +330,64 @@ Future<void> patchImageFloating(Uri rootUri) async {
 
   await imageFile.writeAsString(source);
   stdout.writeln('Applied persisted free-drag image overlay patch (x/y) with independent resize handles.');
+}
+
+
+/// Keep superscript/subscript caret stops attached to their actual text line.
+/// TextPainter's glyph box can be vertically shifted for scripts; using the
+/// glyph-box center as the line Y can make one visual line appear to be
+/// several navigation rows. Resolve every caret to the nearest paragraph
+/// baseline instead.
+Future<void> patchCaretLineResolution(Uri rootUri) async {
+  final uri = rootUri.resolve('lib/renderers/render_paragraph.dart');
+  final file = File.fromUri(uri);
+  if (!await file.exists()) {
+    stderr.writeln('Fluent Editor paragraph renderer was not found: $uri');
+    exitCode = 1;
+    return;
+  }
+
+  var source = await file.readAsString();
+  const oldBlock = '''      final lineMetrics = _cachedLineMetrics!;
+      for (final lm in lineMetrics) {
+        if (lm.baseline >= charBox.top && lm.baseline <= charBox.bottom) {
+          return localToGlobal(Offset(0, lm.baseline)).dy;
+        }
+      }
+      return localToGlobal(Offset(0, (charBox.top + charBox.bottom) / 2)).dy;''';
+  const newBlock = '''      final lineMetrics = _cachedLineMetrics!;
+      if (lineMetrics.isEmpty) {
+        return localToGlobal(
+          Offset(0, (charBox.top + charBox.bottom) / 2),
+        ).dy;
+      }
+
+      // Superscript/subscript glyph boxes may sit above/below the main
+      // baseline. Associate the caret with the closest real line baseline,
+      // rather than treating the shifted glyph box as a separate line.
+      final glyphCenterY = (charBox.top + charBox.bottom) / 2;
+      var nearestBaseline = lineMetrics.first.baseline;
+      var nearestDistance = (nearestBaseline - glyphCenterY).abs();
+      for (final metric in lineMetrics.skip(1)) {
+        final distance = (metric.baseline - glyphCenterY).abs();
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestBaseline = metric.baseline;
+        }
+      }
+      return localToGlobal(Offset(0, nearestBaseline)).dy;''';
+
+  if (source.contains(newBlock)) {
+    stdout.writeln('Caret line-baseline resolution is already applied.');
+    return;
+  }
+  if (!source.contains(oldBlock)) {
+    stderr.writeln('Expected caret Y-resolution block was not found; refusing an unsafe renderer patch.');
+    exitCode = 1;
+    return;
+  }
+
+  source = source.replaceFirst(oldBlock, newBlock);
+  await file.writeAsString(source);
+  stdout.writeln('Applied baseline-aware caret line resolution for superscript/subscript text.');
 }
