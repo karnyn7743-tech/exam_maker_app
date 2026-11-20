@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:barcode/barcode.dart';
-import 'package:better_download_saver/better_download_saver.dart';
+import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart' show TextAlign;
 import 'package:flutter/services.dart';
 import 'package:fluent_editor/factories.dart';
@@ -552,8 +552,6 @@ class PdfExportService {
       }
     }
 
-    final pdfBytes = await pdf.save();
-
     final gradeName = exam.header.grade.trim().isNotEmpty ? exam.header.grade.trim() : 'عام';
     final subjectName = exam.header.subject.trim().isNotEmpty ? exam.header.subject.trim() : 'مادة';
     final typeName = isAutomated ? (isAr ? 'مؤتمت' : 'Automated') : (isAr ? 'شامل' : 'Comprehensive');
@@ -566,32 +564,66 @@ class PdfExportService {
     final safeName = nameToUse.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     final fileName = '$safeName.pdf';
 
+    // Write directly to a file-backed stream. Unlike save(), this avoids
+    // materializing a second full PDF byte array and avoids copying the
+    // complete document graph to a background isolate.
+    Directory outputDir;
+    File? temporaryPdfFile;
     try {
-      final saver = BetterDownloadSaver();
-      final String? savedPath = await saver.saveToDownloads(
-        fileName: fileName,
-        bytes: pdfBytes,
-      );
-      if (savedPath != null && savedPath.isNotEmpty) {
-        return savedPath;
-      }
-    } catch (_) {}
-
-    try {
-      Directory fallbackDir;
       if (Platform.isAndroid) {
-        fallbackDir = (await getExternalStorageDirectory()) ??
+        outputDir = (await getExternalStorageDirectory()) ??
             await getApplicationDocumentsDirectory();
       } else {
-        fallbackDir = await getApplicationDocumentsDirectory();
+        outputDir = await getApplicationDocumentsDirectory();
       }
-      if (!fallbackDir.existsSync()) {
-        fallbackDir.createSync(recursive: true);
+      if (!await outputDir.exists()) {
+        await outputDir.create(recursive: true);
       }
-      final fallbackPath = '${fallbackDir.path}/$fileName';
-      await File(fallbackPath).writeAsBytes(pdfBytes, flush: true);
-      return fallbackPath;
+
+      temporaryPdfFile = File(
+        '${outputDir.path}/.pdf_export_${DateTime.now().microsecondsSinceEpoch}.tmp',
+      );
+      final outputStream = _FileBackedPdfStream(
+        temporaryPdfFile.openSync(mode: FileMode.writeOnly),
+      );
+      try {
+        await pdf.write(outputStream, enableEventLoopBalancing: true);
+        outputStream.flush();
+      } finally {
+        outputStream.close();
+      }
+
+      // FileSaver copies from the source path into Downloads through
+      // MediaStore on Android, without sending the whole PDF over a channel.
+      try {
+        final savedPath = await FileSaver.instance.saveToDownloads(
+          name: safeName,
+          filePath: temporaryPdfFile.path,
+          fileExtension: 'pdf',
+          mimeType: MimeType.pdf,
+        );
+        if (savedPath != null && savedPath.isNotEmpty) {
+          try {
+            await temporaryPdfFile.delete();
+          } catch (_) {}
+          return savedPath;
+        }
+      } catch (_) {
+        // Keep the generated file as the app-storage fallback below.
+      }
+
+      final fallbackPath = '${outputDir.path}/$fileName';
+      final fallbackFile = File(fallbackPath);
+      if (await fallbackFile.exists()) {
+        await fallbackFile.delete();
+      }
+      return (await temporaryPdfFile.rename(fallbackPath)).path;
     } catch (e) {
+      if (temporaryPdfFile != null && await temporaryPdfFile.exists()) {
+        try {
+          await temporaryPdfFile.delete();
+        } catch (_) {}
+      }
       throw Exception('تعذر حفظ ملف PDF: $e');
     }
   }
@@ -2849,4 +2881,58 @@ class PdfExportService {
       return pw.SizedBox.shrink();
     }
   }
+
+/// File-backed PdfStream used by pdf 3.13.1's streaming writer.
+/// It supports sequential writes and random-access patches without retaining
+/// the complete output in a Dart byte buffer.
+class _FileBackedPdfStream extends PdfStream {
+  _FileBackedPdfStream(this._file);
+
+  final RandomAccessFile _file;
+  int _fileOffset = 0;
+
+  @override
+  int get offset => _fileOffset;
+
+  @override
+  void putByte(int value) {
+    _file.writeByteSync(value & 0xff);
+    _fileOffset++;
+  }
+
+  @override
+  void putBytes(List<int> bytes) {
+    if (bytes.isEmpty) return;
+    _file.writeFromSync(bytes);
+    _fileOffset += bytes.length;
+  }
+
+  @override
+  void setBytes(int offset, Iterable<int> iterable) {
+    final bytes = iterable is List<int>
+        ? iterable
+        : iterable.toList(growable: false);
+    final restoreOffset = _fileOffset;
+    _file.setPositionSync(offset);
+    _file.writeFromSync(bytes);
+    _file.setPositionSync(restoreOffset);
+  }
+
+  @override
+  void putStream(PdfStream source) {
+    putBytes(source.output());
+  }
+
+  @override
+  Uint8List output() {
+    throw UnsupportedError(
+      'A file-backed PDF output stream cannot be materialized in memory.',
+    );
+  }
+
+  void flush() => _file.flushSync();
+
+  void close() => _file.closeSync();
+}
+
 }
