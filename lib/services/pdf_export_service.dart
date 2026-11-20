@@ -94,7 +94,7 @@ class PdfExportService {
 
   // The PDF exporter reads the same font catalog used by the editor toolbar.
   static final Map<String, String> _fontAssetPaths = {
-    for (final item in appFontsList) item['id']!: item['asset']!,
+    for (final item in allAppFontsList) item['id']!: item['asset']!,
   };
   static final Map<String, pw.Font> _pdfFontByFamily = {};
   static final Set<String> _attemptedFontFamilies = {};
