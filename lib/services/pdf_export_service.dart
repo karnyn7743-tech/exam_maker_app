@@ -1697,7 +1697,7 @@ class PdfExportService {
   }) {
     final effectiveFont = fontOverride ?? ttf;
     final effectiveTextAlign = textAlign ?? (isAr ? pw.TextAlign.right : pw.TextAlign.left);
-    final regExp = RegExp(r'(\[(?:كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة|تفاضل|لوغاريتم|مثلثية|جداء):.*?\]|✔|✘|✓|✗)');
+    final regExp = RegExp(r'(\[(?:كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة|مصفوفة_عامة|تفاضل|لوغاريتم|مثلثية|جداء):.*?\]|✔|✘|✓|✗)');
     final matches = regExp.allMatches(text);
 
     final baseTextStyle = pw.TextStyle(
