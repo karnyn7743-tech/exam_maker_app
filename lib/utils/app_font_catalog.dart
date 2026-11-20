@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 typedef FontItem = Map<String, String>;
 
 /// مصدر واحد لقائمة الخطوط المعتمدة في جميع أدوات التطبيق.
-const List<FontItem> appFontsList = [
+const List<FontItem> allAppFontsList = [
   {'id': 'Amiri', 'name': 'خط الأميري (الافتراضي)', 'asset': 'assets/fonts/Amiri-Regular.ttf'},
   {'id': 'Hafs', 'name': 'مصحف حفص (عثماني)', 'asset': 'assets/fonts/hafs_v22.ttf'},
   {'id': 'Thuluth', 'name': 'خط الثلث', 'asset': 'assets/fonts/Thuluth.ttf'},
@@ -39,3 +39,29 @@ const List<FontItem> appFontsList = [
   {'id': 'RSwanky', 'name': 'R-Swanky', 'asset': 'assets/fonts/rSwanky-Regular.ttf'},
   {'id': 'SMono', 'name': 'خط أحادي', 'asset': 'assets/fonts/sMono.ttf'},
 ];
+
+
+/// الخطوط التي تظهر للمستخدم في قائمة الاختيار الجديدة.
+/// لا نحذف بقية الخطوط: تبقى مسجلة لدعم الاختبارات القديمة المحفوظة.
+const Set<String> primaryAppFontIds = {
+  'Amiri',
+  'Arial',
+  'Almarai',
+  'Tahrir',
+  'Changa',
+  'Kufam',
+  'Rubik',
+  'Hafs',
+  'Thuluth',
+  'ElHijaz',
+  'SultanCtangle',
+  'JsMath',
+  'SMono',
+  'Schoolbell',
+  'Satisfy',
+};
+
+/// قائمة واجهة الاختيار فقط؛ سجل الخطوط الكامل يبقى متاحاً للمحرر وPDF.
+List<FontItem> get appFontsList => allAppFontsList
+    .where((font) => primaryAppFontIds.contains(font['id']))
+    .toList(growable: false);
