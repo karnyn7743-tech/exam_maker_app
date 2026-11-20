@@ -72,12 +72,13 @@ class PdfExportService {
       } else {
         final baseSize = baseStyle.fontSize ?? 11;
         result.add(pw.WidgetSpan(
-          child: pw.Transform.translate(
-            offset: PdfPoint(0, parsed.key ? baseSize * 0.30 : -baseSize * 0.20),
-            child: pw.Text(
-              parsed.value,
-              style: baseStyle.copyWith(fontSize: baseSize * 0.62),
-            ),
+          // PDF WidgetSpan positions its child from the text baseline.
+          // A negative baseline raises superscripts; a positive baseline
+          // lowers subscripts while keeping both on the same text line.
+          baseline: parsed.key ? -baseSize * 0.30 : baseSize * 0.20,
+          child: pw.Text(
+            parsed.value,
+            style: baseStyle.copyWith(fontSize: baseSize * 0.62),
           ),
         ));
       }
