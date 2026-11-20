@@ -65,9 +65,9 @@ class PdfExportService {
       if (match.start > lastIndex) {
         result.add(pw.TextSpan(text: text.substring(lastIndex, match.start)));
       }
-      final parsed = _parsePdfScriptToken(match.group(0) ?? '');
+      final parsed = _parsePdfScriptToken(matchedStr);
       if (parsed == null) {
-        result.add(pw.TextSpan(text: match.group(0) ?? ''));
+        result.add(pw.TextSpan(text: matchedStr));
       } else {
         final baseSize = baseStyle.fontSize ?? 11;
         result.add(pw.WidgetSpan(
@@ -2068,7 +2068,7 @@ class PdfExportService {
             final cols = (payload['cols'] as num?)?.toInt() ?? 0;
             final cells = (payload['cells'] as List?)?.map((e) => e.toString()).toList() ?? <String>[];
             if (rows < 1 || rows > 6 || cols < 1 || cols > 6 || cells.length != rows * cols) {
-              spans.add(pw.TextSpan(text: match.group(0) ?? '', style: pw.TextStyle(font: effectiveFont, fontSize: fontSize, color: textColor)));
+              spans.add(pw.TextSpan(text: matchedStr, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize, color: textColor)));
             } else {
               spans.add(pw.WidgetSpan(
                 child: pw.Container(
@@ -2092,7 +2092,7 @@ class PdfExportService {
               ));
             }
           } catch (_) {
-            spans.add(pw.TextSpan(text: match.group(0) ?? '', style: pw.TextStyle(font: effectiveFont, fontSize: fontSize, color: textColor)));
+            spans.add(pw.TextSpan(text: matchedStr, style: pw.TextStyle(font: effectiveFont, fontSize: fontSize, color: textColor)));
           }
         } else if (type == 'محدد' || type == 'مصفوفة') {
           final isMatrix = type == 'مصفوفة';
