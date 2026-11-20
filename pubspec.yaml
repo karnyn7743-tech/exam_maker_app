@@ -18,10 +18,11 @@ dependencies:
   shared_preferences: ^2.2.3
   permission_handler: ^11.3.1
   better_download_saver: ^0.0.1
+  file_saver: ^0.7.0
   receive_sharing_intent: ^1.8.0
   
   # حزم معالجة الوثائق والملفات والطباعة المباشرة
-  pdf: ^3.12.0
+  pdf: ^3.13.1
   pdfx: ^2.6.0
   fluent_editor:
     git:
@@ -47,6 +48,11 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+
+dependency_overrides:
+  # pdf 3.13.1 uses only XML APIs that remain compatible with 6.6.1;
+  # keep Excel 4.x on its supported XML major while using PDF file streaming.
+  xml: 6.6.1
 
 flutter:
   uses-material-design: true
