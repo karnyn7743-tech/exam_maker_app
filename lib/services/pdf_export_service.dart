@@ -116,24 +116,6 @@ class PdfExportService {
 
   static bool _isExporting = false;
 
-  static String _normalizePdfFontFamily(String? family) =>
-      (family ?? '').toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-
-  static void _collectPdfFontFamilies(dynamic value, Set<String> families) {
-    if (value is Map) {
-      final family = value['fontFamily'];
-      if (family is String && family.trim().isNotEmpty) {
-        families.add(_normalizePdfFontFamily(family));
-      }
-      for (final child in value.values) {
-        _collectPdfFontFamilies(child, families);
-      }
-    } else if (value is Iterable) {
-      for (final child in value) {
-        _collectPdfFontFamilies(child, families);
-      }
-    }
-  }
 
   static Future<String> exportToDownloadsPdf(ExamModel exam) async {
     if (_isExporting) {
@@ -169,37 +151,8 @@ class PdfExportService {
     }
     final ttf = pw.Font.ttf(fontData);
 
-    // Load only font families actually referenced by this exam. Loading the
-    // entire application font catalog for every PDF export wastes substantial
-    // memory, especially on devices with limited RAM.
-    final requiredFontFamilies = <String>{
-      'arial',
-      'amiri',
-      _normalizePdfFontFamily(exam.header.basmalaFont),
-      _normalizePdfFontFamily(exam.header.titleFont),
-      _normalizePdfFontFamily(exam.header.adminFont),
-      _normalizePdfFontFamily(exam.header.detailsFont),
-    };
-    for (final question in exam.questions) {
-      for (final span in question.spans) {
-        requiredFontFamilies.add(_normalizePdfFontFamily(span.fontFamily));
-      }
-      final richJson = question.richDocumentJson;
-      if (richJson != null && richJson.isNotEmpty) {
-        try {
-          _collectPdfFontFamilies(jsonDecode(richJson), requiredFontFamilies);
-        } catch (_) {
-          // Invalid rich JSON is handled by the existing plain-text fallback.
-        }
-      }
-    }
-
+    _pdfFontByFamily.clear();
     for (final entry in _fontAssetPaths.entries) {
-      final normalizedFamily = _normalizePdfFontFamily(entry.key);
-      if (!requiredFontFamilies.contains(normalizedFamily) ||
-          normalizedFamily == 'arial') {
-        continue;
-      }
       try {
         final data = await rootBundle.load(entry.value);
         _pdfFontByFamily[entry.key] = pw.Font.ttf(data);
@@ -207,7 +160,7 @@ class PdfExportService {
         // A missing optional font falls back to the document's base font.
       }
     }
-    _pdfFontByFamily['Arial'] = ttf;
+    _pdfFontByFamily.putIfAbsent('Arial', () => ttf);
     _pdfFontByFamily.putIfAbsent('Amiri', () => ttf);
 
     pw.MemoryImage? logoImage;
