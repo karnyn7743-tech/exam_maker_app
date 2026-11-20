@@ -355,7 +355,7 @@ class PdfExportService {
             File(importedPdfPagePath).existsSync();
 
         pw.MemoryImage? importedPdfImage;
-        if (hasImportedPdfPage) {
+        if (hasImportedPdfPage && importedPdfPagePath != null) {
           importedPdfImage = importedPdfImages[importedPdfPagePath];
           if (importedPdfImage == null) {
             try {
