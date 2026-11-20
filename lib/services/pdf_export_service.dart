@@ -2882,6 +2882,7 @@ class PdfExportService {
     }
   }
 
+}
 /// File-backed PdfStream used by pdf 3.13.1's streaming writer.
 /// It supports sequential writes and random-access patches without retaining
 /// the complete output in a Dart byte buffer.
@@ -2935,4 +2936,3 @@ class _FileBackedPdfStream extends PdfStream {
   void close() => _file.closeSync();
 }
 
-}
