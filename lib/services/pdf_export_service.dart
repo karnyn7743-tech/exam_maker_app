@@ -580,11 +580,12 @@ class PdfExportService {
         await outputDir.create(recursive: true);
       }
 
-      temporaryPdfFile = File(
+      final tempFile = File(
         '${outputDir.path}/.pdf_export_${DateTime.now().microsecondsSinceEpoch}.tmp',
       );
+      temporaryPdfFile = tempFile;
       final outputStream = _FileBackedPdfStream(
-        temporaryPdfFile.openSync(mode: FileMode.writeOnly),
+        tempFile.openSync(mode: FileMode.writeOnly),
       );
       try {
         await pdf.write(outputStream, enableEventLoopBalancing: true);
@@ -598,13 +599,13 @@ class PdfExportService {
       try {
         final savedPath = await FileSaver.instance.saveToDownloads(
           name: safeName,
-          filePath: temporaryPdfFile.path,
+          filePath: tempFile.path,
           fileExtension: 'pdf',
           mimeType: MimeType.pdf,
         );
         if (savedPath != null && savedPath.isNotEmpty) {
           try {
-            await temporaryPdfFile.delete();
+            await tempFile.delete();
           } catch (_) {}
           return savedPath;
         }
@@ -617,7 +618,7 @@ class PdfExportService {
       if (await fallbackFile.exists()) {
         await fallbackFile.delete();
       }
-      return (await temporaryPdfFile.rename(fallbackPath)).path;
+      return (await tempFile.rename(fallbackPath)).path;
     } catch (e) {
       if (temporaryPdfFile != null && await temporaryPdfFile.exists()) {
         try {
