@@ -15,7 +15,6 @@ import '../utils/app_font_catalog.dart';
 import 'student_excel_service.dart';
 
 class PdfExportService {
-
   static const Map<String, String> _pdfSuperscriptMap = {
     '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4',
     '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9',
@@ -72,8 +71,6 @@ class PdfExportService {
       } else {
         final baseSize = baseStyle.fontSize ?? 11;
         result.add(pw.WidgetSpan(
-          // Translate the smaller script glyph visually without increasing
-          // the parent line's layout height or forcing a new wrapped line.
           child: pw.Transform.translate(
             offset: PdfPoint(
               0,
@@ -100,6 +97,7 @@ class PdfExportService {
     for (final item in appFontsList) item['id']!: item['asset']!,
   };
   static final Map<String, pw.Font> _pdfFontByFamily = {};
+  static final Set<String> _attemptedFontFamilies = {};
 
   static const double cm = 28.3465;
   static const double mm = 2.83465;
@@ -116,19 +114,120 @@ class PdfExportService {
 
   static bool _isExporting = false;
 
-
   static Future<String> exportToDownloadsPdf(ExamModel exam) async {
     if (_isExporting) {
       throw StateError('توجد عملية تصدير PDF أخرى قيد التنفيذ.');
     }
     _isExporting = true;
     _pdfFontByFamily.clear();
+    _attemptedFontFamilies.clear();
     try {
       return await _exportToDownloadsPdfInternal(exam);
     } finally {
       // لا نحتفظ بكائنات الخطوط المرتبطة بمستند PDF بعد انتهاء التصدير.
       _pdfFontByFamily.clear();
+      _attemptedFontFamilies.clear();
       _isExporting = false;
+    }
+  }
+
+  /// تحميل خط محدد عند الحاجة إليه فقط لتقليل استهلاك الذاكرة أثناء التصدير.
+  static Future<pw.Font> _loadFontIfNeeded(String? family, pw.Font fallback) async {
+    final raw = (family ?? '').trim();
+    if (raw.isEmpty) return fallback;
+
+    final normalizedTarget = raw.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    for (final entry in _pdfFontByFamily.entries) {
+      final candidate = entry.key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+      if (candidate == normalizedTarget) {
+        return entry.value;
+      }
+    }
+
+    String? matchedKey;
+    for (final key in _fontAssetPaths.keys) {
+      final candidate = key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+      if (candidate == normalizedTarget) {
+        matchedKey = key;
+        break;
+      }
+    }
+
+    if (matchedKey == null || _attemptedFontFamilies.contains(matchedKey)) {
+      return fallback;
+    }
+
+    _attemptedFontFamilies.add(matchedKey);
+    final assetPath = _fontAssetPaths[matchedKey];
+    if (assetPath == null || assetPath.isEmpty) {
+      return fallback;
+    }
+
+    try {
+      final data = await rootBundle.load(assetPath);
+      final loadedFont = pw.Font.ttf(data);
+      _pdfFontByFamily[matchedKey] = loadedFont;
+      return loadedFont;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  static Future<void> _preloadExamFonts(ExamModel exam, pw.Font fallback) async {
+    final families = <String>{
+      exam.header.adminFont,
+      exam.header.basmalaFont,
+      exam.header.detailsFont,
+      exam.header.titleFont,
+    };
+
+    for (final q in exam.questions) {
+      for (final span in q.spans) {
+        if (span.fontFamily.trim().isNotEmpty) {
+          families.add(span.fontFamily);
+        }
+      }
+      if (q.richDocumentJson != null && q.richDocumentJson!.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(q.richDocumentJson!);
+          if (decoded is Map<String, dynamic>) {
+            final document = FluentDocument.fromJson(decoded);
+            _collectRichNodeFonts(document.content.nodes, families);
+          }
+        } catch (_) {}
+      }
+    }
+
+    for (final fam in families) {
+      await _loadFontIfNeeded(fam, fallback);
+    }
+  }
+
+  static void _collectRichNodeFonts(List<FNode> nodes, Set<String> families) {
+    for (final node in nodes) {
+      if (node is Paragraph) {
+        for (final fragment in node.fragments) {
+          if (fragment is Link) {
+            for (final child in fragment.fragments) {
+              if (child is Fragment && child.fontFamily != null && child.fontFamily!.trim().isNotEmpty) {
+                families.add(child.fontFamily!);
+              }
+            }
+          } else if (fragment is Fragment && fragment.fontFamily != null && fragment.fontFamily!.trim().isNotEmpty) {
+            families.add(fragment.fontFamily!);
+          }
+        }
+      } else if (node is FluentList) {
+        for (final item in node.items) {
+          _collectRichNodeFonts(item.children, families);
+        }
+      } else if (node is FluentTable) {
+        for (final row in node.rows) {
+          for (final cell in row.cells) {
+            _collectRichNodeFonts(cell.children, families);
+          }
+        }
+      }
     }
   }
 
@@ -152,16 +251,12 @@ class PdfExportService {
     final ttf = pw.Font.ttf(fontData);
 
     _pdfFontByFamily.clear();
-    for (final entry in _fontAssetPaths.entries) {
-      try {
-        final data = await rootBundle.load(entry.value);
-        _pdfFontByFamily[entry.key] = pw.Font.ttf(data);
-      } catch (_) {
-        // A missing optional font falls back to the document's base font.
-      }
-    }
-    _pdfFontByFamily.putIfAbsent('Arial', () => ttf);
-    _pdfFontByFamily.putIfAbsent('Amiri', () => ttf);
+    _attemptedFontFamilies.clear();
+    _pdfFontByFamily['Arial'] = ttf;
+    _pdfFontByFamily['Amiri'] = ttf;
+
+    // تحميل الخطوط المستخدمة فعلياً في هذا الاختبار فقط لتوفير الذاكرة.
+    await _preloadExamFonts(exam, ttf);
 
     pw.MemoryImage? logoImage;
     if (exam.header.logoImagePath != null &&
@@ -170,8 +265,6 @@ class PdfExportService {
       logoImage = pw.MemoryImage(bytes);
     }
 
-    // تحميل صور PDF المستوردة مرة واحدة وإعادة استخدام نفس موارد الصور
-    // في صفحات جميع الطلاب لتجنب تضمين نسخة مستقلة من الصورة لكل طالب.
     final Map<String, pw.MemoryImage> importedPdfImages = {};
     for (final imagePath in exam.importedPdfPagePaths) {
       final imageFile = File(imagePath);
@@ -184,7 +277,6 @@ class PdfExportService {
     List<StudentData> studentList = [];
     int currentSubjectCode = 1;
 
-    // قراءة كشف الطلاب مع التصفية الحصرية وحساب الرقم الذكي ديناميكياً من الإكسيل
     if (exam.header.topMargin1cm &&
         exam.header.studentDataMode != 'none' &&
         exam.header.excelFilePath != null &&
@@ -210,7 +302,6 @@ class PdfExportService {
     final bool isAr = exam.isArabic;
     final bool isAutomated = exam.examType == ExamType.automated;
 
-    // تحديد رموز الاختيارات وفق لغة الاختبار ونوع الرمز المحدد
     final List<String> symbols;
     if (exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.numbers) {
       symbols = isAr ? ['١', '٢', '٣', '٤'] : ['1', '2', '3', '4'];
@@ -220,7 +311,6 @@ class PdfExportService {
 
     final pw.TextDirection pageDir = isAr ? pw.TextDirection.rtl : pw.TextDirection.ltr;
 
-    // تقسيم الأسئلة بدقة إلى صفحات لمنع خطأ Out of Memory
     final List<List<QuestionModel>> pagesQuestions = [[]];
     for (final q in exam.questions) {
       final fullText = q.spans.map((s) => s.text).join('');
@@ -240,7 +330,6 @@ class PdfExportService {
           exam.header.topMargin1cm &&
           exam.header.studentDataMode != 'none';
 
-      // بناء الصفحات صفحة صفحة بشكل مستقل ومنضبط لمنع خطأ الذاكرة
       for (int pageIdx = 0; pageIdx < pagesQuestions.length; pageIdx++) {
         final currentQuestions = pagesQuestions[pageIdx];
         final bool isFirstPage = pageIdx == 0;
@@ -262,9 +351,6 @@ class PdfExportService {
               right: 20.0,
             ),
             textDirection: pageDir,
-            // التذييل مثبت في أسفل الصفحة، ويستهلك 3 سم عند وجود بيانات
-            // الطالب، و1 سم فقط في الورق العادي. موضع QR ورقم المادة
-            // مرتبط بهامش الصفحة السفلي الثابت ولا يتأثر بمساحة الأسئلة.
             footer: (pw.Context footerContext) {
               final bool footerHasQr = showQrMode && isFirstPage;
               final double footerHeight = reserveStudentFooterArea && isFirstPage
@@ -358,84 +444,76 @@ class PdfExportService {
             build: (pw.Context context) {
               return [
                 pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                children: [
-                  // 1. ترويسة اسم الطالب (إن وجدت)
-                  if (exam.header.topMargin1cm && hasStudent && isFirstPage) ...[
-                    pw.Directionality(
-                      textDirection: pw.TextDirection.rtl,
-                      child: pw.Padding(
-                        padding: const pw.EdgeInsets.only(bottom: 4.0),
-                        child: pw.Row(
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                          children: [
-                            pw.Text(
-                              'اسم الطالب: ${student.name}',
-                              style: pw.TextStyle(
-                                font: ttf,
-                                fontSize: 10.5,
-                                fontWeight: pw.FontWeight.bold,
+                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                  children: [
+                    if (exam.header.topMargin1cm && hasStudent && isFirstPage) ...[
+                      pw.Directionality(
+                        textDirection: pw.TextDirection.rtl,
+                        child: pw.Padding(
+                          padding: const pw.EdgeInsets.only(bottom: 4.0),
+                          child: pw.Row(
+                            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                            children: [
+                              pw.Text(
+                                'اسم الطالب: ${student.name}',
+                                style: pw.TextStyle(
+                                  font: ttf,
+                                  fontSize: 10.5,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
                               ),
-                            ),
-                            pw.Text(
-                              'رقم الجلوس: [ ${student.seatNo} ]',
-                              style: pw.TextStyle(
-                                font: ttf,
-                                fontSize: 10.5,
-                                fontWeight: pw.FontWeight.bold,
+                              pw.Text(
+                                'رقم الجلوس: [ ${student.seatNo} ]',
+                                style: pw.TextStyle(
+                                  font: ttf,
+                                  fontSize: 10.5,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-
-                  // 2. ترويسة الصفحة (كاملة للصفحة الأولى، ومختصرة للصفحات التالية)
-                  if (isFirstPage) ...[
-                    pw.Directionality(
-                      textDirection: pw.TextDirection.rtl,
-                      child: _buildExamHeaderBox(exam, ttf, logoImage, isAr),
-                    ),
-                  ] else ...[
-                    pw.Directionality(
-                      textDirection: pw.TextDirection.rtl,
-                      child: pw.Container(
-                        padding: const pw.EdgeInsets.symmetric(vertical: 6),
-                        margin: const pw.EdgeInsets.only(bottom: 6),
-                        decoration: const pw.BoxDecoration(
-                          border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 1.2)),
-                        ),
-                        child: pw.Center(
-                          child: pw.Text(
-                            'تابع اختبار مادة ${exam.header.subject} للصف ${exam.header.grade}',
-                            style: pw.TextStyle(font: ttf, fontSize: 13, fontWeight: pw.FontWeight.bold),
+                            ],
                           ),
                         ),
                       ),
-                    ),
+                    ],
+                    if (isFirstPage) ...[
+                      pw.Directionality(
+                        textDirection: pw.TextDirection.rtl,
+                        child: _buildExamHeaderBox(exam, ttf, logoImage, isAr),
+                      ),
+                    ] else ...[
+                      pw.Directionality(
+                        textDirection: pw.TextDirection.rtl,
+                        child: pw.Container(
+                          padding: const pw.EdgeInsets.symmetric(vertical: 6),
+                          margin: const pw.EdgeInsets.only(bottom: 6),
+                          decoration: const pw.BoxDecoration(
+                            border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 1.2)),
+                          ),
+                          child: pw.Center(
+                            child: pw.Text(
+                              'تابع اختبار مادة ${exam.header.subject} للصف ${exam.header.grade}',
+                              style: pw.TextStyle(font: ttf, fontSize: 13, fontWeight: pw.FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                    pw.SizedBox(height: 5),
+                    if (hasImportedPdfPage &&
+                        importedPdfImages.containsKey(importedPdfPagePath))
+                      pw.Image(
+                        importedPdfImages[importedPdfPagePath]!,
+                        width: PdfPageFormat.a4.width - 40.0,
+                        fit: pw.BoxFit.fitWidth,
+                        alignment: pw.Alignment.topLeft,
+                      )
+                    else if (isAutomated)
+                      ..._buildAutomatedQuestionsList(exam, symbols, ttf, isAr)
+                    else
+                      _buildQuestionsSubTable(currentQuestions, exam.header.instructionText, ttf, isAr),
+                    pw.SizedBox(height: 2),
                   ],
-
-                  pw.SizedBox(height: 5),
-
-                  // 3. جدول ومحتوى الأسئلة
-                  if (hasImportedPdfPage &&
-                      importedPdfImages.containsKey(importedPdfPagePath))
-                    pw.Image(
-                      importedPdfImages[importedPdfPagePath]!,
-                      width: PdfPageFormat.a4.width - 40.0,
-                      fit: pw.BoxFit.fitWidth,
-                      alignment: pw.Alignment.topLeft,
-                    )
-                  else if (isAutomated)
-                    ..._buildAutomatedQuestionsList(exam, symbols, ttf, isAr)
-                  else
-                    _buildQuestionsSubTable(currentQuestions, exam.header.instructionText, ttf, isAr),
-
-                  // التذييل يُرسم من footer الثابت الخاص بالصفحة.
-                  pw.SizedBox(height: 2),
-                ],
-              ),
+                ),
               ];
             },
           ),
@@ -493,7 +571,6 @@ class PdfExportService {
     pw.MemoryImage? logoImage,
     bool isAr,
   ) {
-    // استخدم إعدادات الخط المحفوظة لكل منطقة من مناطق الترويسة.
     final adminFont = _resolvePdfFont(exam.header.adminFont, ttf);
     final basmalaFont = _resolvePdfFont(exam.header.basmalaFont, ttf);
     final detailsFont = _resolvePdfFont(exam.header.detailsFont, ttf);
@@ -1051,9 +1128,6 @@ class PdfExportService {
         final decoded = jsonDecode(q.richDocumentJson!);
         if (decoded is Map<String, dynamic>) {
           final document = FluentDocument.fromJson(decoded);
-          // مستند Fluent JSON هو المصدر الأصلي والأحدث للتنسيقات؛
-          // لا نعتمد على q.spans لأنها قد لا تتحدث عند تغيير التنسيق وحده.
-          // نمرر جميع أنواع العقد إلى مصيّر PDF حتى تبقى الصور والجداول والقوائم.
           return pw.Directionality(
             textDirection: isAr ? pw.TextDirection.rtl : pw.TextDirection.ltr,
             child: pw.Column(
@@ -1062,9 +1136,7 @@ class PdfExportService {
             ),
           );
         }
-      } catch (_) {
-        // ملف غني غير صالح: نرجع إلى النص التقليدي بدلاً من إسقاط السؤال.
-      }
+      } catch (_) {}
     }
     final pw.TextAlign chosenAlign = _convertTextAlign(q.alignment, isAr);
     final pw.TextDirection itemDir = (chosenAlign == pw.TextAlign.left || !isAr)
@@ -1193,7 +1265,6 @@ class PdfExportService {
     );
   }
 
-  /// Render the same Fluent document tree in the exam PDF.
   static List<pw.Widget> _buildPdfRichNodes(
     List<FNode> nodes,
     pw.Font font,
@@ -1203,10 +1274,6 @@ class PdfExportService {
     for (var nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
       final node = nodes[nodeIndex];
 
-      // A floating block image keeps its original flow-space as an invisible
-      // placeholder, while a PDF Stack paints the actual image above every
-      // following node. Overflow.visible also lets it overlap earlier text
-      // when the user has dragged it upward.
       if (node is FluentImage && node.isFloating) {
         final image = _pdfRichImage(node);
         if (image != null) {
@@ -1366,9 +1433,6 @@ class PdfExportService {
     pw.Font font,
     bool isAr,
   ) {
-    // قد يحتوي المستند الغني على فقرة فارغة ناتجة عن سطر جديد أو
-    // حذف محتوى؛ بعض إصدارات Fluent Editor تفترض وجود fragment أول.
-    // نتجاوز الفقرة الفارغة بأمان بدلاً من إسقاط عملية تصدير PDF كاملة.
     if (paragraph.fragments.isEmpty) {
       return pw.SizedBox.shrink();
     }
@@ -1424,7 +1488,6 @@ class PdfExportService {
     );
   }
 
-  /// Resolve font names without depending on letter case or separators.
   static pw.Font _resolvePdfFont(String? family, pw.Font fallback) {
     final requested = (family ?? '').toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
     if (requested.isEmpty) return fallback;
@@ -1496,12 +1559,8 @@ class PdfExportService {
         bytes = File(image.src).readAsBytesSync();
       }
       if (bytes == null) return null;
-      // Fluent Editor stores image dimensions and drag offsets in Flutter
-      // logical pixels (96 dpi), while PDF layout uses points (72 dpi).
-      // Convert both size and position so the exported image matches the
-      // editor's on-screen geometry.
       const double logicalPixelToPdfPoint = 72.0 / 96.0;
-      final renderedImage = pw.Image(
+      return pw.Image(
         pw.MemoryImage(bytes),
         width: image.width == null
             ? null
@@ -1511,9 +1570,6 @@ class PdfExportService {
             : image.height! * logicalPixelToPdfPoint,
         fit: pw.BoxFit.contain,
       );
-      // Positioning is handled by the containing rich-node layout. Inline
-      // images apply their local drag offset in _pdfRichInlineImage().
-      return renderedImage;
     } catch (_) {
       return null;
     }
@@ -1648,8 +1704,6 @@ class PdfExportService {
     required bool isAr,
     required double lineSpacing,
   }) {
-    // Keep the existing math/checkmark renderer for a line containing a
-    // symbolic token. Ordinary styled text uses one rich run preserving fonts.
     final combined = spans.map((span) => span.text).join();
     final hasInlineSymbol = RegExp(
       r'(\[(?:كسر|جذر|sqrt|عمودي|قسمة|div|نها|تباديل|توافيق|مجموع|تكامل|متجه|بار|محدد|مصفوفة|مصفوفة_عامة|تفاضل|لوغاريتم|مثلثية|جداء):.*?\]|✔|✘|✓|✗)',
@@ -1675,8 +1729,6 @@ class PdfExportService {
           isAr: isAr,
         );
       }
-      // Multi-style symbolic lines retain the established symbol rendering
-      // rather than emitting raw internal tokens into the PDF.
       final first = spans.first;
       return _renderInlineMathText(
         combined,
@@ -2343,7 +2395,6 @@ class PdfExportService {
     );
   }
 
-
   static pw.Widget _pdfScriptText(
     String text,
     pw.TextStyle style, {
@@ -2520,8 +2571,8 @@ class PdfExportService {
       final int cols = (data['cols'] as num?)?.toInt() ?? 2;
       final bool hasHeader = data['hasHeader'] ?? true;
       final List<dynamic> rawGrid = data['data'] ?? [];
-      final List<Map<String, int>> merges =
-          (data['merges'] as List? ?? const []).whereType<Map>().map((m) =>
+      final List> merges =
+          (data['merges'] as List? ?? const []).whereType().map((m) =>
             Map<String, int>.from(m.map((k, v) =>
               MapEntry(k.toString(), (v as num).toInt())))
           ).toList();
@@ -2676,16 +2727,16 @@ class PdfExportService {
                         canvas
                           ..moveTo(offset, pw_y - 2)
                           ..lineTo(pw_x - 2, 2)
-                          ..lineTo(w - offset, h - 2)
-                          ..lineTo(2, h - 2)
+                          ..lineTo(pw_x - offset, pw_y - 2)
+                          ..lineTo(2, pw_y - 2)
                           ..closePath()
                           ..fillPath();
                       }
                       canvas
                         ..moveTo(offset, pw_y - 2)
                         ..lineTo(pw_x - 2, 2)
-                        ..lineTo(w - offset, h - 2)
-                        ..lineTo(2, h - 2)
+                        ..lineTo(pw_x - offset, pw_y - 2)
+                        ..lineTo(2, pw_y - 2)
                         ..closePath()
                         ..strokePath();
                       break;
