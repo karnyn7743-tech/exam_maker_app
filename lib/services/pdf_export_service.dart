@@ -62,6 +62,7 @@ class PdfExportService {
     final result = <pw.InlineSpan>[];
     var lastIndex = 0;
     for (final match in pattern.allMatches(text)) {
+      final matchedStr = match.group(0) ?? '';
       if (match.start > lastIndex) {
         result.add(pw.TextSpan(text: text.substring(lastIndex, match.start)));
       }
