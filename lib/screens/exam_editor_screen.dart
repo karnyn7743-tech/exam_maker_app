@@ -4575,6 +4575,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       DropdownMenuItem(value: 'بار', child: Text('متوسط حسابي (شَرطة علوية ¯)')),
                       DropdownMenuItem(value: 'محدد', child: Text('محدد ثنائي 2×2 (| |)')),
                       DropdownMenuItem(value: 'مصفوفة', child: Text('مصفوفة ثنائية 2×2 ([ ])')),
+                      DropdownMenuItem(value: 'مصفوفة_عامة', child: Text('مصفوفة متعددة الأبعاد (حتى 6×6)')),
                       DropdownMenuItem(value: 'تفاضل', child: Text('مشتقة / تفاضل (d/dx)')),
                       DropdownMenuItem(value: 'لوغاريتم', child: Text('لوغاريتم بأساس محدد (log)')),
                       DropdownMenuItem(value: 'مثلثية', child: Text('دوال مثلثية (جا، جتا، ظا / sin, cos, tan)')),
@@ -4592,6 +4593,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                           if (v == 'متجه') { f1Ctrl.text = isAr ? 'ق' : 'v'; }
                           if (v == 'بار') { f1Ctrl.text = isAr ? 'س' : 'x'; }
                           if (v == 'محدد' || v == 'مصفوفة') { f1Ctrl.text = '2'; f2Ctrl.text = '3'; f3Ctrl.text = '1'; f4Ctrl.text = '4'; }
+                          if (v == 'مصفوفة_عامة') { f1Ctrl.text = '3'; f2Ctrl.text = '3'; f3Ctrl.text = '1, 2, 3\n4, 5, 6\n7, 8, 9'; }
                           if (v == 'تفاضل') { f1Ctrl.text = isAr ? 'س' : 'x'; f2Ctrl.text = isAr ? 'س³+٢س' : 'x^3+2x'; f3Ctrl.text = '1'; }
                           if (v == 'لوغاريتم') { f1Ctrl.text = '10'; f2Ctrl.text = isAr ? '١٠٠' : '100'; }
                           if (v == 'مثلثية') { f1Ctrl.text = isAr ? 'جا' : 'sin'; f2Ctrl.text = isAr ? 'س' : 'x'; }
@@ -4639,6 +4641,12 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     TextField(controller: f2Ctrl, decoration: const InputDecoration(labelText: 'حد النهاية / الأعلى')),
                     const SizedBox(height: 6),
                     TextField(controller: f3Ctrl, decoration: const InputDecoration(labelText: 'الحد العام للجداء')),
+                  ] else if (eqType == 'مصفوفة_عامة') ...[
+                    TextField(controller: f1Ctrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'عدد الصفوف (1 إلى 6)')),
+                    const SizedBox(height: 6),
+                    TextField(controller: f2Ctrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'عدد الأعمدة (1 إلى 6)')),
+                    const SizedBox(height: 6),
+                    TextField(controller: f3Ctrl, minLines: 3, maxLines: 6, decoration: const InputDecoration(labelText: 'محتويات الخلايا: افصل الأعمدة بفاصلة والصفوف بسطر جديد', border: OutlineInputBorder())),
                   ] else if (eqType == 'محدد' || eqType == 'مصفوفة') ...[
                     Row(children: [
                       Expanded(child: TextField(controller: f1Ctrl, decoration: const InputDecoration(labelText: 'صف١ عمود١'))),
@@ -4664,6 +4672,23 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                     tag = '[$eqType:${f1Ctrl.text.trim()}:${f2Ctrl.text.trim()}]';
                   } else if (eqType == 'متجه' || eqType == 'بار') {
                     tag = '[$eqType:${f1Ctrl.text.trim()}]';
+                  } else if (eqType == 'مصفوفة_عامة') {
+                    final rows = int.tryParse(f1Ctrl.text.trim()) ?? 0;
+                    final cols = int.tryParse(f2Ctrl.text.trim()) ?? 0;
+                    if (rows < 1 || rows > 6 || cols < 1 || cols > 6) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أبعاد المصفوفة يجب أن تكون بين 1 و6')));
+                      return;
+                    }
+                    final matrixRows = f3Ctrl.text.trim().split(RegExp(r'\\r?\\n'));
+                    final matrixCells = <String>[];
+                    for (var ri = 0; ri < rows; ri++) {
+                      final rowCells = ri < matrixRows.length ? matrixRows[ri].split(',') : <String>[];
+                      for (var ci = 0; ci < cols; ci++) {
+                        matrixCells.add(ci < rowCells.length ? rowCells[ci].trim() : '');
+                      }
+                    }
+                    final payload = base64Url.encode(utf8.encode(jsonEncode({'rows': rows, 'cols': cols, 'cells': matrixCells})));
+                    tag = '[مصفوفة_عامة:$payload]';
                   } else if (eqType == 'محدد' || eqType == 'مصفوفة') {
                     tag = '[$eqType:${f1Ctrl.text.trim()}:${f2Ctrl.text.trim()}:${f3Ctrl.text.trim()}:${f4Ctrl.text.trim()}]';
                   } else if (eqType == 'تفاضل') {
