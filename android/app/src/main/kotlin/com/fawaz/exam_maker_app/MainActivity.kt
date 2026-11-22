@@ -122,8 +122,9 @@ class MainActivity : FlutterActivity() {
                         val pageHeight = PDRectangle.A4.height
                         val hasStudentData = !student["seatNo"].isNullOrBlank() && pageIndex == 0
 
-                        val topReserve = if (hasStudentData) 34f else 0f
-                        val bottomReserve = if (hasStudentData) 62f else 0f
+                        // مساحة الصفحة الأولى: 1 سم لبيانات الطالب و3 سم للكود وQR ومستطيل الدرجة.
+                        val topReserve = if (hasStudentData) 28.35f else 0f
+                        val bottomReserve = if (hasStudentData) 85.04f else 0f
                         val sideMargin = 20f
                         val contentWidth = pageWidth - (sideMargin * 2f)
                         val contentHeight = pageHeight - topReserve - bottomReserve
@@ -134,8 +135,11 @@ class MainActivity : FlutterActivity() {
 
                         // نسب القص قادمة من موضعي الخطين في معاينة الصفحة.
                         // نحتفظ بالجزء الواقع بين الحدين دون فرض هامش ثابت.
-                        val safeTopFraction = cropTopFraction.coerceIn(0f, 0.99f)
-                        val safeBottomFraction = cropBottomFraction.coerceIn(0f, 0.99f)
+                        // القص يطبق على الصفحة الأولى فقط؛ بقية الصفحات تبقى كاملة.
+                        val safeTopFraction = (if (pageIndex == 0) cropTopFraction else 0f)
+                            .coerceIn(0f, 0.99f)
+                        val safeBottomFraction = (if (pageIndex == 0) cropBottomFraction else 0f)
+                            .coerceIn(0f, 0.99f)
                         val effectiveBottomFraction =
                             minOf(safeBottomFraction, 0.99f - safeTopFraction)
                         val topCrop = sourceHeight * safeTopFraction
