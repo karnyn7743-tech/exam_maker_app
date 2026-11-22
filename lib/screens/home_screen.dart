@@ -1272,6 +1272,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             icon: Icons.fact_check_outlined,
                             onTap: _designAutomatedExam,
                           ),
+                          _ActionChoice(
+                            title: 'استيراد صفحات من ملف PDF',
+                            subtitle: 'معاينة صفحات PDF وقص الجزء المطلوب قبل إضافته إلى الاختبار',
+                            icon: Icons.picture_as_pdf_outlined,
+                            onTap: _pickAndImportPdf,
+                          ),
                         ],
                       ),
                       backgroundColor: const Color(0xFF718B79),
