@@ -63,26 +63,29 @@ jobs:
 
       # Build-validation artifact only. This APK uses the runner's debug signing key
       # and must not be installed over an existing release or distributed.
-      - name: Verify APK
+      - name: Verify and Rename APK
         shell: bash
         run: |
           echo "Searching for generated APK..."
 
           find build -type f -name "*.apk" -print
 
-          APK="build/app/outputs/flutter-apk/المحرر-البسيط.apk"
+          ORIGINAL_APK="build/app/outputs/flutter-apk/app-release.apk"
+          FINAL_APK="build/app/outputs/flutter-apk/المحرر البسيط.apk"
 
-          if [ ! -f "$APK" ]; then
+          if [ ! -f "$ORIGINAL_APK" ]; then
             echo "ERROR: APK was not found!"
             exit 1
           fi
 
-          echo "APK generated successfully:"
-          ls -lh "$APK"
+          mv "$ORIGINAL_APK" "$FINAL_APK"
+
+          echo "APK generated and renamed successfully:"
+          ls -lh "$FINAL_APK"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: exam-maker-Android-APK-build-test-only
-          path: build/app/outputs/flutter-apk/المحرر-البسيط.apk
+          path: build/app/outputs/flutter-apk/المحرر البسيط.apk
           retention-days: 30
