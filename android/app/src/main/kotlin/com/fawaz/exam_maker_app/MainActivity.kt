@@ -146,11 +146,13 @@ class MainActivity : FlutterActivity() {
                         val bottomCrop = sourceHeight * effectiveBottomFraction
                         val visibleHeight = (sourceHeight - topCrop - bottomCrop).coerceAtLeast(1f)
 
-                        val scale = minOf(contentWidth / sourceWidth, contentHeight / visibleHeight)
-                        val drawnWidth = sourceWidth * scale
-                        val drawnHeight = visibleHeight * scale
-                        val offsetX = sideMargin + (contentWidth - drawnWidth) / 2f
-                        val offsetY = bottomReserve + (contentHeight - drawnHeight) / 2f
+                        // Stretch the retained first-page content to fill the entire
+                        // available rectangle between the 1 cm student header and
+                        // the 3 cm QR/grade footer. Later source pages use the full page.
+                        val scaleX = contentWidth / sourceWidth
+                        val scaleY = contentHeight / visibleHeight
+                        val offsetX = sideMargin
+                        val offsetY = bottomReserve
                         val boxLeft = box.lowerLeftX
                         val boxBottom = box.lowerLeftY
 
@@ -158,9 +160,9 @@ class MainActivity : FlutterActivity() {
                             stream.saveGraphicsState()
                             stream.transform(
                                 Matrix(
-                                    scale, 0f, 0f, scale,
-                                    offsetX - (boxLeft * scale),
-                                    offsetY - ((boxBottom + bottomCrop) * scale)
+                                    scaleX, 0f, 0f, scaleY,
+                                    offsetX - (boxLeft * scaleX),
+                                    offsetY - ((boxBottom + bottomCrop) * scaleY)
                                 )
                             )
                             stream.addRect(
