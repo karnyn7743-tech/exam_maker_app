@@ -136,8 +136,6 @@ class MainActivity : FlutterActivity() {
                         // نحتفظ بالجزء الواقع بين الحدين دون فرض هامش ثابت.
                         val safeTopFraction = cropTopFraction.coerceIn(0f, 0.99f)
                         val safeBottomFraction = cropBottomFraction.coerceIn(0f, 0.99f)
-                        val totalCropFraction = (safeTopFraction + safeBottomFraction)
-                            .coerceAtMost(0.99f)
                         val effectiveBottomFraction =
                             minOf(safeBottomFraction, 0.99f - safeTopFraction)
                         val topCrop = sourceHeight * safeTopFraction
