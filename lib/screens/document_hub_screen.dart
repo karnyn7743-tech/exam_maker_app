@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:fluent_editor/fluent_editor.dart';
 import 'package:fluent_editor/fluent_document.dart';
@@ -244,6 +245,15 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
         sourcePath = '${tempDirectory.path}/word_source_${DateTime.now().millisecondsSinceEpoch}.pdf';
         await File(sourcePath).writeAsBytes(wordPdfBytes, flush: true);
       }
+      // القص اختياري: يحدد المستخدم حدود الجزء الذي يريد الاحتفاظ به،
+      // وتُرسل النسب إلى معالج PDF الأصلي لتطبيقها على كل الصفحات.
+      final crop = await showDialog<Map<String, double>>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _OriginalPageCropDialog(pdfPath: sourcePath),
+      );
+      if (!mounted) return;
+
       StudentExcelResult? excelResult;
       if (_excelPath != null) {
         excelResult = await StudentExcelService.parseExcelFile(
@@ -276,6 +286,8 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
         'outputPath': outputPath,
         'students': students,
         'subjectCode': excelResult?.subjectCode ?? 1,
+        'cropTopFraction': crop?['top'] ?? 0.0,
+        'cropBottomFraction': crop?['bottom'] ?? 0.0,
       });
 
       if (generatedPath == null || !await File(generatedPath).exists()) {
@@ -646,3 +658,206 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
     );
   }
 }
+
+/// نافذة قص اختيارية للورقة الأصلية. الخطان يحددان الجزء الذي سيبقى،
+/// ويمكن سحبهما بحرية من أعلى الصفحة وأسفلها.
+class _OriginalPageCropDialog extends StatefulWidget {
+  final String pdfPath;
+
+  const _OriginalPageCropDialog({required this.pdfPath});
+
+  @override
+  State<_OriginalPageCropDialog> createState() => _OriginalPageCropDialogState();
+}
+
+class _OriginalPageCropDialogState extends State<_OriginalPageCropDialog> {
+  Uint8List? _previewBytes;
+  double _aspectRatio = 210 / 297;
+  double _top = 0.0;
+  double _bottom = 1.0;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreview();
+  }
+
+  Future<void> _loadPreview() async {
+    PdfDocument? document;
+    PdfPage? page;
+    try {
+      document = await PdfDocument.openFile(widget.pdfPath);
+      if (document.pagesCount < 1) {
+        throw Exception('ملف PDF لا يحتوي على صفحات.');
+      }
+      page = await document.getPage(1);
+      final aspect = page.width / page.height;
+      final rendered = await page.render(
+        width: 1000,
+        height: 1000 / aspect,
+        format: PdfPageImageFormat.png,
+        backgroundColor: '#FFFFFF',
+      );
+      if (rendered == null || rendered.bytes.isEmpty) {
+        throw Exception('تعذرت معاينة الصفحة الأولى.');
+      }
+      final bytes = rendered.bytes;
+      await page.close();
+      page = null;
+      await document.close();
+      document = null;
+      if (!mounted) return;
+      setState(() {
+        _previewBytes = bytes;
+        _aspectRatio = aspect;
+        _loading = false;
+      });
+    } catch (e) {
+      if (page != null && !page.isClosed) await page.close();
+      if (document != null) await document.close();
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  void _moveTop(double delta, double height) {
+    if (height <= 0) return;
+    setState(() {
+      _top = (_top + delta / height).clamp(0.0, _bottom - 0.01).toDouble();
+    });
+  }
+
+  void _moveBottom(double delta, double height) {
+    if (height <= 0) return;
+    setState(() {
+      _bottom = (_bottom + delta / height).clamp(_top + 0.01, 1.0).toDouble();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: AlertDialog(
+        title: const Text('قص الورقة الأصلية (اختياري)'),
+        content: SizedBox(
+          width: 420,
+          child: _loading
+              ? const SizedBox(
+                  height: 220,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : _error != null
+                  ? Text('تعذرت معاينة الصفحة: $_error')
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'اسحب الخط الأخضر لتحديد بداية الجزء المحتفظ به، '
+                          'والخط البرتقالي لتحديد نهايته. يمكنك ترك الصفحة كاملة دون قص.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        const SizedBox(height: 12),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final width = constraints.maxWidth;
+                            final height = (width / _aspectRatio).clamp(180.0, 430.0);
+                            return SizedBox(
+                              width: width,
+                              height: height,
+                              child: ClipRect(
+                                child: Stack(
+                                  clipBehavior: Clip.hardEdge,
+                                  children: [
+                                    Positioned.fill(
+                                      child: Image.memory(
+                                        _previewBytes!,
+                                        fit: BoxFit.fill,
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: (_top * height - 13).clamp(0.0, height - 26),
+                                      left: 0,
+                                      right: 0,
+                                      height: 26,
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onVerticalDragUpdate: (details) =>
+                                            _moveTop(details.delta.dy, height),
+                                        child: Center(
+                                          child: Container(
+                                            height: 4,
+                                            decoration: BoxDecoration(
+                                              color: Colors.green.shade700,
+                                              boxShadow: const [
+                                                BoxShadow(color: Colors.white, blurRadius: 3),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: (_bottom * height - 13).clamp(0.0, height - 26),
+                                      left: 0,
+                                      right: 0,
+                                      height: 26,
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onVerticalDragUpdate: (details) =>
+                                            _moveBottom(details.delta.dy, height),
+                                        child: Center(
+                                          child: Container(
+                                            height: 4,
+                                            decoration: BoxDecoration(
+                                              color: Colors.deepOrange.shade700,
+                                              boxShadow: const [
+                                                BoxShadow(color: Colors.white, blurRadius: 3),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'الجزء الواقع بين الخطين هو الذي سيبقى في ملف الاختبار.',
+                          style: TextStyle(fontSize: 11, color: Colors.black54),
+                        ),
+                      ],
+                    ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, <String, double>{
+              'top': 0.0,
+              'bottom': 0.0,
+            }),
+            child: const Text('متابعة دون قص'),
+          ),
+          FilledButton(
+            onPressed: _loading || _previewBytes == null || _error != null
+                ? null
+                : () => Navigator.pop(context, <String, double>{
+                      'top': _top,
+                      'bottom': 1.0 - _bottom,
+                    }),
+            child: const Text('اعتماد القص'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
