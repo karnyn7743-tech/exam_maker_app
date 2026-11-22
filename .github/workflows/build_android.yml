@@ -70,7 +70,7 @@ jobs:
 
           find build -type f -name "*.apk" -print
 
-          APK="build/app/outputs/flutter-apk/المحرر البسيط.apk"
+          APK="build/app/outputs/flutter-apk/المحرر-البسيط.apk"
 
           if [ ! -f "$APK" ]; then
             echo "ERROR: APK was not found!"
@@ -84,5 +84,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: exam-maker-Android-APK-build-test-only
-          path: build/app/outputs/flutter-apk/المحرر البسيط.apk
+          path: build/app/outputs/flutter-apk/المحرر-البسيط.apk
           retention-days: 30
