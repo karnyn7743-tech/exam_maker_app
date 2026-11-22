@@ -29,6 +29,9 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
   String? _excelPath;
   bool _isPdf = true;
   bool _isBusy = false;
+  double _cropTopFraction = 0.0;
+  double _cropBottomFraction = 0.0;
+  bool _cropConfigured = false;
   String? _loadError;
   PdfControllerPinch? _pdfController;
   FluentDocument? _wordDocument;
@@ -75,6 +78,9 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
       _fileName = null;
       _wordDocument = null;
       _originalPdfPath = null;
+      _cropTopFraction = 0.0;
+      _cropBottomFraction = 0.0;
+      _cropConfigured = false;
       _loadError = null;
     });
 
@@ -137,6 +143,47 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
       _showMessage('تعذر تحميل المستند وعرضه: $e', isError: true);
     } finally {
       if (mounted) setState(() => _isBusy = false);
+    }
+    if (mounted && _filePath == path) {
+      await _showOriginalCropForImportedFile();
+    }
+  }
+
+  Future<String> _prepareSourcePdfPath() async {
+    final currentPath = _filePath;
+    if (currentPath == null) throw Exception('لم يتم استيراد ملف اختبار.');
+    if (_isPdf) return _originalPdfPath ?? currentPath;
+    final wordDocument = _wordDocument;
+    if (wordDocument == null) throw Exception('مستند Word غير جاهز للتحويل.');
+    final wordPdfBytes = await ExportService(wordDocument).exportToPdf();
+    final tempDirectory = await getTemporaryDirectory();
+    final sourcePath = '${tempDirectory.path}/word_source_${DateTime.now().millisecondsSinceEpoch}.pdf';
+    await File(sourcePath).writeAsBytes(wordPdfBytes, flush: true);
+    return sourcePath;
+  }
+
+  Future<void> _showOriginalCropForImportedFile() async {
+    try {
+      final sourcePath = await _prepareSourcePdfPath();
+      if (!mounted) return;
+      final crop = await showDialog<Map<String, double>>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _OriginalPageCropDialog(pdfPath: sourcePath),
+      );
+      if (!mounted || crop == null) return;
+      setState(() {
+        _cropTopFraction = crop['top'] ?? 0.0;
+        _cropBottomFraction = crop['bottom'] ?? 0.0;
+        _cropConfigured = true;
+      });
+      _showMessage(
+        (_cropTopFraction == 0 && _cropBottomFraction == 0)
+            ? 'تم اعتماد الصفحة الأولى كاملة دون قص.'
+            : 'تم حفظ حدود القص للصفحة الأولى.',
+      );
+    } catch (e) {
+      _showMessage('تعذر فتح أداة قص الصفحة الأولى: $e', isError: true);
     }
   }
 
@@ -234,24 +281,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
 
     setState(() => _isBusy = true);
     try {
-      String sourcePath;
-      if (_isPdf) {
-        sourcePath = _originalPdfPath ?? currentPath;
-      } else {
-        final wordDocument = _wordDocument;
-        if (wordDocument == null) throw Exception('مستند Word غير جاهز للتحويل.');
-        final wordPdfBytes = await ExportService(wordDocument).exportToPdf();
-        final tempDirectory = await getTemporaryDirectory();
-        sourcePath = '${tempDirectory.path}/word_source_${DateTime.now().millisecondsSinceEpoch}.pdf';
-        await File(sourcePath).writeAsBytes(wordPdfBytes, flush: true);
-      }
-      // القص اختياري: يحدد المستخدم حدود الجزء الذي يريد الاحتفاظ به،
-      // وتُرسل النسب إلى معالج PDF الأصلي لتطبيقها على كل الصفحات.
-      final crop = await showDialog<Map<String, double>>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => _OriginalPageCropDialog(pdfPath: sourcePath),
-      );
+      final sourcePath = await _prepareSourcePdfPath();
       if (!mounted) return;
 
       StudentExcelResult? excelResult;
@@ -286,8 +316,8 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
         'outputPath': outputPath,
         'students': students,
         'subjectCode': excelResult?.subjectCode ?? 1,
-        'cropTopFraction': crop?['top'] ?? 0.0,
-        'cropBottomFraction': crop?['bottom'] ?? 0.0,
+        'cropTopFraction': _cropConfigured ? _cropTopFraction : 0.0,
+        'cropBottomFraction': _cropConfigured ? _cropBottomFraction : 0.0,
       });
 
       if (generatedPath == null || !await File(generatedPath).exists()) {
