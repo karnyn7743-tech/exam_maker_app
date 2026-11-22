@@ -1,9 +1,11 @@
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pdfx/pdfx.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:uuid/uuid.dart';
 
@@ -290,100 +292,14 @@ class _HomeScreenState extends State<HomeScreen> {
         throw Exception('ملف PDF لا يحتوي على صفحات قابلة للاستيراد.');
       }
 
-      final firstPageController = TextEditingController(text: '1');
-      final countController = TextEditingController(
-        text: (totalPages < 3 ? totalPages : 3).toString(),
-      );
-      final topCropController = TextEditingController(text: '110');
-      final bottomCropController = TextEditingController(text: '40');
-
       final options = await showDialog<Map<String, double>>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('إعداد استيراد صفحات PDF'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('عدد صفحات الملف: $totalPages'),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: firstPageController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'رقم أول صفحة تريد استيرادها',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: countController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'عدد الصفحات (من 1 إلى 3)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: topCropController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'قص ترويسة الملف الأصلي من الأعلى (مم)',
-                    helperText: 'تُستبدل بترويسة المحرر وبيانات الطالب.',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: bottomCropController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'قص البرواز السفلي من الصفحة (مم)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('إلغاء'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final first = int.tryParse(firstPageController.text.trim());
-                final count = int.tryParse(countController.text.trim());
-                final top = double.tryParse(topCropController.text.trim());
-                final bottom = double.tryParse(bottomCropController.text.trim());
-
-                if (first == null || count == null || top == null || bottom == null ||
-                    first < 1 || count < 1 || count > 3 ||
-                    top < 0 || top > 110 || bottom < 0 || bottom > 40) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    const SnackBar(content: Text('يرجى إدخال أرقام صحيحة. عدد الصفحات 1–3، وقص الأعلى 0–110 مم والأسفل 0–40 مم.')),
-                  );
-                  return;
-                }
-                Navigator.pop(dialogContext, {
-                  'first': first.toDouble(),
-                  'count': count.toDouble(),
-                  'top': top,
-                  'bottom': bottom,
-                });
-              },
-              child: const Text('متابعة'),
-            ),
-          ],
+        barrierDismissible: false,
+        builder: (_) => _PdfCropDialog(
+          pdfPath: pdfPath,
+          totalPages: totalPages,
         ),
       );
-
-      firstPageController.dispose();
-      countController.dispose();
-      topCropController.dispose();
-      bottomCropController.dispose();
 
       if (options == null || !mounted) return;
 
@@ -1589,6 +1505,347 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+
+/// نافذة معاينة وقص صفحات PDF بالسحب قبل إدراجها في الاختبار.
+class _PdfCropDialog extends StatefulWidget {
+  final String pdfPath;
+  final int totalPages;
+
+  const _PdfCropDialog({
+    required this.pdfPath,
+    required this.totalPages,
+  });
+
+  @override
+  State<_PdfCropDialog> createState() => _PdfCropDialogState();
+}
+
+class _PdfCropDialogState extends State<_PdfCropDialog> {
+  static const double _pointsPerMm = 72.0 / 25.4;
+  static const double _minimumContentMm = 25.0;
+
+  final TextEditingController _firstPageController =
+      TextEditingController(text: '1');
+  late final TextEditingController _countController =
+      TextEditingController(text: (widget.totalPages < 3 ? widget.totalPages : 3).toString());
+
+  Uint8List? _previewBytes;
+  double _pageHeightMm = 297.0;
+  double _pageAspectRatio = 210.0 / 297.0;
+  double _topCropMm = 110.0;
+  double _bottomCropMm = 40.0;
+  bool _loadingPreview = true;
+  String? _previewError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreview();
+  }
+
+  @override
+  void dispose() {
+    _firstPageController.dispose();
+    _countController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadPreview() async {
+    final pageNumber = int.tryParse(_firstPageController.text.trim());
+    if (pageNumber == null || pageNumber < 1 || pageNumber > widget.totalPages) {
+      setState(() {
+        _previewError = 'أدخل رقم صفحة صحيحًا لمعاينتها.';
+        _loadingPreview = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _loadingPreview = true;
+      _previewError = null;
+    });
+
+    PdfDocument? document;
+    PdfPage? page;
+    try {
+      document = await PdfDocument.openFile(widget.pdfPath);
+      page = await document.getPage(pageNumber);
+      final aspect = page.width / page.height;
+      final rendered = await page.render(
+        width: 1000,
+        height: 1000 / aspect,
+        format: PdfPageImageFormat.png,
+        backgroundColor: '#FFFFFF',
+      );
+      if (rendered == null || rendered.bytes.isEmpty) {
+        throw Exception('تعذرت معاينة الصفحة المحددة.');
+      }
+      final bytes = rendered.bytes;
+      final pageHeightMm = page.height / _pointsPerMm;
+      await page.close();
+      page = null;
+      await document.close();
+      document = null;
+
+      if (!mounted) return;
+      setState(() {
+        _previewBytes = bytes;
+        _pageHeightMm = pageHeightMm;
+        _pageAspectRatio = aspect;
+        _topCropMm = _topCropMm.clamp(0.0, pageHeightMm - _bottomCropMm - _minimumContentMm).toDouble();
+        _bottomCropMm = _bottomCropMm.clamp(0.0, pageHeightMm - _topCropMm - _minimumContentMm).toDouble();
+        _loadingPreview = false;
+      });
+    } catch (e) {
+      if (page != null && !page.isClosed) await page.close();
+      if (document != null) await document.close();
+      if (!mounted) return;
+      setState(() {
+        _previewError = 'تعذرت معاينة الصفحة: $e';
+        _loadingPreview = false;
+      });
+    }
+  }
+
+  void _confirm() {
+    final first = int.tryParse(_firstPageController.text.trim());
+    final count = int.tryParse(_countController.text.trim());
+    if (first == null || count == null || first < 1 || count < 1 ||
+        count > 3 || first + count - 1 > widget.totalPages) {
+      setState(() => _previewError = 'تحقق من رقم الصفحة وعدد الصفحات (من 1 إلى 3).');
+      return;
+    }
+    if (_topCropMm + _bottomCropMm + _minimumContentMm > _pageHeightMm) {
+      setState(() => _previewError = 'مساحة القص كبيرة جدًا؛ اترك جزءًا كافيًا من الورقة.');
+      return;
+    }
+    Navigator.pop(context, {
+      'first': first.toDouble(),
+      'count': count.toDouble(),
+      'top': _topCropMm,
+      'bottom': _bottomCropMm,
+    });
+  }
+
+  void _moveTop(double deltaY, double previewHeight) {
+    if (previewHeight <= 0) return;
+    setState(() {
+      _topCropMm = (_topCropMm + deltaY / previewHeight * _pageHeightMm)
+          .clamp(0.0, _pageHeightMm - _bottomCropMm - _minimumContentMm)
+          .toDouble();
+    });
+  }
+
+  void _moveBottom(double deltaY, double previewHeight) {
+    if (previewHeight <= 0) return;
+    setState(() {
+      _bottomCropMm = (_bottomCropMm - deltaY / previewHeight * _pageHeightMm)
+          .clamp(0.0, _pageHeightMm - _topCropMm - _minimumContentMm)
+          .toDouble();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('معاينة وقص صفحات PDF'),
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('عدد صفحات الملف: ${widget.totalPages}'),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _firstPageController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'أول صفحة',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      onSubmitted: (_) => _loadPreview(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'معاينة الصفحة المحددة',
+                    onPressed: _loadPreview,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: _countController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'عدد الصفحات (1–3)',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'اسحب الشريط العلوي والسفلي لتحديد الجزء الذي تريد الاحتفاظ به من الورقة.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.black87),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  border: Border.all(color: Colors.grey.shade400),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: _loadingPreview
+                    ? const SizedBox(
+                        height: 260,
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    : _previewError != null && _previewBytes == null
+                        ? SizedBox(
+                            height: 260,
+                            child: Center(
+                              child: Text(_previewError!, textAlign: TextAlign.center),
+                            ),
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              return Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxHeight: 390),
+                                  child: AspectRatio(
+                                    aspectRatio: _pageAspectRatio,
+                                    child: LayoutBuilder(
+                                      builder: (context, box) {
+                                        final height = box.maxHeight;
+                                        final topY = height * _topCropMm / _pageHeightMm;
+                                        final bottomY = height * (1 - _bottomCropMm / _pageHeightMm);
+                                        return ClipRect(
+                                          child: Stack(
+                                            fit: StackFit.expand,
+                                            children: [
+                                              Image.memory(_previewBytes!, fit: BoxFit.fill),
+                                              Positioned(
+                                                left: 0, right: 0, top: 0,
+                                                height: topY,
+                                                child: IgnorePointer(
+                                                  child: Container(color: Colors.black.withOpacity(0.48)),
+                                                ),
+                                              ),
+                                              Positioned(
+                                                left: 0, right: 0, top: bottomY,
+                                                bottom: 0,
+                                                child: IgnorePointer(
+                                                  child: Container(color: Colors.black.withOpacity(0.48)),
+                                                ),
+                                              ),
+                                              Positioned(
+                                                left: 0, right: 0,
+                                                top: (topY - 15).clamp(0.0, height - 30),
+                                                height: 30,
+                                                child: GestureDetector(
+                                                  behavior: HitTestBehavior.opaque,
+                                                  onVerticalDragUpdate: (d) => _moveTop(d.delta.dy, height),
+                                                  child: Center(
+                                                    child: Container(
+                                                      height: 25,
+                                                      width: double.infinity,
+                                                      alignment: Alignment.center,
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.blue.withOpacity(0.92),
+                                                        border: const Border(
+                                                          top: BorderSide(color: Colors.white, width: 1),
+                                                          bottom: BorderSide(color: Colors.white, width: 1),
+                                                        ),
+                                                      ),
+                                                      child: Text(
+                                                        'حد القص العلوي • ${_topCropMm.toStringAsFixed(1)} مم',
+                                                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              Positioned(
+                                                left: 0, right: 0,
+                                                top: (bottomY - 15).clamp(0.0, height - 30),
+                                                height: 30,
+                                                child: GestureDetector(
+                                                  behavior: HitTestBehavior.opaque,
+                                                  onVerticalDragUpdate: (d) => _moveBottom(d.delta.dy, height),
+                                                  child: Center(
+                                                    child: Container(
+                                                      height: 25,
+                                                      width: double.infinity,
+                                                      alignment: Alignment.center,
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.deepOrange.withOpacity(0.94),
+                                                        border: const Border(
+                                                          top: BorderSide(color: Colors.white, width: 1),
+                                                          bottom: BorderSide(color: Colors.white, width: 1),
+                                                        ),
+                                                      ),
+                                                      child: Text(
+                                                        'حد القص السفلي • ${_bottomCropMm.toStringAsFixed(1)} مم',
+                                                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  Text('المقصوص من الأعلى: ${_topCropMm.toStringAsFixed(1)} مم'),
+                  Text('المقصوص من الأسفل: ${_bottomCropMm.toStringAsFixed(1)} مم'),
+                ],
+              ),
+              if (_previewError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(_previewError!, style: const TextStyle(color: Colors.red)),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
+        ElevatedButton(
+          onPressed: _loadingPreview || _previewBytes == null ? null : _confirm,
+          child: const Text('اعتماد القص ومتابعة'),
+        ),
+      ],
     );
   }
 }
