@@ -766,7 +766,8 @@ class _OriginalPageCropDialogState extends State<_OriginalPageCropDialog> {
                         LayoutBuilder(
                           builder: (context, constraints) {
                             final width = constraints.maxWidth;
-                            final height = (width / _aspectRatio).clamp(180.0, 430.0);
+                            final height =
+                                (width / _aspectRatio).clamp(180.0, 430.0).toDouble();
                             return SizedBox(
                               width: width,
                               height: height,
@@ -781,7 +782,7 @@ class _OriginalPageCropDialogState extends State<_OriginalPageCropDialog> {
                                       ),
                                     ),
                                     Positioned(
-                                      top: (_top * height - 13).clamp(0.0, height - 26),
+                                      top: (_top * height - 13).clamp(0.0, height - 26).toDouble(),
                                       left: 0,
                                       right: 0,
                                       height: 26,
@@ -803,7 +804,7 @@ class _OriginalPageCropDialogState extends State<_OriginalPageCropDialog> {
                                       ),
                                     ),
                                     Positioned(
-                                      top: (_bottom * height - 13).clamp(0.0, height - 26),
+                                      top: (_bottom * height - 13).clamp(0.0, height - 26).toDouble(),
                                       left: 0,
                                       right: 0,
                                       height: 26,
