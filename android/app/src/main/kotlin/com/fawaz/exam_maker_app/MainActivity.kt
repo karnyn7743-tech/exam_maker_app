@@ -51,6 +51,8 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 val subjectCode = (arguments["subjectCode"] as? Number)?.toInt() ?: 1
+                val cropTopFraction = (arguments["cropTopFraction"] as? Number)?.toFloat() ?: 0f
+                val cropBottomFraction = (arguments["cropBottomFraction"] as? Number)?.toFloat() ?: 0f
 
                 if (sourcePath.isNullOrBlank() || outputPath.isNullOrBlank()) {
                     result.error("INVALID_ARGUMENT", "مسار ملف PDF غير صالح.", null)
@@ -63,7 +65,9 @@ class MainActivity : FlutterActivity() {
                             sourcePath = sourcePath,
                             outputPath = outputPath,
                             students = students,
-                            subjectCode = subjectCode
+                            subjectCode = subjectCode,
+                            cropTopFraction = cropTopFraction,
+                            cropBottomFraction = cropBottomFraction
                         )
                         Handler(Looper.getMainLooper()).post {
                             result.success(outputPath)
@@ -81,7 +85,9 @@ class MainActivity : FlutterActivity() {
         sourcePath: String,
         outputPath: String,
         students: List<Map<String, String>>,
-        subjectCode: Int
+        subjectCode: Int,
+        cropTopFraction: Float,
+        cropBottomFraction: Float
     ) {
         PDFBoxResourceLoader.init(applicationContext)
 
@@ -125,15 +131,43 @@ class MainActivity : FlutterActivity() {
                         val box = form.bBox ?: sourcePage.mediaBox
                         val sourceWidth = box.width.coerceAtLeast(1f)
                         val sourceHeight = box.height.coerceAtLeast(1f)
-                        val scale = minOf(contentWidth / sourceWidth, contentHeight / sourceHeight)
+
+                        // نسب القص قادمة من موضعي الخطين في معاينة الصفحة.
+                        // نحتفظ بالجزء الواقع بين الحدين دون فرض هامش ثابت.
+                        val safeTopFraction = cropTopFraction.coerceIn(0f, 0.99f)
+                        val safeBottomFraction = cropBottomFraction.coerceIn(0f, 0.99f)
+                        val totalCropFraction = (safeTopFraction + safeBottomFraction)
+                            .coerceAtMost(0.99f)
+                        val effectiveBottomFraction =
+                            minOf(safeBottomFraction, 0.99f - safeTopFraction)
+                        val topCrop = sourceHeight * safeTopFraction
+                        val bottomCrop = sourceHeight * effectiveBottomFraction
+                        val visibleHeight = (sourceHeight - topCrop - bottomCrop).coerceAtLeast(1f)
+
+                        val scale = minOf(contentWidth / sourceWidth, contentHeight / visibleHeight)
                         val drawnWidth = sourceWidth * scale
-                        val drawnHeight = sourceHeight * scale
+                        val drawnHeight = visibleHeight * scale
                         val offsetX = sideMargin + (contentWidth - drawnWidth) / 2f
                         val offsetY = bottomReserve + (contentHeight - drawnHeight) / 2f
+                        val boxLeft = box.lowerLeftX
+                        val boxBottom = box.lowerLeftY
 
                         PDPageContentStream(output, page).use { stream ->
                             stream.saveGraphicsState()
-                            stream.transform(Matrix(scale, 0f, 0f, scale, offsetX, offsetY))
+                            stream.transform(
+                                Matrix(
+                                    scale, 0f, 0f, scale,
+                                    offsetX - (boxLeft * scale),
+                                    offsetY - ((boxBottom + bottomCrop) * scale)
+                                )
+                            )
+                            stream.addRect(
+                                boxLeft,
+                                boxBottom + bottomCrop,
+                                sourceWidth,
+                                visibleHeight
+                            )
+                            stream.clip()
                             stream.drawForm(form)
                             stream.restoreGraphicsState()
 
