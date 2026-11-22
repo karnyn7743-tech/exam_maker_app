@@ -478,9 +478,17 @@ class StudentExcelService {
       
       consecutiveEmptyRows = 0; 
 
-      if (rawSeat.contains('جلوس') || rawName.contains('اسم')) {
+      // تجاوز صف العناوين فقط، دون استبعاد أسماء الطلاب التي تحتوي على «اسم».
+      final normalizedSeatHeader = _normalizeArabic(rawSeat);
+      final normalizedNameHeader = _normalizeArabic(rawName);
+      final bool isHeaderRow =
+          normalizedSeatHeader.contains('جلوس') ||
+          normalizedNameHeader == 'اسم' ||
+          normalizedNameHeader.startsWith('اسمالطالب');
+
+      if (isHeaderRow) {
         r++;
-        continue; 
+        continue;
       }
 
       if (requiredGrade.isNotEmpty) {
