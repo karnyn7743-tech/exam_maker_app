@@ -188,133 +188,298 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
     }
   }
 
-  Future<void> _pickExcel() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const ['xlsx', 'xlsm'],
-        withData: false,
-      );
-      if (result == null || result.files.isEmpty) return;
-      final path = result.files.single.path;
-      if (path == null) throw Exception('تعذر الوصول إلى ملف Excel.');
-      if (!mounted) return;
-      setState(() => _excelPath = path);
-      _showMessage('تم اختيار ملف بيانات الطلاب.');
-    } catch (e) {
-      _showMessage('تعذر اختيار ملف Excel: $e', isError: true);
-    }
-  }
-
   Future<void> _configureStudentPdf() async {
     if (_filePath == null) return;
+
+    String? selectedExcelPath = _excelPath;
+    String? selectedSubject;
+    String? selectedGrade;
+    String? selectedPeriod;
+    List<String> subjects = [];
+    List<String> grades = [];
+    List<String> periods = [];
+    bool loading = false;
+    String? error;
+
     final confirmed = await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          backgroundColor: const Color(0xFFFAF8F1),
-          title: Text(_isPdf ? 'إضافة بيانات الطلاب إلى PDF' : 'إنشاء نسخ الطلاب من Word'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: _subjectController,
-                  decoration: const InputDecoration(
-                    labelText: 'اسم المادة / ورقة العمل في Excel',
+        builder: (dialogContext, setDialogState) {
+          Future<void> chooseExcel() async {
+            try {
+              final result = await FilePicker.platform.pickFiles(
+                type: FileType.custom,
+                allowedExtensions: const ['xlsx', 'xlsm'],
+                withData: false,
+              );
+              if (result == null || result.files.isEmpty) return;
+              final path = result.files.single.path;
+              if (path == null || path.trim().isEmpty) {
+                throw Exception('تعذر الوصول إلى ملف Excel المحدد.');
+              }
+
+              setDialogState(() {
+                loading = true;
+                error = null;
+                selectedExcelPath = path;
+                selectedSubject = null;
+                selectedGrade = null;
+                selectedPeriod = null;
+                subjects = [];
+                grades = [];
+                periods = [];
+              });
+
+              final loadedSubjects =
+                  await StudentExcelService.getSubjectSheetNames(path);
+              if (loadedSubjects.isEmpty) {
+                throw Exception(
+                  'لم يُعثر على أوراق مواد تحتوي على كشف الطلاب المتوقع.',
+                );
+              }
+              setDialogState(() => subjects = loadedSubjects);
+            } catch (e) {
+              setDialogState(() => error = 'تعذر قراءة ملف Excel: $e');
+            } finally {
+              setDialogState(() => loading = false);
+            }
+          }
+
+          Future<void> selectSubject(String? value) async {
+            if (value == null || selectedExcelPath == null) return;
+            setDialogState(() {
+              loading = true;
+              error = null;
+              selectedSubject = value;
+              selectedGrade = null;
+              selectedPeriod = null;
+              grades = [];
+              periods = [];
+            });
+            try {
+              final options = await StudentExcelService.getSheetOptions(
+                selectedExcelPath!,
+                value,
+              );
+              if (options.grades.isEmpty) {
+                throw Exception('لم تُوجد صفوف دراسية في العمود C.');
+              }
+              if (options.periods.isEmpty) {
+                throw Exception('لم تُوجد أسماء أشهر أو فصول دراسية في ورقة المادة.');
+              }
+              setDialogState(() {
+                grades = options.grades;
+                periods = options.periods;
+              });
+            } catch (e) {
+              setDialogState(() => error = 'تعذر قراءة بيانات ورقة المادة: $e');
+            } finally {
+              setDialogState(() => loading = false);
+            }
+          }
+
+          Widget dropdown({
+            required String label,
+            required String? value,
+            required List<String> items,
+            required ValueChanged<String?>? onChanged,
+          }) {
+            return DropdownButtonFormField<String>(
+              value: value,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: label,
+                border: const OutlineInputBorder(),
+              ),
+              items: items
+                  .map((item) => DropdownMenuItem<String>(
+                        value: item,
+                        child: Text(item, overflow: TextOverflow.ellipsis),
+                      ))
+                  .toList(),
+              onChanged: loading ? null : onChanged,
+            );
+          }
+
+          return Directionality(
+            textDirection: TextDirection.rtl,
+            child: AlertDialog(
+              backgroundColor: const Color(0xFFFAF8F1),
+              title: Text(
+                _isPdf
+                    ? 'إضافة بيانات الطلاب إلى PDF'
+                    : 'إنشاء نسخ الطلاب من Word',
+              ),
+              content: SizedBox(
+                width: 420,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: loading ? null : chooseExcel,
+                          icon: const Icon(Icons.table_view),
+                          label: Text(
+                            selectedExcelPath == null
+                                ? '١ - اختيار ملف Excel'
+                                : 'تم اختيار ملف Excel',
+                          ),
+                        ),
+                      ),
+                      if (selectedExcelPath != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          selectedExcelPath!.split(Platform.pathSeparator).last,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF52796F),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      dropdown(
+                        label: '٢ - المادة / ورقة العمل',
+                        value: selectedSubject,
+                        items: subjects,
+                        onChanged: selectedExcelPath == null
+                            ? null
+                            : selectSubject,
+                      ),
+                      const SizedBox(height: 12),
+                      dropdown(
+                        label: '٣ - الصف الدراسي',
+                        value: selectedGrade,
+                        items: grades,
+                        onChanged: selectedSubject == null
+                            ? null
+                            : (value) => setDialogState(
+                                  () => selectedGrade = value,
+                                ),
+                      ),
+                      const SizedBox(height: 12),
+                      dropdown(
+                        label: '٤ - الشهر أو الفصل الدراسي',
+                        value: selectedPeriod,
+                        items: periods,
+                        onChanged: selectedSubject == null
+                            ? null
+                            : (value) => setDialogState(
+                                  () => selectedPeriod = value,
+                                ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '٥ - موضع بيانات الطالب بحسب نوع الاختبار',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1E3A8A),
+                          ),
+                        ),
+                      ),
+                      RadioListTile<bool>(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        value: false,
+                        groupValue: _studentDataOnLastPage,
+                        onChanged: loading
+                            ? null
+                            : (value) {
+                                if (value != null) {
+                                  setDialogState(
+                                    () => _studentDataOnLastPage = value,
+                                  );
+                                }
+                              },
+                        title: const Text('اختبار شامل أو عادي'),
+                        subtitle: const Text(
+                          'تظهر بيانات الطالب في الصفحة الأولى.',
+                        ),
+                      ),
+                      RadioListTile<bool>(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        value: true,
+                        groupValue: _studentDataOnLastPage,
+                        onChanged: loading
+                            ? null
+                            : (value) {
+                                if (value != null) {
+                                  setDialogState(
+                                    () => _studentDataOnLastPage = value,
+                                  );
+                                }
+                              },
+                        title: const Text('اختبار أتمتة'),
+                        subtitle: const Text(
+                          'تظهر بيانات الطالب في الصفحة الأخيرة (ورقة التظليل).',
+                        ),
+                      ),
+                      if (loading) ...[
+                        const SizedBox(height: 10),
+                        const LinearProgressIndicator(),
+                        const SizedBox(height: 6),
+                        const Text('جارٍ قراءة بيانات ملف Excel...'),
+                      ],
+                      if (error != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          error!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Text(
+                        _studentDataOnLastPage
+                            ? 'ستظهر بيانات الطالب ورقم جلوسه ورمز QR وكود المادة في الصفحة الأخيرة فقط.'
+                            : 'ستظهر بيانات الطالب ورقم جلوسه ورمز QR وكود المادة في الصفحة الأولى فقط.',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF777568),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _gradeController,
-                  decoration: const InputDecoration(labelText: 'الصف الدراسي'),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: loading
+                      ? null
+                      : () => Navigator.pop(dialogContext, false),
+                  child: const Text('إلغاء'),
                 ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _examTitleController,
-                  decoration: const InputDecoration(labelText: 'اسم الاختبار أو الشهر'),
-                ),
-                const SizedBox(height: 12),
-                const Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    'موضع بيانات الطالب بحسب نوع الاختبار',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1E3A8A),
-                    ),
-                  ),
-                ),
-                RadioListTile<bool>(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  value: false,
-                  groupValue: _studentDataOnLastPage,
-                  onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() => _studentDataOnLastPage = value);
-                    }
-                  },
-                  title: const Text('اختبار شامل أو عادي'),
-                  subtitle: const Text('تظهر بيانات الطالب في الصفحة الأولى.'),
-                ),
-                RadioListTile<bool>(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  value: true,
-                  groupValue: _studentDataOnLastPage,
-                  onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() => _studentDataOnLastPage = value);
-                    }
-                  },
-                  title: const Text('اختبار أتمتة'),
-                  subtitle: const Text('تظهر بيانات الطالب في الصفحة الأخيرة (ورقة التظليل).'),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: _pickExcel,
-                  icon: const Icon(Icons.table_view),
-                  label: Text(
-                    _excelPath == null
-                        ? 'اختيار ملف Excel للطلاب'
-                        : 'تم اختيار ملف Excel',
-                  ),
-                ),
-                if (_excelPath != null)
-                  Text(
-                    _excelPath!.split(Platform.pathSeparator).last,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF52796F)),
-                  ),
-                const SizedBox(height: 5),
-                Text(
-                  _studentDataOnLastPage
-                      ? 'سيتم إنشاء نسخة PDF لكل طالب، وتظهر بياناته ورقم جلوسه ورمز QR وكود المادة في الصفحة الأخيرة فقط. يبقى ملف Word الأصلي قابلاً للتحرير دون تغيير.'
-                      : 'سيتم إنشاء نسخة PDF لكل طالب، وتظهر بياناته ورقم جلوسه ورمز QR وكود المادة في الصفحة الأولى فقط. يبقى ملف Word الأصلي قابلاً للتحرير دون تغيير.',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF777568)),
+                FilledButton(
+                  onPressed: loading ||
+                          selectedExcelPath == null ||
+                          selectedSubject == null ||
+                          selectedGrade == null ||
+                          selectedPeriod == null
+                      ? null
+                      : () {
+                          setState(() {
+                            _excelPath = selectedExcelPath;
+                            _subjectController.text = selectedSubject!;
+                            _gradeController.text = selectedGrade!;
+                            _examTitleController.text = selectedPeriod!;
+                          });
+                          Navigator.pop(dialogContext, true);
+                        },
+                  child: const Text('إنشاء نسخ الطلاب'),
                 ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('إلغاء'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('إنشاء نسخ الطلاب'),
-            ),
-          ],
-        ),
-        ),
+          );
+        },
       ),
     );
+
     if (confirmed == true) await _createStudentPdf();
   }
 
