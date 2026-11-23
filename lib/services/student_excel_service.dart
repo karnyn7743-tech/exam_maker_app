@@ -33,6 +33,16 @@ class StudentExcelResult {
   });
 }
 
+class StudentSheetOptions {
+  final List<String> grades;
+  final List<String> periods;
+
+  const StudentSheetOptions({
+    required this.grades,
+    required this.periods,
+  });
+}
+
 class StudentExcelService {
   /// إصلاح أبعاد ملف الإكسيل المخزنة بشكل خاطئ
   static Uint8List _fixExcelDimensions(Uint8List bytes) {
@@ -211,6 +221,49 @@ class StudentExcelService {
       }
     }
     return months;
+  }
+
+  /// أسماء أوراق المواد التي تحتوي على كشف طلاب صحيح.
+  static Future<List<String>> getSubjectSheetNames(String filePath) async {
+    final bytes = await File(filePath).readAsBytes();
+    final excel = Excel.decodeBytes(_fixExcelDimensions(bytes));
+    return excel.tables.entries
+        .where((entry) => _isSubjectSheet(entry.value))
+        .map((entry) => entry.key)
+        .toList(growable: false);
+  }
+
+  /// الصفوف الدراسية وأسماء الأشهر والفصلين من ورقة المادة المختارة.
+  static Future<StudentSheetOptions> getSheetOptions(
+    String filePath,
+    String sheetName,
+  ) async {
+    final bytes = await File(filePath).readAsBytes();
+    final excel = Excel.decodeBytes(_fixExcelDimensions(bytes));
+    final sheet = excel.tables[sheetName];
+    if (sheet == null || !_isSubjectSheet(sheet)) {
+      throw Exception('ورقة المادة المحددة لا تحتوي على كشف طلاب صالح.');
+    }
+
+    final grades = <String>[];
+    final seenGrades = <String>{};
+    for (int row = 3; row < sheet.maxRows; row++) {
+      final grade = _extractCleanText(
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row)),
+      );
+      final key = _normalizeArabic(grade);
+      if (grade.isNotEmpty && key.isNotEmpty && seenGrades.add(key)) {
+        grades.add(grade);
+      }
+    }
+
+    final periods = <String>[
+      ...extractMonthsFromSheet(sheet),
+      'الفصل الدراسي الأول',
+      'الفصل الدراسي الثاني',
+    ];
+
+    return StudentSheetOptions(grades: grades, periods: periods);
   }
 
   static int _extractMonthOrderFromTitle(String examTitle, Sheet sheet, int totalMonths) {
