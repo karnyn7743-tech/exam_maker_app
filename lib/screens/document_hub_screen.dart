@@ -292,7 +292,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
                     style: const TextStyle(fontSize: 11, color: Color(0xFF52796F)),
                   ),
                 const SizedBox(height: 5),
-                const Text(
+                Text(
                   _studentDataOnLastPage
                       ? 'سيتم إنشاء نسخة PDF لكل طالب، وتظهر بياناته ورقم جلوسه ورمز QR وكود المادة في الصفحة الأخيرة فقط. يبقى ملف Word الأصلي قابلاً للتحرير دون تغيير.'
                       : 'سيتم إنشاء نسخة PDF لكل طالب، وتظهر بياناته ورقم جلوسه ورمز QR وكود المادة في الصفحة الأولى فقط. يبقى ملف Word الأصلي قابلاً للتحرير دون تغيير.',
