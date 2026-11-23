@@ -32,6 +32,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
   double _cropTopFraction = 0.0;
   double _cropBottomFraction = 0.0;
   bool _cropConfigured = false;
+  bool _studentDataOnLastPage = false;
   String? _loadError;
   PdfControllerPinch? _pdfController;
   FluentDocument? _wordDocument;
@@ -209,7 +210,8 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
     if (_filePath == null) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => Directionality(
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => Directionality(
         textDirection: TextDirection.rtl,
         child: AlertDialog(
           backgroundColor: const Color(0xFFFAF8F1),
@@ -235,6 +237,44 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
                   decoration: const InputDecoration(labelText: 'اسم الاختبار أو الشهر'),
                 ),
                 const SizedBox(height: 12),
+                const Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    'موضع بيانات الطالب بحسب نوع الاختبار',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E3A8A),
+                    ),
+                  ),
+                ),
+                RadioListTile<bool>(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  value: false,
+                  groupValue: _studentDataOnLastPage,
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => _studentDataOnLastPage = value);
+                    }
+                  },
+                  title: const Text('اختبار شامل أو عادي'),
+                  subtitle: const Text('تظهر بيانات الطالب في الصفحة الأولى.'),
+                ),
+                RadioListTile<bool>(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  value: true,
+                  groupValue: _studentDataOnLastPage,
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => _studentDataOnLastPage = value);
+                    }
+                  },
+                  title: const Text('اختبار أتمتة'),
+                  subtitle: const Text('تظهر بيانات الطالب في الصفحة الأخيرة (ورقة التظليل).'),
+                ),
+                const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: _pickExcel,
                   icon: const Icon(Icons.table_view),
@@ -253,7 +293,9 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
                   ),
                 const SizedBox(height: 5),
                 const Text(
-                  'سيتم إنشاء نسخة PDF لكل طالب، وتظهر بياناته ورقم جلوسه ورمز QR وكود المادة في الصفحة الأولى فقط. يبقى ملف Word الأصلي قابلاً للتحرير دون تغيير.',
+                  _studentDataOnLastPage
+                      ? 'سيتم إنشاء نسخة PDF لكل طالب، وتظهر بياناته ورقم جلوسه ورمز QR وكود المادة في الصفحة الأخيرة فقط. يبقى ملف Word الأصلي قابلاً للتحرير دون تغيير.'
+                      : 'سيتم إنشاء نسخة PDF لكل طالب، وتظهر بياناته ورقم جلوسه ورمز QR وكود المادة في الصفحة الأولى فقط. يبقى ملف Word الأصلي قابلاً للتحرير دون تغيير.',
                   style: TextStyle(fontSize: 12, color: Color(0xFF777568)),
                 ),
               ],
@@ -269,6 +311,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
               child: const Text('إنشاء نسخ الطلاب'),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -316,6 +359,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
         'outputPath': outputPath,
         'students': students,
         'subjectCode': excelResult?.subjectCode ?? 1,
+        'studentDataOnLastPage': _studentDataOnLastPage,
         'cropTopFraction': _cropConfigured ? _cropTopFraction : 0.0,
         'cropBottomFraction': _cropConfigured ? _cropBottomFraction : 0.0,
       });
@@ -344,7 +388,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
       _showMessage(
         excelResult == null
             ? 'تم تجهيز صفحات PDF بمقاس A4 مع الاحتفاظ بالمحتوى الأصلي.'
-            : 'تم تجهيز ${excelResult.students.length} نسخة باسم $outputName، مع بيانات الطلاب في الصفحة الأولى لكل نسخة.',
+            : 'تم تجهيز ${excelResult.students.length} نسخة باسم $outputName، مع بيانات الطلاب في ${_studentDataOnLastPage ? 'الصفحة الأخيرة' : 'الصفحة الأولى'} لكل نسخة.',
       );
     } catch (e) {
       _showMessage('تعذرت معالجة ملف PDF: $e', isError: true);
