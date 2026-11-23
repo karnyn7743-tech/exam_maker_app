@@ -51,6 +51,7 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 val subjectCode = (arguments["subjectCode"] as? Number)?.toInt() ?: 1
+                val studentDataOnLastPage = arguments["studentDataOnLastPage"] as? Boolean ?: false
                 val cropTopFraction = (arguments["cropTopFraction"] as? Number)?.toFloat() ?: 0f
                 val cropBottomFraction = (arguments["cropBottomFraction"] as? Number)?.toFloat() ?: 0f
 
@@ -66,6 +67,7 @@ class MainActivity : FlutterActivity() {
                             outputPath = outputPath,
                             students = students,
                             subjectCode = subjectCode,
+                            studentDataOnLastPage = studentDataOnLastPage,
                             cropTopFraction = cropTopFraction,
                             cropBottomFraction = cropBottomFraction
                         )
@@ -86,6 +88,7 @@ class MainActivity : FlutterActivity() {
         outputPath: String,
         students: List<Map<String, String>>,
         subjectCode: Int,
+        studentDataOnLastPage: Boolean,
         cropTopFraction: Float,
         cropBottomFraction: Float
     ) {
@@ -120,7 +123,8 @@ class MainActivity : FlutterActivity() {
 
                         val pageWidth = PDRectangle.A4.width
                         val pageHeight = PDRectangle.A4.height
-                        val hasStudentData = !student["seatNo"].isNullOrBlank() && pageIndex == 0
+                        val studentDataPageIndex = if (studentDataOnLastPage) source.numberOfPages - 1 else 0
+                        val hasStudentData = !student["seatNo"].isNullOrBlank() && pageIndex == studentDataPageIndex
 
                         // مساحة الصفحة الأولى: 1 سم لبيانات الطالب و3 سم للكود وQR ومستطيل الدرجة.
                         val topReserve = if (hasStudentData) 28.35f else 0f
