@@ -39,7 +39,12 @@ class OmrTemplateGeometry {
           : i;
       final isSecondColumn = config.trueFalseCount > 10 &&
           i >= (config.trueFalseCount / 2).ceil();
-      final centerX = _tfCenterX + (isSecondColumn ? -_tfWidth : 0);
+      final columnOffset = config.trueFalseCount > 10 ? _tfWidth / 4 : 0.0;
+      final firstSide = exam.isArabic ? 1.0 : -1.0;
+      final centerX = _tfCenterX +
+          (config.trueFalseCount > 10
+              ? (isSecondColumn ? -firstSide : firstSide) * columnOffset
+              : 0.0);
       final centerY = _firstBubbleCenterY + localRow * _rowPitch;
       final offsets = exam.isArabic ? const [0.75, -16.75] : const [3.25, 20.75];
       groups.add(List.generate(2, (optionIndex) => OmrBubbleSpec(
@@ -56,7 +61,12 @@ class OmrTemplateGeometry {
           ? (i < half ? i : i - half)
           : i;
       final isSecondColumn = config.mcqCount > 10 && i >= half;
-      final centerX = _mcqCenterX + (isSecondColumn ? _mcqWidth : 0);
+      final columnOffset = config.mcqCount > 10 ? _mcqWidth / 4 : 0.0;
+      final firstSide = exam.isArabic ? 1.0 : -1.0;
+      final centerX = _mcqCenterX +
+          (config.mcqCount > 10
+              ? (isSecondColumn ? -firstSide : firstSide) * columnOffset
+              : 0.0);
       final centerY = _firstBubbleCenterY + localRow * _rowPitch;
       final offsets = exam.isArabic
           ? const [14.85, -3.05, -20.95, -38.85]
