@@ -19,7 +19,7 @@ class OmrScannerScreen extends StatefulWidget {
 
 class _OmrScannerScreenState extends State<OmrScannerScreen> {
   CameraController? _cameraController;
-  final MobileScannerController _qrAnalyzer = MobileScannerController(autoStart: false, formats: const [BarcodeFormat.qrCode]);
+  final MobileScannerController _qrAnalyzer = MobileScannerController(\n    autoStart: false,\n    formats: const [BarcodeFormat.qrCode],\n  );
   List<CameraDescription>? _cameras;
   bool _isCameraInitialized = false;
   bool _isProcessing = false;
@@ -196,7 +196,7 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
 
     setState(() {
       _isProcessing = true;
-      _statusText = 'جاري تحليل ورقة الإجابة ورصد الدرجة...';
+      _statusText = 'جاري قراءة رمز الطالب والتحقق من كشف الإكسيل...';
     });
 
     try {
@@ -252,127 +252,6 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
         });
       }
     }
-  }
-
-  Map<String, dynamic> _processOmrData(img.Image image) {
-    final int totalQuestions = widget.exam.questions.length;
-    int correctCount = 0;
-    double totalEarnedMark = 0.0;
-    final detailedAnswers = List<dynamic>.empty(growable: true);
-
-    for (int i = 0; i < totalQuestions; i++) {
-      final q = widget.exam.questions[i];
-      final String expected = q.answerKey.trim();
-
-      final bool isCorrect = expected.isNotEmpty;
-      if (isCorrect) {
-        correctCount++;
-        totalEarnedMark += q.mark;
-      }
-
-      detailedAnswers.add({
-        'qNum': i + 1,
-        'title': q.title,
-        'expected': expected.isEmpty ? '-' : expected,
-        'mark': q.mark,
-        'isCorrect': isCorrect,
-      });
-    }
-
-    return {
-      'total': totalQuestions,
-      'correct': correctCount,
-      'score': totalEarnedMark,
-      'maxScore': widget.exam.totalMarks,
-      'details': detailedAnswers,
-    };
-  }
-
-  void _showResultDialog(Map<String, dynamic> res) {
-    // حساب موقع العمود المستهدف بدقة مع مراعاة إزاحة الأعمدة لنظام 8 أو 6 أشهر
-    final int targetColIndex = StudentExcelService.resolveTargetExamColumnIndex(
-      selectedPeriod: _selectedPeriod ?? 'شهر 1',
-      totalMonths: _detectedTotalMonths,
-    );
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(
-          children: const [
-            Icon(Icons.verified, color: Color(0xFF0F766E)),
-            SizedBox(width: 8),
-            Text('نتيجة التصحيح الآلي والرصد', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          ],
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.teal.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.teal.shade200),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      'الدرجة المستحقة: ${res['score']} من ${res['maxScore']} د',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.teal.shade900),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'المادة: [$_selectedSheetName] | الفترة: [$_selectedPeriod] (عمود فهرس $targetColIndex)',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text('تفاصيل إجابات الفقرات:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-              const SizedBox(height: 6),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: (res['details'] as List).length,
-                  itemBuilder: (context, idx) {
-                    final d = res['details'][idx];
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Row(
-                        children: [
-                          Text('فقرة ${d['qNum']}: ', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                          Text('الحل: ${d['expected']}', style: const TextStyle(fontSize: 11)),
-                          const Spacer(),
-                          Icon(
-                            d['isCorrect'] ? Icons.check_circle : Icons.cancel,
-                            size: 16,
-                            color: d['isCorrect'] ? Colors.green : Colors.red,
-                          ),
-                          const SizedBox(width: 4),
-                          Text('${d['mark']} د', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('تم / مسح ورقة أخرى', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
   }
 
   /// نافذة منبثقة للتحكم بإعدادات الربط وملف الإكسيل
@@ -691,7 +570,7 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
           ),
           icon: const Icon(Icons.document_scanner, color: Colors.white, size: 24),
           label: Text(
-            _excelLoaded ? 'التقاط وتصحيح ورصد فوري' : 'اختر ملف الإكسيل لتفعيل المسح',
+            _excelLoaded ? 'التقاط والتحقق من هوية الطالب' : 'اختر ملف الإكسيل لتفعيل المسح',
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
           ),
           onPressed: (!_excelLoaded || _isProcessing || !_isCameraInitialized) ? null : _captureAndScan,
