@@ -212,7 +212,7 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
       }
 
       // لا يُسمح بالرصد قبل التحقق من QR ومطابقته مع كشف الطلاب.
-      final barcodeCapture = await _qrAnalyzer.analyzeImage(photo.path, formats: const [BarcodeFormat.qrCode]);
+      final barcodeCapture = await _qrAnalyzer.analyzeImage(photo.path);
       final qrValues = (barcodeCapture?.barcodes ?? const <Barcode>[])
           .map((barcode) => barcode.rawValue?.trim() ?? '')
           .where((value) => value.isNotEmpty)
