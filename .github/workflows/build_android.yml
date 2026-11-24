@@ -58,6 +58,13 @@ jobs:
       - name: Patch Fluent Editor Touch Selection
         run: dart run tool/patch_fluent_editor.dart
 
+      - name: Test OMR Scoring and Geometry
+        run: >-
+          flutter test
+          test/services/omr_scoring_service_test.dart
+          test/services/omr_bubble_detector_test.dart
+          test/services/omr_template_geometry_test.dart
+
       - name: Build Release APK
         run: flutter build apk --release --verbose
 
