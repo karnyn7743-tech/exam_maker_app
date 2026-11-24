@@ -4,6 +4,7 @@ import 'package:excel/excel.dart' hide Border;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
+import 'package:mobile_scanner/mobile_scanner.dart';
 import '../models/exam_models.dart';
 import '../services/student_excel_service.dart';
 
@@ -18,6 +19,7 @@ class OmrScannerScreen extends StatefulWidget {
 
 class _OmrScannerScreenState extends State<OmrScannerScreen> {
   CameraController? _cameraController;
+  final MobileScannerController _qrAnalyzer = MobileScannerController(autoStart: false, formats: const [BarcodeFormat.qrCode]);
   List<CameraDescription>? _cameras;
   bool _isCameraInitialized = false;
   bool _isProcessing = false;
@@ -68,6 +70,7 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
   @override
   void dispose() {
     _cameraController?.dispose();
+    _qrAnalyzer.dispose();
     super.dispose();
   }
 
@@ -133,12 +136,23 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
       final bytes = await File(path).readAsBytes();
       final excel = Excel.decodeBytes(bytes);
 
-      final sheets = excel.tables.keys.toList();
-      final firstSheet = excel.tables.values.first;
-      final int totalMonths = StudentExcelService.detectTotalMonths(firstSheet);
-
-      // استخراج أسماء الشهور الفعلية من الصف 2
-      final monthNames = StudentExcelService.extractMonthsFromSheet(firstSheet, totalMonths: totalMonths);
+      // نقتصر على أوراق المواد الصحيحة ولا نعامل أوراق الإعدادات كمواد.
+      final sheets = await StudentExcelService.getSubjectSheetNames(path);
+      if (sheets.isEmpty) throw Exception('لم يتم العثور على أوراق مواد صالحة.');
+      String? matchedSheet;
+      for (final sheetName in sheets) {
+        if (sheetName.trim() == widget.exam.header.subject.trim() ||
+            sheetName.contains(widget.exam.header.subject.trim()) ||
+            widget.exam.header.subject.trim().contains(sheetName)) {
+          matchedSheet = sheetName;
+          break;
+        }
+      }
+      matchedSheet ??= sheets.first;
+      final selectedSheet = excel.tables[matchedSheet];
+      if (selectedSheet == null) throw Exception('تعذر فتح ورقة المادة المحددة.');
+      final int totalMonths = StudentExcelService.detectTotalMonths(selectedSheet);
+      final monthNames = StudentExcelService.extractMonthsFromSheet(selectedSheet, totalMonths: totalMonths);
 
       List<String> periods = [];
       for (final m in monthNames) {
@@ -147,18 +161,6 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
       // إضافة خيارات اختبارات نهاية الفصول
       periods.add('ف١');
       periods.add('ف٢');
-
-      // تحديد ورقة المادة الافتراضية بمطابقتها مع مادة الاختبار
-      String? matchedSheet;
-      for (final s in sheets) {
-        if (s.trim() == widget.exam.header.subject.trim() ||
-            s.contains(widget.exam.header.subject.trim()) ||
-            widget.exam.header.subject.trim().contains(s)) {
-          matchedSheet = s;
-          break;
-        }
-      }
-      matchedSheet ??= sheets.isNotEmpty ? sheets.first : null;
 
       setState(() {
         _selectedExcelPath = path;
@@ -206,8 +208,38 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
         throw Exception('فشل في معالجة بيانات الصورة.');
       }
 
-      final scanResult = _processOmrData(capturedImage);
-      _showResultDialog(scanResult);
+      // لا يُسمح بالرصد قبل التحقق من QR ومطابقته مع كشف الطلاب.
+      final barcodeCapture = await _qrAnalyzer.analyzeImage(photo.path, formats: const [BarcodeFormat.qrCode]);
+      final qrValues = (barcodeCapture?.barcodes ?? const <Barcode>[])
+          .map((barcode) => barcode.rawValue?.trim() ?? '')
+          .where((value) => value.isNotEmpty)
+          .toSet();
+      if (qrValues.length != 1) {
+        throw Exception(qrValues.isEmpty
+            ? 'لم يُقرأ رمز QR بوضوح. أعد التصوير مع إظهار الرمز كاملاً.'
+            : 'تحتوي الصورة على أكثر من رمز QR؛ تعذر تحديد هوية الطالب بأمان.');
+      }
+      final excelResult = await StudentExcelService.parseExcelFile(
+        _selectedExcelPath!,
+        expectedSubject: _selectedSheetName,
+        targetGrade: widget.exam.header.grade,
+        examTitle: widget.exam.header.examTitle,
+      );
+      final matches = excelResult.students.where((student) => student.secretCode.trim() == qrValues.single).toList();
+      if (matches.length != 1) {
+        throw Exception(matches.isEmpty
+            ? 'رمز الطالب غير موجود في كشف المادة والصف المحددين. لم تُسجل أي درجة.'
+            : 'رمز الطالب مكرر في كشف الإكسيل. لم تُسجل أي درجة.');
+      }
+      final student = matches.single;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('تم التحقق من الطالب: ${student.name} — رقم الجلوس: ${student.seatNo}. لم تُسجل درجة قبل اكتمال قراءة التظليل.'),
+          duration: const Duration(seconds: 5),
+          backgroundColor: Colors.teal.shade800,
+        ),
+      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('خطأ أثناء المسح: $e'), backgroundColor: Colors.red),
