@@ -579,6 +579,55 @@ class StudentExcelService {
     );
   }
 
+  /// حفظ درجة OMR مع منع الكتابة فوق درجة موجودة دون موافقة صريحة.
+  /// القيم المعادة: saved, alreadyExists, studentNotFound, duplicateStudent, invalidTarget, error.
+  static Future<String> saveOmrMarkToExcel({
+    required String filePath,
+    required String secretCode,
+    required String sheetName,
+    required double mark,
+    required int targetColumnIndex,
+    bool allowOverwrite = false,
+  }) async {
+    try {
+      if (targetColumnIndex < 4 || mark < 0) return 'invalidTarget';
+      final file = File(filePath);
+      if (!await file.exists()) return 'error';
+
+      final bytes = await file.readAsBytes();
+      final excel = Excel.decodeBytes(_fixExcelDimensions(bytes));
+      final sheet = excel.tables[sheetName];
+      if (sheet == null) return 'invalidTarget';
+
+      final cleanSecret = _extractCleanText(secretCode);
+      if (cleanSecret.isEmpty) return 'studentNotFound';
+
+      final matchingRows = <int>[];
+      for (int row = 3; row < sheet.maxRows; row++) {
+        final value = _extractCleanText(
+          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: row)),
+        );
+        if (value == cleanSecret) matchingRows.add(row);
+      }
+      if (matchingRows.isEmpty) return 'studentNotFound';
+      if (matchingRows.length > 1) return 'duplicateStudent';
+
+      final targetCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: targetColumnIndex, rowIndex: matchingRows.single),
+      );
+      final existingValue = _extractCleanText(targetCell);
+      if (existingValue.isNotEmpty && !allowOverwrite) return 'alreadyExists';
+
+      targetCell.value = DoubleCellValue(mark);
+      final updatedBytes = excel.save();
+      if (updatedBytes == null) return 'error';
+      await file.writeAsBytes(updatedBytes, flush: true);
+      return 'saved';
+    } catch (_) {
+      return 'error';
+    }
+  }
+
   static Future<bool> updateStudentMarkInExcel({
     required String filePath,
     required String secretCode,
