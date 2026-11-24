@@ -8,6 +8,11 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../models/exam_models.dart';
 import '../services/student_excel_service.dart';
 import '../services/omr_registration_detector.dart';
+import '../services/omr_perspective_rectifier.dart';
+import '../services/omr_template_geometry.dart';
+import '../services/omr_bubble_detector.dart';
+import '../services/omr_scoring_service.dart';
+import '../services/omr_result_commit_service.dart';
 
 class OmrScannerScreen extends StatefulWidget {
   final ExamModel exam;
@@ -194,74 +199,220 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
   }
 
   Future<void> _captureAndScan() async {
-    if (!_excelLoaded || _cameraController == null || !_cameraController!.value.isInitialized || _isProcessing) {
-      return;
-    }
-
-    setState(() {
-      _isProcessing = true;
-      _statusText = 'جاري قراءة رمز الطالب والتحقق من كشف الإكسيل...';
-    });
-
+    if (!_excelLoaded || _cameraController == null ||
+        !_cameraController!.value.isInitialized || _isProcessing) return;
+    setState(() { _isProcessing = true; _statusText = 'جاري تصوير الورقة ومعايرة حدودها...'; });
     try {
-      final XFile photo = await _cameraController!.takePicture();
+      final photo = await _cameraController!.takePicture();
       final bytes = await File(photo.path).readAsBytes();
-      final img.Image? capturedImage = img.decodeImage(bytes);
+      final captured = img.decodeImage(bytes);
+      if (captured == null) throw Exception('فشل في معالجة بيانات الصورة.');
+      final registration = OmrRegistrationDetector.detect(captured);
+      if (!registration.success) throw Exception(registration.message);
+      final rectified = OmrPerspectiveRectifier.rectify(captured, registration);
 
-      if (capturedImage == null) {
-        throw Exception('فشل في معالجة بيانات الصورة.');
-      }
-
-      // اكتشاف علامات التسجيل المطبوعة دون افتراض إحداثيات ثابتة للصورة.
-      final registration = OmrRegistrationDetector.detect(capturedImage);
-      if (!registration.success) {
-        throw Exception(registration.message);
-      }
-
-      // لا يُسمح بالرصد قبل التحقق من QR ومطابقته مع كشف الطلاب.
+      if (mounted) setState(() => _statusText = 'جاري قراءة رمز الطالب ودوائر الإجابة...');
       final barcodeCapture = await _qrAnalyzer.analyzeImage(photo.path);
       final qrValues = (barcodeCapture?.barcodes ?? const <Barcode>[])
-          .map((barcode) => barcode.rawValue?.trim() ?? '')
-          .where((value) => value.isNotEmpty)
-          .toSet();
+          .map((b) => b.rawValue?.trim() ?? '').where((v) => v.isNotEmpty).toSet();
       if (qrValues.length != 1) {
         throw Exception(qrValues.isEmpty
-            ? 'لم يُقرأ رمز QR بوضوح. أعد التصوير مع إظهار الرمز كاملاً.'
-            : 'تحتوي الصورة على أكثر من رمز QR؛ تعذر تحديد هوية الطالب بأمان.');
+            ? 'لم يُقرأ رمز QR بوضوح. أعد التصوير.'
+            : 'تحتوي الصورة على أكثر من رمز QR؛ تعذر تحديد هوية الطالب.');
       }
       final excelResult = await StudentExcelService.parseExcelFile(
-        _selectedExcelPath!,
-        expectedSubject: _selectedSheetName,
-        targetGrade: widget.exam.header.grade,
-        examTitle: widget.exam.header.examTitle,
+        _selectedExcelPath!, expectedSubject: _selectedSheetName,
+        targetGrade: widget.exam.header.grade, examTitle: widget.exam.header.examTitle,
       );
-      final matches = excelResult.students.where((student) => student.secretCode.trim() == qrValues.single).toList();
+      final matches = excelResult.students
+          .where((s) => s.secretCode.trim() == qrValues.single).toList();
       if (matches.length != 1) {
         throw Exception(matches.isEmpty
-            ? 'رمز الطالب غير موجود في كشف المادة والصف المحددين. لم تُسجل أي درجة.'
-            : 'رمز الطالب مكرر في كشف الإكسيل. لم تُسجل أي درجة.');
+            ? 'رمز الطالب غير موجود في كشف المادة والصف المحددين.'
+            : 'رمز الطالب مكرر في كشف الإكسيل.');
       }
       final student = matches.single;
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('تم التحقق من الطالب: ${student.name} — رقم الجلوس: ${student.seatNo}. واكتُشفت علامات الورقة الأربع. لم تُسجل درجة قبل اكتمال قراءة التظليل.'),
-          duration: const Duration(seconds: 5),
-          backgroundColor: Colors.teal.shade800,
-        ),
+      final groups = OmrTemplateGeometry.buildQuestionGroups(widget.exam);
+      final readings = OmrBubbleDetector.readAll(rectified, groups);
+      final selections = readings.map((r) {
+        switch (r.status) {
+          case OmrBubbleGroupStatus.selected:
+          case OmrBubbleGroupStatus.multiple: return r.selectedOptions;
+          case OmrBubbleGroupStatus.blank: return <String>[];
+          case OmrBubbleGroupStatus.ambiguous:
+          case OmrBubbleGroupStatus.invalid: return <String>['?'];
+        }
+      }).toList();
+      final scoring = await _showOmrReviewDialog(
+        student: student, selections: selections, groups: groups, readings: readings,
       );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطأ أثناء المسح: $e'), backgroundColor: Colors.red),
+      if (scoring == null || !mounted) return;
+
+      setState(() => _statusText = 'جاري ترحيل الدرجة إلى ملف الإكسيل...');
+      var committed = await OmrResultCommitService.commit(
+        exam: widget.exam, scoring: scoring, excelPath: _selectedExcelPath!,
+        sheetName: _selectedSheetName!, selectedPeriod: _selectedPeriod!,
+        qrSecretCode: qrValues.single,
       );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-          _statusText = null;
-        });
+      if (committed.status == OmrCommitStatus.existingMark) {
+        final overwrite = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('توجد درجة مسجلة مسبقاً'),
+            content: Text('توجد درجة لهذا الطالب في فترة $_selectedPeriod. هل تريد استبدالها بالدرجة الجديدة (${scoring.earnedMark.toStringAsFixed(2)})؟'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('استبدال الدرجة')),
+            ],
+          ),
+        );
+        if (overwrite == true) {
+          committed = await OmrResultCommitService.commit(
+            exam: widget.exam, scoring: scoring, excelPath: _selectedExcelPath!,
+            sheetName: _selectedSheetName!, selectedPeriod: _selectedPeriod!,
+            qrSecretCode: qrValues.single, allowOverwrite: true,
+          );
+        }
       }
+      if (!mounted) return;
+      final message = switch (committed.status) {
+        OmrCommitStatus.saved => 'تم ترحيل درجة ${scoring.earnedMark.toStringAsFixed(2)} للطالب ${student.name} بنجاح.',
+        OmrCommitStatus.existingMark => 'لم تُستبدل الدرجة السابقة.',
+        OmrCommitStatus.reviewRequired => 'توجد إجابات تحتاج إلى مراجعة قبل الحفظ.',
+        OmrCommitStatus.studentNotFound => 'لم يُعثر على الطالب في كشف الإكسيل.',
+        OmrCommitStatus.duplicateStudent => 'رمز الطالب مكرر في كشف الإكسيل.',
+        OmrCommitStatus.invalidPeriod => 'تعذر تحديد عمود فترة الرصد.',
+        OmrCommitStatus.saveFailed => 'تعذر حفظ الدرجة في ملف الإكسيل.',
+      };
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(message), duration: const Duration(seconds: 5),
+        backgroundColor: committed.status == OmrCommitStatus.saved
+            ? Colors.teal.shade800 : Colors.orange.shade900,
+      ));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('تعذر إكمال التصحيح: $e'), backgroundColor: Colors.red.shade800,
+      ));
+    } finally {
+      if (mounted) setState(() { _isProcessing = false; _statusText = null; });
     }
+  }
+
+  Future<OmrScoringResult?> _showOmrReviewDialog({
+    required StudentData student,
+    required List<List<String>> selections,
+    required List<List<OmrBubbleSpec>> groups,
+    required List<OmrBubbleGroupResult> readings,
+  }) {
+    final edited = selections.map((s) => List<String>.from(s)).toList();
+    return showDialog<OmrScoringResult>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final result = OmrScoringService.score(
+            exam: widget.exam, detectedSelections: edited,
+          );
+          String label(OmrAnswerStatus s) {
+            switch (s) {
+              case OmrAnswerStatus.correct: return 'صحيحة';
+              case OmrAnswerStatus.incorrect: return 'خاطئة';
+              case OmrAnswerStatus.blank: return 'فارغة';
+              case OmrAnswerStatus.multiple: return 'متعددة';
+              case OmrAnswerStatus.invalidKey: return 'مفتاح غير صالح';
+              case OmrAnswerStatus.invalidSelection: return 'مراجعة';
+            }
+          }
+          return AlertDialog(
+            title: const Text('مراجعة التصحيح الآلي'),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: MediaQuery.of(context).size.height * 0.62,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('الطالب: ${student.name} | رقم الجلوس: ${student.seatNo}',
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  Text('الدرجة: ${result.earnedMark.toStringAsFixed(2)} / ${result.maximumMark.toStringAsFixed(2)}'
+                      ' | صحيحة: ${result.correctCount} | خاطئة: ${result.incorrectCount} | فارغة: ${result.blankCount}',
+                      style: const TextStyle(fontSize: 11)),
+                  if (result.reviewCount > 0)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 6),
+                      child: Text('عدّل الإجابات غير الواضحة من القوائم قبل الاعتماد.',
+                          style: TextStyle(color: Colors.deepOrange, fontWeight: FontWeight.bold)),
+                    ),
+                  const Divider(),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: result.items.length,
+                      itemBuilder: (context, i) {
+                        final item = result.items[i];
+                        final options = groups[i].map((b) => b.option).toList();
+                        final value = edited[i].length == 1 && options.contains(edited[i].single)
+                            ? edited[i].single : '';
+                        final ink = readings[i].samples
+                            .map((s) => '${s.option}:${(s.inkRatio * 100).round()}%').join('  ');
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 3),
+                          child: Padding(
+                            padding: const EdgeInsets.all(7),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(children: [
+                                  Text('فقرة ${item.questionNumber} — ${label(item.status)}',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold,
+                                          color: item.requiresReview ? Colors.deepOrange : null)),
+                                  const Spacer(),
+                                  Text('${item.mark.toStringAsFixed(1)} درجة'),
+                                ]),
+                                Text(ink, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                                DropdownButtonFormField<String>(
+                                  value: value, isExpanded: true,
+                                  decoration: const InputDecoration(
+                                    labelText: 'الإجابة المعتمدة', isDense: true,
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  items: [
+                                    const DropdownMenuItem(value: '', child: Text('بدون إجابة')),
+                                    ...options.map((o) => DropdownMenuItem(value: o, child: Text(o))),
+                                  ],
+                                  onChanged: (v) => setDialogState(() {
+                                    edited[i] = v == null || v.isEmpty ? <String>[] : <String>[v];
+                                  }),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  Text(
+                    result.canBeAutomaticallyFinalized
+                        ? 'النتيجة جاهزة للترحيل إلى $_selectedPeriod.'
+                        : 'لن تُرحّل الدرجة حتى تُعالج جميع الحالات غير الواضحة.',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold,
+                        color: result.canBeAutomaticallyFinalized ? Colors.teal : Colors.deepOrange),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+              FilledButton.icon(
+                onPressed: result.canBeAutomaticallyFinalized
+                    ? () => Navigator.pop(dialogContext, result) : null,
+                icon: const Icon(Icons.save_alt),
+                label: const Text('اعتماد وترحيل الدرجة'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   /// نافذة منبثقة للتحكم بإعدادات الربط وملف الإكسيل
