@@ -19,7 +19,10 @@ class OmrScannerScreen extends StatefulWidget {
 
 class _OmrScannerScreenState extends State<OmrScannerScreen> {
   CameraController? _cameraController;
-  final MobileScannerController _qrAnalyzer = MobileScannerController(\n    autoStart: false,\n    formats: const [BarcodeFormat.qrCode],\n  );
+  final MobileScannerController _qrAnalyzer = MobileScannerController(
+    autoStart: false,
+    formats: const [BarcodeFormat.qrCode],
+  );
   List<CameraDescription>? _cameras;
   bool _isCameraInitialized = false;
   bool _isProcessing = false;
