@@ -34,7 +34,7 @@ class OmrScoringService {
     final items = <OmrItemResult>[];
     var earned = 0.0, correct = 0, incorrect = 0, blank = 0, review = 0;
     for (var i = 0; i < expectedCount; i++) {
-      final allowed = i < config.trueFalseCount ? tfOptions : mcqOptions;
+      final allowed = (i < config.trueFalseCount ? tfOptions : mcqOptions).map(_normalize).toList(growable: false);
       final question = exam.questions[i];
       final expected = _normalize(question.answerKey);
       final selected = detectedSelections[i].map(_normalize).where((v) => v.isNotEmpty).toList(growable: false);
