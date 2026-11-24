@@ -18,7 +18,22 @@ class OmrRegistrationDetector {
     return detect(image);
   }
 
-  static OmrRegistrationResult detect(img.Image image) {
+  static OmrRegistrationResult detect(img.Image sourceImage) {
+    // تصغير الصور عالية الدقة قبل تحليل المكونات لتقليل استهلاك الذاكرة
+    // وزمن المعالجة على الهواتف، مع الاحتفاظ بالإحداثيات النسبية.
+    const maxDimension = 1200;
+    final largest = sourceImage.width > sourceImage.height
+        ? sourceImage.width
+        : sourceImage.height;
+    final img.Image image = largest > maxDimension
+        ? img.copyResize(
+            sourceImage,
+            width: (sourceImage.width * maxDimension / largest).round(),
+            height: (sourceImage.height * maxDimension / largest).round(),
+            interpolation: img.Interpolation.average,
+          )
+        : sourceImage;
+
     final width = image.width;
     final height = image.height;
     if (width < 100 || height < 100) {
@@ -78,7 +93,6 @@ class OmrRegistrationDetector {
         final relativeWidth = boxWidth / width;
         final relativeHeight = boxHeight / height;
 
-        // المربعات المطبوعة صغيرة نسبيًا، شبه مربعة وممتلئة.
         if (aspect >= 0.72 &&
             aspect <= 1.38 &&
             fillRatio >= 0.55 &&
@@ -103,34 +117,64 @@ class OmrRegistrationDetector {
       );
     }
 
-    // نختار الأربع الأكثر قربًا من زوايا الصورة، ثم نرتبها هندسيًا.
-    final sortedByCornerScore = List<_Component>.from(candidates)
-      ..sort((a, b) => _cornerScore(b, width, height)
-          .compareTo(_cornerScore(a, width, height)));
-    final selected = sortedByCornerScore.take(4).toList();
+    // نختار علامة مستقلة في كل ربع من الصورة، لا مجرد أقرب أربع علامات
+    // إلى الحواف؛ فهذا يمنع اختيار علامتين من الركن نفسه.
+    _Component? nearest(bool left, bool top) {
+      final quadrant = candidates.where((c) {
+        final nx = c.x / width;
+        final ny = c.y / height;
+        return (left ? nx < 0.5 : nx >= 0.5) &&
+            (top ? ny < 0.5 : ny >= 0.5);
+      }).toList();
+      if (quadrant.isEmpty) return null;
+      quadrant.sort((a, b) => _cornerDistance(a, width, height, left, top)
+          .compareTo(_cornerDistance(b, width, height, left, top)));
+      return quadrant.first;
+    }
 
-    final left = selected.reduce((a, b) => a.x < b.x ? a : b);
-    final right = selected.reduce((a, b) => a.x > b.x ? a : b);
-    final top = selected.reduce((a, b) => a.y < b.y ? a : b);
-    final bottom = selected.reduce((a, b) => a.y > b.y ? a : b);
+    final topLeft = nearest(true, true);
+    final topRight = nearest(false, true);
+    final bottomLeft = nearest(true, false);
+    final bottomRight = nearest(false, false);
 
-    final corners = <String, OmrPoint>{
-      'topLeft': OmrPoint(left.x / width, top.y / height),
-      'topRight': OmrPoint(right.x / width, top.y / height),
-      'bottomLeft': OmrPoint(left.x / width, bottom.y / height),
-      'bottomRight': OmrPoint(right.x / width, bottom.y / height),
-    };
-
-    final horizontalSpan = (right.x - left.x) / width;
-    final verticalSpan = (bottom.y - top.y) / height;
-    if (horizontalSpan < 0.35 || verticalSpan < 0.35) {
+    if (topLeft == null || topRight == null ||
+        bottomLeft == null || bottomRight == null) {
       return OmrRegistrationResult.failure(
-        'علامات التسجيل المكتشفة متقاربة؛ يرجى تصوير الورقة كاملة.',
+        'لم تُكتشف علامة تسجيل منفصلة في كل ركن من أركان الورقة.',
+        detectedCount: candidates.length,
+      );
+    }
+
+    final horizontalTop = (topRight.x - topLeft.x) / width;
+    final horizontalBottom = (bottomRight.x - bottomLeft.x) / width;
+    final verticalLeft = (bottomLeft.y - topLeft.y) / height;
+    final verticalRight = (bottomRight.y - topRight.y) / height;
+    if (horizontalTop < 0.35 || horizontalBottom < 0.35 ||
+        verticalLeft < 0.35 || verticalRight < 0.35) {
+      return OmrRegistrationResult.failure(
+        'علامات التسجيل متقاربة أو لا تحيط بمنطقة الإجابة؛ يرجى تصوير الورقة كاملة.',
         detectedCount: 4,
       );
     }
 
-    return OmrRegistrationResult.success(corners);
+    return OmrRegistrationResult.success({
+      'topLeft': OmrPoint(topLeft.x / width, topLeft.y / height),
+      'topRight': OmrPoint(topRight.x / width, topRight.y / height),
+      'bottomLeft': OmrPoint(bottomLeft.x / width, bottomLeft.y / height),
+      'bottomRight': OmrPoint(bottomRight.x / width, bottomRight.y / height),
+    });
+  }
+
+  static double _cornerDistance(
+    _Component c,
+    int width,
+    int height,
+    bool left,
+    bool top,
+  ) {
+    final dx = c.x / width - (left ? 0.0 : 1.0);
+    final dy = c.y / height - (top ? 0.0 : 1.0);
+    return dx * dx + dy * dy;
   }
 
   static double _cornerScore(_Component c, int width, int height) {
