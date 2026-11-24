@@ -46,7 +46,7 @@ class OmrTemplateGeometry {
               ? (isSecondColumn ? -firstSide : firstSide) * columnOffset
               : 0.0);
       final centerY = _firstBubbleCenterY + localRow * _rowPitch;
-      final offsets = exam.isArabic ? const [0.75, -16.75] : const [3.25, 20.75];
+      final offsets = exam.isArabic ? const [-3.25, -20.75] : const [3.25, 20.75];
       groups.add(List.generate(2, (optionIndex) => OmrBubbleSpec(
         option: tfSymbols[optionIndex],
         x: (centerX + offsets[optionIndex]) / _pageWidth,
