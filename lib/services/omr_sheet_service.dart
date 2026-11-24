@@ -354,7 +354,7 @@ class OmrSheetService {
   static pw.Widget _buildTrueFalseGrid(
       int count, List<String> tfSymbols, bool isAr, pw.Font ttf) {
     final int half = (count / 2).ceil();
-    final bool useTwoCols = count > 12;
+    final bool useTwoCols = count > 10;
 
     if (!useTwoCols) {
       return pw.Column(
