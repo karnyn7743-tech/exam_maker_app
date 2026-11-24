@@ -885,203 +885,94 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
     final int mcqCount = _exam.automatedConfig.mcqCount;
     final int totalItems = tfCount + mcqCount;
     final bool isAr = _isArabicExam;
-
     if (totalItems <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يرجى تحديد عدد فقرات الاختبار المؤتمت أولاً.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('يرجى تحديد عدد فقرات الاختبار المؤتمت أولاً.')));
       return;
     }
-
     final List<String> mcqOptions = isAr
-    ? (_exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.arabicLetters
-        ? ['أ', 'ب', 'جـ', 'د']
-        : ['١', '٢', '٣', '٤'])
-    : (_exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.arabicLetters
-        ? ['A', 'B', 'C', 'D']
-        : ['1', '2', '3', '4']);
-
+        ? (_exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.arabicLetters ? ['أ', 'ب', 'جـ', 'د'] : ['١', '٢', '٣', '٤'])
+        : (_exam.automatedConfig.choiceSymbolType == ChoiceSymbolType.arabicLetters ? ['A', 'B', 'C', 'D'] : ['1', '2', '3', '4']);
     final List<String> tfOptions = isAr ? ['ص', 'خ'] : ['T', 'F'];
-
     final int countBefore = _actualQuestionsCount;
     while (_exam.questions.length < totalItems) {
       final int idx = _exam.questions.length + 1;
       final bool isTf = idx <= tfCount;
-      _exam.questions.add(QuestionModel(
-        id: const Uuid().v4(),
-        title: isTf
-            ? (isAr ? 'صح/خطأ $idx' : 'T/F $idx')
-            : (isAr ? 'اختيار $idx' : 'MCQ $idx'),
-        mark: 1.0,
-        spans: [TextSpanModel(text: '')],
-        answerKey: '',
-      ));
+      _exam.questions.add(QuestionModel(id: const Uuid().v4(), title: isTf ? (isAr ? 'صح/خطأ ' + idx.toString() : 'T/F ' + idx.toString()) : (isAr ? 'اختيار ' + idx.toString() : 'MCQ ' + idx.toString()), mark: 1.0, spans: [TextSpanModel(text: '')], answerKey: ''));
     }
-
-    if (countBefore == 0 && _actualQuestionsCount > 0) {
-      _autoSaveOnFirstQuestionIfNeeded();
+    if (countBefore == 0 && _actualQuestionsCount > 0) _autoSaveOnFirstQuestionIfNeeded();
+    final markControllers = List<TextEditingController>.generate(totalItems, (i) => TextEditingController(text: _exam.questions[i].mark.toString()));
+    final tfBulkController = TextEditingController(text: tfCount > 0 ? _exam.questions.first.mark.toString() : '1');
+    final mcqBulkController = TextEditingController(text: mcqCount > 0 ? _exam.questions[tfCount].mark.toString() : '1');
+    double parseMark(String value) => double.tryParse(value.trim().replaceAll(',', '.')) ?? -1.0;
+    void applySectionMark(int startIndex, int count, TextEditingController source, StateSetter refresh) {
+      final mark = parseMark(source.text);
+      if (mark < 0) return;
+      refresh(() {
+        for (int i = 0; i < count; i++) {
+          _exam.questions[startIndex + i].mark = mark;
+          markControllers[startIndex + i].text = mark.toString();
+        }
+        setState(() {});
+      });
     }
-
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setDlgState) => AlertDialog(
-          title: Row(
-            children: [
-              const Icon(Icons.key, color: Color(0xFF1B5E20)),
-              const SizedBox(width: 8),
-              Text(
-                isAr ? 'مفتاح إجابة الاختبار المؤتمت' : 'Automated Exam Answer Key',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: MediaQuery.of(context).size.height * 0.70,
-            child: ListView(
-              children: [
+        builder: (context, setDlgState) {
+          final totalMarks = _exam.questions.take(totalItems).fold<double>(0.0, (sum, q) => sum + q.mark);
+          Widget sectionHeader(String title, TextEditingController controller, int start, int count) {
+            return Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(7)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                const SizedBox(height: 6),
+                Row(children: [
+                  const Expanded(child: Text('درجة موحدة اختيارية لجميع فقرات هذا السؤال:', style: TextStyle(fontSize: 11))),
+                  SizedBox(width: 72, child: TextField(controller: controller, keyboardType: const TextInputType.numberWithOptions(decimal: true), textAlign: TextAlign.center, decoration: const InputDecoration(isDense: true, border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 5, vertical: 8)))),
+                  IconButton(tooltip: 'تطبيق على جميع الفقرات', visualDensity: VisualDensity.compact, onPressed: () => applySectionMark(start, count, controller, setDlgState), icon: const Icon(Icons.done_all, color: Color(0xFF0F766E))),
+                ]),
+              ]),
+            );
+          }
+          Widget itemRow(int index, String label, List<String> options) {
+            final q = _exam.questions[index];
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(children: [
+                SizedBox(width: 56, child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5))),
+                Expanded(child: Wrap(spacing: 5, runSpacing: 3, children: options.map((opt) {
+                  final selected = q.answerKey.trim() == opt;
+                  return ChoiceChip(label: Text(opt, style: TextStyle(color: selected ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)), selected: selected, selectedColor: const Color(0xFF1B5E20), onSelected: (value) { setDlgState(() => q.answerKey = value ? opt : ''); setState(() {}); });
+                }).toList())),
+                const SizedBox(width: 5),
+                SizedBox(width: 62, child: TextField(key: ValueKey(q.id), controller: markControllers[index], keyboardType: const TextInputType.numberWithOptions(decimal: true), textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold), decoration: const InputDecoration(labelText: 'الدرجة', isDense: true, border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 8)), onChanged: (value) { final mark = parseMark(value); if (mark >= 0) { q.mark = mark; setDlgState(() {}); setState(() {}); } })),
+              ]),
+            );
+          }
+          return AlertDialog(
+            title: Row(children: [const Icon(Icons.key, color: Color(0xFF1B5E20)), const SizedBox(width: 8), Expanded(child: Text(isAr ? 'مفتاح إجابة الاختبار المؤتمت' : 'Automated Exam Answer Key', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))]),
+            content: SizedBox(width: double.maxFinite, height: MediaQuery.of(context).size.height * 0.72, child: Column(children: [
+              Expanded(child: ListView(children: [
                 if (tfCount > 0) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      isAr
-                          ? 'أولاً: فقرات الصح والخطأ (إجمالي $tfCount فقرة)'
-                          : 'Part 1: True / False Items (Total: $tfCount)',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Colors.black87),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  for (int i = 0; i < tfCount; i++) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 3),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 70,
-                            child: Text(
-                              isAr ? 'فقرة ${i + 1}:' : 'Item ${i + 1}:',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                            ),
-                          ),
-                          Wrap(
-                            spacing: 8,
-                            children: tfOptions.map((opt) {
-                              final isSelected = _exam.questions[i].answerKey.trim() == opt;
-                              return ChoiceChip(
-                                label: Text(
-                                  opt,
-                                  style: TextStyle(
-                                    color: isSelected ? Colors.white : Colors.black87,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                selected: isSelected,
-                                selectedColor: const Color(0xFF1B5E20),
-                                onSelected: (val) {
-                                  setDlgState(() {
-                                    _exam.questions[i].answerKey = val ? opt : '';
-                                  });
-                                  setState(() {});
-                                },
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 6),
-                  ],
-                  const SizedBox(height: 12),
+                  sectionHeader(isAr ? 'أولاً: فقرات الصح والخطأ (إجمالي ' + tfCount.toString() + ' فقرة)' : 'Part 1: True / False', tfBulkController, 0, tfCount),
+                  const SizedBox(height: 5),
+                  for (int i = 0; i < tfCount; i++) ...[itemRow(i, (isAr ? 'فقرة ' : 'Item ') + (i + 1).toString(), tfOptions), const Divider(height: 7)],
+                  const SizedBox(height: 10),
                 ],
-
                 if (mcqCount > 0) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      isAr
-                          ? 'ثانياً: فقرات الاختيار من متعدد (إجمالي $mcqCount فقرة)'
-                          : 'Part 2: Multiple Choice Items (Total: $mcqCount)',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Colors.black87),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  for (int j = 0; j < mcqCount; j++) ...[
-                    Builder(
-                      builder: (context) {
-                        final int itemIndex = tfCount + j;
-                        final qItem = _exam.questions[itemIndex];
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 3),
-                          child: Row(
-                            children: [
-                              SizedBox(
-                                width: 70,
-                                child: Text(
-                                  isAr ? 'فقرة ${itemIndex + 1}:' : 'Item ${itemIndex + 1}:',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                                ),
-                              ),
-                              Wrap(
-                                spacing: 6,
-                                children: mcqOptions.map((opt) {
-                                  final isSelected = qItem.answerKey.trim() == opt;
-                                  return ChoiceChip(
-                                    label: Text(
-                                      opt,
-                                      style: TextStyle(
-                                        color: isSelected ? Colors.white : Colors.black87,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    selected: isSelected,
-                                    selectedColor: const Color(0xFF1B5E20),
-                                    onSelected: (val) {
-                                      setDlgState(() {
-                                        qItem.answerKey = val ? opt : '';
-                                      });
-                                      setState(() {});
-                                    },
-                                  );
-                                }).toList(),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                    const Divider(height: 6),
-                  ],
+                  sectionHeader(isAr ? 'ثانياً: فقرات الاختيار من متعدد (إجمالي ' + mcqCount.toString() + ')' : 'Part 2: Multiple Choice', mcqBulkController, tfCount, mcqCount),
+                  const SizedBox(height: 5),
+                  for (int j = 0; j < mcqCount; j++) ...[itemRow(tfCount + j, (isAr ? 'فقرة ' : 'Item ') + (tfCount + j + 1).toString(), mcqOptions), const Divider(height: 7)],
                 ],
-              ],
-            ),
-          ),
-          actions: [
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1B5E20)),
-              onPressed: () {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(isAr ? 'تم حفظ مفاتيح إجابات الاختبار بنجاح.' : 'Answer keys saved successfully.'),
-                    backgroundColor: const Color(0xFF1B5E20),
-                  ),
-                );
-              },
-              child: Text(isAr ? 'تم الحفظ' : 'Done', style: const TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
+              ])),
+              Container(width: double.infinity, margin: const EdgeInsets.only(top: 8), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)), child: Text('مجموع درجات فقرات الاختبار: ' + totalMarks.toStringAsFixed(2) + ' درجة', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade900))),
+            ])),
+            actions: [ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1B5E20)), onPressed: () { Navigator.pop(ctx); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isAr ? 'تم حفظ مفاتيح الإجابات ودرجات الفقرات بنجاح.' : 'Answer keys and item marks saved successfully.'), backgroundColor: const Color(0xFF1B5E20))); }, child: Text(isAr ? 'تم الحفظ' : 'Done', style: const TextStyle(color: Colors.white)))],
+          );
+        },
       ),
-    );
+    ).then((_) { for (final controller in markControllers) { controller.dispose(); } tfBulkController.dispose(); mcqBulkController.dispose(); });
   }
 
   Widget _buildUnifiedBottomBar() {
