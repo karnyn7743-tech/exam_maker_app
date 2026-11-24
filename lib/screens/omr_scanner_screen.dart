@@ -7,6 +7,7 @@ import 'package:image/image.dart' as img;
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../models/exam_models.dart';
 import '../services/student_excel_service.dart';
+import '../services/omr_registration_detector.dart';
 
 class OmrScannerScreen extends StatefulWidget {
   final ExamModel exam;
@@ -211,6 +212,12 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
         throw Exception('فشل في معالجة بيانات الصورة.');
       }
 
+      // اكتشاف علامات التسجيل المطبوعة دون افتراض إحداثيات ثابتة للصورة.
+      final registration = OmrRegistrationDetector.detect(capturedImage);
+      if (!registration.success) {
+        throw Exception(registration.message);
+      }
+
       // لا يُسمح بالرصد قبل التحقق من QR ومطابقته مع كشف الطلاب.
       final barcodeCapture = await _qrAnalyzer.analyzeImage(photo.path);
       final qrValues = (barcodeCapture?.barcodes ?? const <Barcode>[])
@@ -238,7 +245,7 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('تم التحقق من الطالب: ${student.name} — رقم الجلوس: ${student.seatNo}. لم تُسجل درجة قبل اكتمال قراءة التظليل.'),
+          content: Text('تم التحقق من الطالب: ${student.name} — رقم الجلوس: ${student.seatNo}. واكتُشفت علامات الورقة الأربع. لم تُسجل درجة قبل اكتمال قراءة التظليل.'),
           duration: const Duration(seconds: 5),
           backgroundColor: Colors.teal.shade800,
         ),
