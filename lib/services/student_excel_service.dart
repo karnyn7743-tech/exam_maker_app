@@ -401,6 +401,44 @@ class StudentExcelService {
     }
   }
 
+  /// يحول اسم الشهر المختار إلى عمود الرصد اعتماداً على عناوين الصف الثاني
+  /// في ورقة المادة، ولا يفترض أن اسم الشهر يحتوي على رقم.
+  static Future<int> resolveTargetExamColumnIndexForSheet({
+    required String filePath,
+    required String sheetName,
+    required String selectedPeriod,
+  }) async {
+    final bytes = await File(filePath).readAsBytes();
+    final excel = Excel.decodeBytes(_fixExcelDimensions(bytes));
+    final sheet = excel.tables[sheetName];
+    if (sheet == null || !_isSubjectSheet(sheet)) {
+      throw Exception('ورقة المادة المحددة غير صالحة لحساب عمود الرصد.');
+    }
+
+    final cleanPeriod = _normalizeArabic(selectedPeriod);
+    if (cleanPeriod == 'ف1' || cleanPeriod == 'ف١' ||
+        cleanPeriod.contains('فصل1') || cleanPeriod.contains('فصل اول') ||
+        cleanPeriod.contains('الفصلالاول')) {
+      return resolveTargetExamColumnIndex(selectedPeriod: 'ف١', totalMonths: detectTotalMonths(sheet));
+    }
+    if (cleanPeriod == 'ف2' || cleanPeriod == 'ف٢' ||
+        cleanPeriod.contains('فصل2') || cleanPeriod.contains('فصل ثاني') ||
+        cleanPeriod.contains('الفصلالثاني')) {
+      return resolveTargetExamColumnIndex(selectedPeriod: 'ف٢', totalMonths: detectTotalMonths(sheet));
+    }
+
+    final months = extractMonthsFromSheet(sheet);
+    for (int i = 0; i < months.length; i++) {
+      if (_normalizeArabic(months[i]) == cleanPeriod) {
+        return calculateWrittenExamColumn(
+          monthNumber: i + 1,
+          totalMonths: detectTotalMonths(sheet),
+        );
+      }
+    }
+    throw Exception('اسم فترة الرصد غير موجود ضمن عناوين الأشهر في ورقة المادة.');
+  }
+
   static int resolveTargetExamColumnIndex({
     required String selectedPeriod,
     required int totalMonths,
