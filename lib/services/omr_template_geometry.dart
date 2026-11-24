@@ -30,6 +30,12 @@ class OmrTemplateGeometry {
     final tfSymbols = exam.isArabic ? const ['ص', 'خ'] : const ['T', 'F'];
     final mcqSymbols = _mcqSymbols(exam);
     final groups = <List<OmrBubbleSpec>>[];
+    final hasBothSections = config.trueFalseCount > 0 && config.mcqCount > 0;
+    final tfSectionWidth = hasBothSections ? _tfWidth : _contentWidth;
+    final mcqSectionWidth = hasBothSections ? _mcqWidth : _contentWidth;
+    final pageCenterX = (_contentLeft + _contentRight) / 2;
+    final tfSectionCenterX = hasBothSections ? _tfCenterX : pageCenterX;
+    final mcqSectionCenterX = hasBothSections ? _mcqCenterX : pageCenterX;
 
     for (var i = 0; i < config.trueFalseCount; i++) {
       final localRow = config.trueFalseCount > 10
@@ -39,9 +45,9 @@ class OmrTemplateGeometry {
           : i;
       final isSecondColumn = config.trueFalseCount > 10 &&
           i >= (config.trueFalseCount / 2).ceil();
-      final columnOffset = config.trueFalseCount > 10 ? _tfWidth / 4 : 0.0;
+      final columnOffset = config.trueFalseCount > 10 ? tfSectionWidth / 4 : 0.0;
       final firstSide = exam.isArabic ? 1.0 : -1.0;
-      final centerX = _tfCenterX +
+      final centerX = tfSectionCenterX +
           (config.trueFalseCount > 10
               ? (isSecondColumn ? -firstSide : firstSide) * columnOffset
               : 0.0);
@@ -61,9 +67,9 @@ class OmrTemplateGeometry {
           ? (i < half ? i : i - half)
           : i;
       final isSecondColumn = config.mcqCount > 10 && i >= half;
-      final columnOffset = config.mcqCount > 10 ? _mcqWidth / 4 : 0.0;
+      final columnOffset = config.mcqCount > 10 ? mcqSectionWidth / 4 : 0.0;
       final firstSide = exam.isArabic ? 1.0 : -1.0;
-      final centerX = _mcqCenterX +
+      final centerX = mcqSectionCenterX +
           (config.mcqCount > 10
               ? (isSecondColumn ? -firstSide : firstSide) * columnOffset
               : 0.0);
