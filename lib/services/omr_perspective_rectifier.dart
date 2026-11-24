@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:image/image.dart' as img;
 import 'omr_registration_detector.dart';
 
@@ -53,7 +52,7 @@ class OmrPerspectiveRectifier {
         final p11 = source.getPixel(x0 + 1, y0 + 1);
         int blend(num a, num b, num c, num d) =>
             (a * (1 - dx) * (1 - dy) + b * dx * (1 - dy) +
-             c * (1 - dx) * dy + d * dx * dy).round().clamp(0, 255);
+             c * (1 - dx) * dy + d * dx * dy).round().clamp(0, 255).toInt();
         output.setPixel(
           x, y,
           img.ColorRgb8(
