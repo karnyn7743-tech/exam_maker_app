@@ -18,7 +18,7 @@ class OmrTemplateGeometry {
 
   // ارتفاعات عناصر الترويسة والتعليمات وعنوان القسم كما يرسمها مولّد PDF.
   // هذه القيم لا تُستخدم كبديل عن علامات التسجيل؛ الورقة تُصحح منظورياً أولاً.
-  static const double _firstBubbleCenterY = 115.5;
+  static const double _firstBubbleCenterY = 121.4;
   static const double _rowPitch = 17.1;
   static const double _bubbleRadius = 6.75;
 
