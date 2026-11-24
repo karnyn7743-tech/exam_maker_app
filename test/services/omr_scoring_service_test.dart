@@ -31,6 +31,16 @@ void main() {
     expect(result.items[1].status, OmrAnswerStatus.multiple);
     expect(result.canBeAutomaticallyFinalized, isFalse);
   });
+  test('normalizes Arabic option glyphs consistently', () {
+    final exam = sampleExam();
+    exam.questions[2].answerKey = 'جـ';
+    final result = OmrScoringService.score(
+      exam: exam,
+      detectedSelections: [['ص'], ['خ'], ['ج'], ['د']],
+    );
+    expect(result.items[2].status, OmrAnswerStatus.correct);
+    expect(result.earnedMark, 10);
+  });
   test('rejects a detected question count that differs from the dynamic sheet configuration', () {
     expect(() => OmrScoringService.score(exam: sampleExam(), detectedSelections: [['ص']]), throwsArgumentError);
   });
