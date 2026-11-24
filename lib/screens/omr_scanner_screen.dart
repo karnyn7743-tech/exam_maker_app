@@ -517,43 +517,87 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
               ),
             ),
 
-          // شريط علوي يوضح حالة الربط بالمادة والشهر داخل شاشة الكاميرا
+          // بطاقة واضحة لملف الإكسيل والمادة وفترة الرصد، مع زر تغيير الملف مباشرة
           Positioned(
             top: 12,
-            left: 16,
-            right: 16,
-            child: InkWell(
-              onTap: _openSettingsBottomSheet,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: _excelLoaded ? Colors.black.withOpacity(0.75) : Colors.red.shade900.withOpacity(0.85),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: _excelLoaded ? Colors.tealAccent : Colors.redAccent,
-                    width: 1.2,
-                  ),
+            left: 12,
+            right: 12,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xF20B1220),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _excelLoaded ? Colors.tealAccent : Colors.redAccent,
+                  width: 1.3,
                 ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _excelLoaded ? Icons.verified : Icons.error_outline,
-                      color: _excelLoaded ? Colors.tealAccent : Colors.white,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _excelLoaded
-                            ? 'المادة: [$_selectedSheetName] | الفترة: [$_selectedPeriod]'
-                            : 'انقر هنا لاختيار ملف الإكسيل لتنشيط المسح',
-                        style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold),
-                        overflow: TextOverflow.ellipsis,
+                boxShadow: const [
+                  BoxShadow(color: Colors.black45, blurRadius: 8, offset: Offset(0, 3)),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        _excelLoaded ? Icons.table_view : Icons.error_outline,
+                        color: _excelLoaded ? Colors.tealAccent : Colors.redAccent,
+                        size: 20,
                       ),
-                    ),
-                    const Icon(Icons.arrow_drop_down, color: Colors.white),
-                  ],
-                ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _selectedExcelPath != null
+                              ? _selectedExcelPath!.split(Platform.pathSeparator).last
+                              : 'لم يتم اختيار ملف الإكسيل',
+                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Icon(
+                        _excelLoaded ? Icons.check_circle : Icons.warning_amber_rounded,
+                        color: _excelLoaded ? Colors.greenAccent : Colors.orangeAccent,
+                        size: 18,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _excelLoaded
+                        ? 'المادة: $_selectedSheetName     |     فترة الرصد: $_selectedPeriod'
+                        : 'اختر ملف الإكسيل أولاً، ثم حدد المادة وفترة الرصد.',
+                    style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 9),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.tealAccent,
+                            side: const BorderSide(color: Colors.tealAccent),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                          onPressed: _isProcessing ? null : _pickExcelFile,
+                          icon: const Icon(Icons.folder_open, size: 17),
+                          label: Text(
+                            _excelLoaded ? 'تغيير ملف الإكسيل' : 'اختيار ملف الإكسيل',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: 'اختيار المادة وفترة الرصد',
+                        onPressed: _openSettingsBottomSheet,
+                        icon: const Icon(Icons.tune, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
