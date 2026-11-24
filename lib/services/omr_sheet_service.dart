@@ -88,6 +88,10 @@ class OmrSheetService {
             return pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
+                // علامات تسجيل سوداء ثابتة لتحديد حدود منطقة المحتوى وتصحيح ميل الصورة.
+                _buildRegistrationMarks(),
+                pw.SizedBox(height: 2),
+
                 // أ. ترويسة ورقة الإجابة المصغرة (ثابتة الاتجاه RTL دائماً لسلامة اسم ورقم جلوس الطالب)
                 _buildOmrHeader(exam, student, isAr, ttf),
                 pw.SizedBox(height: 5),
@@ -136,6 +140,8 @@ class OmrSheetService {
 
                 // د. التذييل (ثابت الاتجاه RTL دائماً لضمان بقاء الـ QR والباركود في الإحداثيات الهندسية المعتمدة)
                 _buildOmrFooter(exam, student, showQr, currentSubjectCode, isAr, ttf),
+                pw.SizedBox(height: 2),
+                _buildRegistrationMarks(),
               ],
             );
           },
@@ -185,6 +191,20 @@ class OmrSheetService {
     } catch (e) {
       throw Exception('تعذر حفظ ملف ورقة التظليل: $e');
     }
+  }
+
+  /// أربعة مربعات سوداء عند حافتي منطقة المحتوى؛ تستخدمها معايرة الصورة
+  /// لتحديد اتجاه الورقة وحدودها قبل البحث عن دوائر الإجابات.
+  static pw.Widget _buildRegistrationMarks() {
+    pw.Widget mark() => pw.Container(
+      width: 8,
+      height: 8,
+      color: PdfColors.black,
+    );
+    return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      children: [mark(), mark()],
+    );
   }
 
   // ترويسة ورقة التظليل (مغلفة بـ Directionality RTL دائماً لثبات بيانات الطالب)
