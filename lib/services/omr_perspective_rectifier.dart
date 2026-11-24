@@ -50,21 +50,22 @@ class OmrPerspectiveRectifier {
         final p10 = source.getPixel(x0 + 1, y0);
         final p01 = source.getPixel(x0, y0 + 1);
         final p11 = source.getPixel(x0 + 1, y0 + 1);
-        int blend(num a, num b, num c, num d) =>
-            (a * (1 - dx) * (1 - dy) + b * dx * (1 - dy) +
-             c * (1 - dx) * dy + d * dx * dy).round().clamp(0, 255).toInt();
         output.setPixel(
           x, y,
           img.ColorRgb8(
-            blend(p00.r, p10.r, p01.r, p11.r),
-            blend(p00.g, p10.g, p01.g, p11.g),
-            blend(p00.b, p10.b, p01.b, p11.b),
+            _blend(p00.r, p10.r, p01.r, p11.r, dx, dy),
+            _blend(p00.g, p10.g, p01.g, p11.g, dx, dy),
+            _blend(p00.b, p10.b, p01.b, p11.b, dx, dy),
           ),
         );
       }
     }
     return output;
   }
+
+  static int _blend(num a, num b, num c, num d, double dx, double dy) =>
+      (a * (1 - dx) * (1 - dy) + b * dx * (1 - dy) +
+       c * (1 - dx) * dy + d * dx * dy).round().clamp(0, 255).toInt();
 
   static List<double> _solveHomography(
     List<List<double>> from,
