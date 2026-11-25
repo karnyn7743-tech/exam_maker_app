@@ -656,14 +656,18 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
               icon: const Icon(Icons.table_chart, color: Colors.white),
               tooltip: 'فتح الملف في تطبيق آخر',
               onPressed: () async {
-                final result = await OpenFilex.open(
-                  _excelFilePath!,
-                  type: _excelFilePath!.toLowerCase().endsWith('.xlsm')
-                      ? 'application/vnd.ms-excel.sheet.macroEnabled.12'
-                      : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                );
-                if (result.type != ResultType.done) {
-                  _showSnack('تعذر فتح الملف: ${result.message}');
+                final mimeType = _excelFilePath!.toLowerCase().endsWith('.xlsm')
+                    ? 'application/vnd.ms-excel.sheet.macroEnabled.12'
+                    : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                try {
+                  if (ExcelFileAccessService.isDocumentUri(_excelFilePath!)) {
+                    await ExcelFileAccessService.openDocumentExternally(_excelFilePath!, mimeType);
+                  } else {
+                    final result = await OpenFilex.open(_excelFilePath!, type: mimeType);
+                    if (result.type != ResultType.done) _showSnack('تعذر فتح الملف: ${result.message}');
+                  }
+                } catch (e) {
+                  _showSnack('تعذر فتح الملف الأصلي: $e');
                 }
               },
             ),
