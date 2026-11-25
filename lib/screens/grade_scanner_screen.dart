@@ -1159,13 +1159,16 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
               icon: const Icon(Icons.table_chart, color: Colors.white),
               tooltip: 'فتح الملف في تطبيق آخر',
               onPressed: () async {
-                final result = await OpenFilex.open(
-                  _excelFilePath!,
-                  type:
-                      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                );
-                if (result.type != ResultType.done) {
-                  _showSnack('تعذر فتح الملف: ${result.message}');
+                try {
+                  const mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                  if (ExcelFileAccessService.isDocumentUri(_excelFilePath!)) {
+                    await ExcelFileAccessService.openDocumentExternally(_excelFilePath!, mimeType);
+                  } else {
+                    final result = await OpenFilex.open(_excelFilePath!, type: mimeType);
+                    if (result.type != ResultType.done) _showSnack('تعذر فتح الملف: ${result.message}');
+                  }
+                } catch (e) {
+                  _showSnack('تعذر فتح الملف الأصلي: $e');
                 }
               },
             ),
