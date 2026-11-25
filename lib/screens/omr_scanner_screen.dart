@@ -236,8 +236,9 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
         _selectedExcelPath!, expectedSubject: _selectedSheetName,
         targetGrade: widget.exam.header.grade, examTitle: widget.exam.header.examTitle,
       );
+      final normalizedQr = StudentExcelService.normalizeSecretCode(qrValues.single);
       final matches = excelResult.students
-          .where((s) => s.secretCode.trim() == qrValues.single).toList();
+          .where((s) => StudentExcelService.normalizeSecretCode(s.secretCode) == normalizedQr).toList();
       if (matches.length != 1) {
         throw Exception(matches.isEmpty
             ? 'رمز الطالب غير موجود في كشف المادة والصف المحددين.'
