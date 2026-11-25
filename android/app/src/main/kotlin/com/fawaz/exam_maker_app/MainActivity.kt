@@ -164,6 +164,14 @@ class MainActivity : FlutterActivity() {
         }
 
         val uri = data.data!!
+        if ((data.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION) == 0) {
+            callback.error(
+                "EXCEL_READ_ONLY",
+                "الملف المحدد لا يمنح التطبيق صلاحية الكتابة إلى الملف الأصلي. اختر ملفًا يسمح بالتعديل.",
+                null
+            )
+            return
+        }
         try {
             val grantedFlags = data.flags and
                 (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
