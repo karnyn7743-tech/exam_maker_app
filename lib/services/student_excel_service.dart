@@ -594,6 +594,9 @@ class StudentExcelService {
   }
 
 
+  static String normalizeSecretCode(dynamic value) =>
+      _normalizeSecretCode(value);
+
   static String _normalizeSecretCode(dynamic value) {
     var text = value?.toString() ?? '';
     const digits = {
