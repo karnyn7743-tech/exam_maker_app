@@ -7,6 +7,7 @@ import 'package:image/image.dart' as img;
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../models/exam_models.dart';
 import '../services/student_excel_service.dart';
+import '../services/excel_file_access_service.dart';
 import '../services/omr_registration_detector.dart';
 import '../services/omr_perspective_rectifier.dart';
 import '../services/omr_template_geometry.dart';
@@ -50,7 +51,7 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
     _initCamera();
     // فحص ما إذا كان الاختبار يحتوي على مسار ملف إكسيل مسبقاً
     if (widget.exam.header.excelFilePath != null &&
-        File(widget.exam.header.excelFilePath!).existsSync()) {
+        widget.exam.header.excelFilePath!.trim().isNotEmpty) {
       _processExcelFile(widget.exam.header.excelFilePath!);
     }
   }
@@ -85,13 +86,16 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
 
   /// اختيار ملف الإكسيل يدوياً
   Future<void> _pickExcelFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['xlsx', 'xls', 'xlsm', 'xlsb'],
-    );
-
-    if (result != null && result.files.single.path != null) {
-      await _processExcelFile(result.files.single.path!);
+    try {
+      final selected = await ExcelFileAccessService.pickExcelDocument();
+      if (selected != null) await _processExcelFile(selected.reference);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('تعذر اختيار ملف Excel الأصلي: $e'),
+          backgroundColor: Colors.red.shade800,
+        ));
+      }
     }
   }
 
@@ -142,7 +146,7 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
 
     // 2. استخراج أوراق المواد والشهور ونظام العام الدراسي (8 أم 6 أشهر)
     try {
-      final bytes = await File(path).readAsBytes();
+      final bytes = await ExcelFileAccessService.readBytes(path);
       final excel = Excel.decodeBytes(bytes);
 
       // نقتصر على أوراق المواد الصحيحة ولا نعامل أوراق الإعدادات كمواد.
@@ -190,11 +194,19 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
           ),
         );
       }
-    } catch (_) {
-      setState(() {
-        _excelLoaded = false;
-        _isProcessing = false;
-      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _excelLoaded = false;
+          _selectedExcelPath = null;
+          _isProcessing = false;
+          _statusText = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('تعذر قراءة ملف Excel الأصلي: $e'),
+          backgroundColor: Colors.red.shade800,
+        ));
+      }
     }
   }
 
