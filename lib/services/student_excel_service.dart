@@ -629,14 +629,14 @@ class StudentExcelService {
       text = text.replaceAll(key, replacement);
     });
     return text.replaceAll(
-      RegExp(r'[\\u200B-\\u200F\\u061C\\uFEFF\\u00A0\\u00AD\\s]'),
+      RegExp(r'[\u200B-\u200F\u061C\uFEFF\u00A0\u00AD\s]'),
       '',
     );
   }
 
   static String _normalizeZipEntryPath(String path) {
     final parts = <String>[];
-    for (final part in path.replaceAll('\\\\', '/').split('/')) {
+    for (final part in path.replaceAll('\\', '/').split('/')) {
       if (part.isEmpty || part == '.') continue;
       if (part == '..') {
         if (parts.isNotEmpty) parts.removeLast();
@@ -675,27 +675,11 @@ class StudentExcelService {
         final target = relation.getAttribute('Target');
         if (target == null) break;
         return _normalizeZipEntryPath(
-          target.startsWith('/') ? target.substring(1) : 'xl/$target',
+          target.startsWith('/') ? target.substring(1) : 'xl/' + target,
         );
       }
     }
     throw Exception('تعذر الوصول إلى ملف ورقة العمل داخل المصنف.');
-  }
-
-  static String _normalizeZipEntryPath(String path) =>
-      _normalizeArchivePath(path);
-
-  static String _normalizeArchivePath(String path) {
-    final parts = <String>[];
-    for (final part in path.replaceAll('\\\\', '/').split('/')) {
-      if (part.isEmpty || part == '.') continue;
-      if (part == '..') {
-        if (parts.isNotEmpty) parts.removeLast();
-      } else {
-        parts.add(part);
-      }
-    }
-    return parts.join('/');
   }
 
   static String _excelColumnLetters(int columnIndex) {
@@ -720,17 +704,17 @@ class StudentExcelService {
     final sheetPath = _worksheetPath(archive, sheetName);
     ArchiveFile? sheetFile;
     for (final entry in archive.files) {
-      if (entry.isFile && _normalizeArchivePath(entry.name) == sheetPath) {
+      if (entry.isFile && _normalizeZipEntryPath(entry.name) == sheetPath) {
         sheetFile = entry;
         break;
       }
     }
     if (sheetFile == null) throw Exception('تعذر العثور على ملف ورقة العمل داخل Excel.');
     final rawXml = utf8.decode(sheetFile.content as List<int>);
-    final cellRef = '${_excelColumnLetters(columnIndex)}${rowIndex + 1}';
+    final cellRef = _excelColumnLetters(columnIndex) + (rowIndex + 1).toString();
     final rowNumber = rowIndex + 1;
     final rowPattern = RegExp(
-      r'(<row\\b[^>]*\\br="' + rowNumber.toString() + r'"[^>]*>)(.*?)(</row>)',
+      r'(<row\b[^>]*\br="' + rowNumber.toString() + r'"[^>]*>)(.*?)(</row>)',
       dotAll: true,
     );
     if (!rowPattern.hasMatch(rawXml)) {
@@ -742,20 +726,48 @@ class StudentExcelService {
       var rowBody = rowMatch.group(2)!;
       final rowClose = rowMatch.group(3)!;
       final cellPattern = RegExp(
-        r'<c\\b(?=[^>]*\\br="' + cellRef + r'")[^>]*(?:/>|>.*?</c>)',
+        r'<c\b(?=[^>]*\br="' + cellRef + r'")[^>]*(?:/>|>.*?</c>)',
         dotAll: true,
       );
       if (cellPattern.hasMatch(rowBody)) {
         rowBody = rowBody.replaceFirstMapped(cellPattern, (cellMatch) {
           var cellXml = cellMatch.group(0)!;
-          if (RegExp(r'<v(?:\\s[^>]*)?>.*?</v>', dotAll: true).hasMatch(cellXml)) {
-            return cellXml.replaceFirst(
-              RegExp(r'<v(?:\\s[^>]*)?>.*?</v>', dotAll: true),
-              '<v>$mark</v>',
-            );
+          final valuePattern = RegExp(r'<v(?:\s[^>]*)?>.*?</v>', dotAll: true);
+          final valueXml = '<v>' + mark.toString() + '</v>';
+          if (valuePattern.hasMatch(cellXml)) {
+            return cellXml.replaceFirst(valuePattern, valueXml);
           }
           if (cellXml.endsWith('/>')) {
-            return cellXml.replaceFirst(RegExp(r'/>  /// القيم المعادة: saved, alreadyExists, studentNotFound, duplicateStudent, invalidTarget, error.
+            return cellXml.replaceFirst(RegExp(r'/>$'), '>' + valueXml + '</c>');
+          }
+          if (cellXml.contains('</f>')) {
+            return cellXml.replaceFirst('</f>', '</f>' + valueXml);
+          }
+          return cellXml.replaceFirst('</c>', valueXml + '</c>');
+        });
+      } else {
+        rowBody = rowBody + '<c r="' + cellRef + '"><v>' + mark.toString() + '</v></c>';
+      }
+      return rowOpen + rowBody + rowClose;
+    });
+
+    final rebuilt = Archive();
+    for (final entry in archive.files) {
+      if (!entry.isFile) continue;
+      if (_normalizeZipEntryPath(entry.name) == sheetPath) {
+        final data = utf8.encode(updatedXml);
+        rebuilt.addFile(ArchiveFile(entry.name, data.length, data));
+      } else {
+        final data = entry.content as List<int>;
+        rebuilt.addFile(ArchiveFile(entry.name, data.length, data));
+      }
+    }
+    final encoded = ZipEncoder().encode(rebuilt);
+    if (encoded == null) throw Exception('تعذر إعادة تكوين ملف Excel بعد تحديث الدرجة.');
+    return Uint8List.fromList(encoded);
+  }
+
+  /// القيم المعادة: saved, alreadyExists, studentNotFound, duplicateStudent, invalidTarget, error.
   static Future<String> saveOmrMarkToExcel({
     required String filePath,
     required String secretCode,
