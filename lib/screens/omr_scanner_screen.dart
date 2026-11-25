@@ -50,9 +50,11 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
     super.initState();
     _initCamera();
     // فحص ما إذا كان الاختبار يحتوي على مسار ملف إكسيل مسبقاً
-    if (widget.exam.header.excelFilePath != null &&
-        widget.exam.header.excelFilePath!.trim().isNotEmpty) {
-      _processExcelFile(widget.exam.header.excelFilePath!);
+    final savedExcelPath = widget.exam.header.excelFilePath;
+    if (savedExcelPath != null &&
+        savedExcelPath.trim().isNotEmpty &&
+        !savedExcelPath.replaceAll('\\', '/').contains('/Download/درجات الطلاب/')) {
+      _processExcelFile(savedExcelPath);
     }
   }
 
