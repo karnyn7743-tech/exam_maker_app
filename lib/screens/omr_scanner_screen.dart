@@ -103,9 +103,11 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
   Future<void> _processExcelFile(String path) async {
     setState(() => _isProcessing = true);
 
-    // 1. التحقق من مطابقة بنية الملف
-    final bool isValid = await StudentExcelService.validateExcelStructure(path);
-    if (!isValid) {
+    try {
+      final bytes = await ExcelFileAccessService.readBytes(path);
+      // التحقق من البنية بعد التأكد من إمكانية الوصول إلى الملف الأصلي.
+      final bool isValid = StudentExcelService.validateExcelBytes(bytes);
+      if (!isValid) {
       setState(() {
         _excelLoaded = false;
         _selectedExcelPath = null;
@@ -141,12 +143,10 @@ class _OmrScannerScreenState extends State<OmrScannerScreen> {
           ),
         );
       }
-      return;
-    }
+        return;
+      }
 
-    // 2. استخراج أوراق المواد والشهور ونظام العام الدراسي (8 أم 6 أشهر)
-    try {
-      final bytes = await ExcelFileAccessService.readBytes(path);
+      // 2. استخراج أوراق المواد والشهور ونظام العام الدراسي (8 أم 6 أشهر)
       final excel = Excel.decodeBytes(bytes);
 
       // نقتصر على أوراق المواد الصحيحة ولا نعامل أوراق الإعدادات كمواد.
