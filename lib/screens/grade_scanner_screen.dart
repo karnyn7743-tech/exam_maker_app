@@ -869,10 +869,10 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
           : qrRect.left - gap - regionWidth;
       final top = centerY - (regionHeight / 2);
       final bounds = Rect.fromLTRB(
-        left.clamp(0.0, fullImage.width.toDouble()),
-        top.clamp(0.0, fullImage.height.toDouble()),
-        (left + regionWidth).clamp(0.0, fullImage.width.toDouble()),
-        (top + regionHeight).clamp(0.0, fullImage.height.toDouble()),
+        left.clamp(0.0, fullImage.width.toDouble()).toDouble(),
+        top.clamp(0.0, fullImage.height.toDouble()).toDouble(),
+        (left + regionWidth).clamp(0.0, fullImage.width.toDouble()).toDouble(),
+        (top + regionHeight).clamp(0.0, fullImage.height.toDouble()).toDouble(),
       );
       final x = bounds.left.floor();
       final y = bounds.top.floor();
@@ -957,10 +957,15 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
     }
 
     if (_printedExamCode.isNotEmpty) {
-      final expectedCode = await _expectedPrintedExamCode();
-      final detectedCode = int.tryParse(_convertArabicHindiDigits(_printedExamCode));
-      if (expectedCode != null && detectedCode != expectedCode) {
-        _showSnack('كود الورقة المقروء ($detectedCode) لا يطابق الفترة المحددة؛ المتوقع ($expectedCode). راجع اختيار المادة أو الشهر.');
+      try {
+        final expectedCode = await _expectedPrintedExamCode();
+        final detectedCode = int.tryParse(_convertArabicHindiDigits(_printedExamCode));
+        if (expectedCode != null && detectedCode != expectedCode) {
+          _showSnack('كود الورقة المقروء ($detectedCode) لا يطابق الفترة المحددة؛ المتوقع ($expectedCode). راجع اختيار المادة أو الشهر.');
+          return;
+        }
+      } catch (e) {
+        _showSnack('تعذر التحقق من كود الشهر/المادة: $e');
         return;
       }
     }
