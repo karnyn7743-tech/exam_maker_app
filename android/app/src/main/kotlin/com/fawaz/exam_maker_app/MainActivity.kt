@@ -70,6 +70,26 @@ class MainActivity : FlutterActivity() {
                         }
                         return@setMethodCallHandler
                     }
+                    "openExcelDocument" -> {
+                        val uriText = call.argument<String>("uri")
+                        val mimeType = call.argument<String>("mimeType") ?: "application/octet-stream"
+                        if (uriText.isNullOrBlank()) {
+                            result.error("INVALID_URI", "مرجع ملف Excel غير صالح.", null)
+                            return@setMethodCallHandler
+                        }
+                        try {
+                            val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(Uri.parse(uriText), mimeType)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                            }
+                            startActivity(Intent.createChooser(viewIntent, "فتح ملف Excel"))
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("EXCEL_OPEN_FAILED", e.message ?: "تعذر فتح الملف في تطبيق آخر.", null)
+                        }
+                        return@setMethodCallHandler
+                    }
                     "readExcelDocument" -> {
                         val uriText = call.argument<String>("uri")
                         if (uriText.isNullOrBlank()) {
