@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
@@ -301,11 +300,11 @@ Map<String, dynamic> _saveManualGradesIsolate(Map<String, dynamic> args) {
     if(oral!=null)_manualSet(data,rows,targetCol+1,targetRow,oral);
     if(att!=null)_manualSet(data,rows,targetCol+2,targetRow,att);
     _manualUpdateSum(rows,targetCol,targetRow,strings);
-    final bytes=_manualRebuild(archive,sheetPath,doc.toXmlString(pretty:false));
-    final check=ZipDecoder().decodeBytes(bytes);
+    final updatedBytes=_manualRebuild(archive,sheetPath,doc.toXmlString(pretty:false));
+    final check=ZipDecoder().decodeBytes(updatedBytes);
     if(check.findFile(sheetPath)==null||check.findFile('xl/workbook.xml')==null)throw Exception('فشل التحقق من الملف الناتج.');
     // تعاد البايتات إلى الشاشة ليتم تحديث المصنف الأصلي مباشرة عبر مرجع SAF.
-    return {'success':true,'updatedBytes':bytes};
+    return {'success':true,'updatedBytes':updatedBytes};
   }catch(e){return {'success':false,'message':'خطأ في الحفظ الآمن لملف Excel: $e'};}
 }
 
@@ -344,7 +343,6 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
   @override
   void initState() {
     super.initState();
-    _requestPermissions();
     _loadLastExcelFile();
   }
 
@@ -362,7 +360,7 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
       final prefs = await SharedPreferences.getInstance();
       final String? lastFile = prefs.getString('last_excel_file');
       if (lastFile != null &&
-          lastFile.replaceAll('\\\\', '/').contains('/Download/درجات الطلاب/')) {
+          lastFile.replaceAll('\\', '/').contains('/Download/درجات الطلاب/')) {
         // تجاهل النسخ القديمة التي أنشأتها الإصدارات السابقة، واطلب اختيار الأصل.
         await prefs.remove('last_excel_file');
         await prefs.remove('last_excel_file_name');
