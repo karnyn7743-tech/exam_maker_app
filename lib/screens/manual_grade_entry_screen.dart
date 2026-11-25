@@ -5,31 +5,26 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:xml/xml.dart';
 import 'package:excel/excel.dart' hide Border;
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:open_filex/open_filex.dart'; // ✅ مكتبة فتح الملف
+import 'package:open_filex/open_filex.dart';
+import '../services/excel_file_access_service.dart';
 
 bool _isMahsala1(String t) => t == 'م١' || t == 'م1' || t == 'م۱';
 bool _isMahsala2(String t) => t == 'م٢' || t == 'م2' || t == 'م۲';
 bool _isFasl1(String t) => t == 'ف١' || t == 'ف1' || t == 'ف۱';
 bool _isFasl2(String t) => t == 'ف٢' || t == 'ف2' || t == 'ف۲';
 
-List<String> _extractSheetNamesIsolate(String filePath) {
-  final bytes = File(filePath).readAsBytesSync();
+List<String> _extractSheetNamesIsolate(Uint8List bytes) {
   final excel = Excel.decodeBytes(bytes);
   return excel.tables.keys.toList();
 }
 
 Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
-  final String filePath = args['filePath'];
+  final Uint8List bytes = args['bytes'];
   final String sheetName = args['sheetName'];
   final bool isTerm2 = args['isTerm2'];
-
-  final bytes = File(filePath).readAsBytesSync();
   final excel = Excel.decodeBytes(bytes);
   final sheet = excel.tables[sheetName];
   if (sheet == null) return {'error': 'Sheet not found'};
@@ -110,13 +105,13 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
 
 /// قراءة درجات الطالب المسجلة مسبقاً في أعمدة الواجبات والشفهي والمواظبة.
 Map<String, dynamic> _getStudentGradesIsolate(Map<String, dynamic> args) {
-  final String filePath = args['filePath'];
+  final Uint8List bytes = args['bytes'];
   final String sheetName = args['sheetName'];
   final int targetRow = args['targetRow'];
   final String selectedMonth = args['selectedMonth'];
 
   try {
-    final excel = Excel.decodeBytes(File(filePath).readAsBytesSync());
+    final excel = Excel.decodeBytes(bytes);
     final sheet = excel.tables[sheetName];
     if (sheet == null) return {'error': 'ورقة العمل غير موجودة.'};
 
@@ -280,14 +275,12 @@ Uint8List _manualRebuild(Archive source,String sheetPath,String sheetXml) {
 }
 
 Map<String, dynamic> _saveManualGradesIsolate(Map<String, dynamic> args) {
-  final String filePath=args['filePath'], sheetName=args['sheetName'];
+  final Uint8List bytes=args['bytes'];
+  final String sheetName=args['sheetName'];
   final int targetRow=args['targetRow'];final String selectedMonth=args['selectedMonth'];
   final double? hw=args['hw'],oral=args['oral'],att=args['att'];
   try {
-    final file=File(filePath);if(!file.existsSync())return {'success':false,'message':'ملف Excel غير موجود.'};
-    final lower=filePath.toLowerCase();
-    if(!lower.endsWith('.xlsx')&&!lower.endsWith('.xlsm'))return {'success':false,'message':'الحفظ الآمن متاح لملفات XLSX وXLSM فقط.'};
-    final archive=ZipDecoder().decodeBytes(file.readAsBytesSync());
+    final archive=ZipDecoder().decodeBytes(bytes);
     final sheetPath=_manualSheetPath(archive,sheetName);
     final sheetFile=archive.findFile(sheetPath);if(sheetFile==null)throw Exception('ورقة العمل غير موجودة داخل الملف.');
     final doc=XmlDocument.parse(utf8.decode(sheetFile.content as List<int>));
@@ -311,12 +304,8 @@ Map<String, dynamic> _saveManualGradesIsolate(Map<String, dynamic> args) {
     final bytes=_manualRebuild(archive,sheetPath,doc.toXmlString(pretty:false));
     final check=ZipDecoder().decodeBytes(bytes);
     if(check.findFile(sheetPath)==null||check.findFile('xl/workbook.xml')==null)throw Exception('فشل التحقق من الملف الناتج.');
-    final temp=File('$filePath.tmp'),backup=File('$filePath.bak');
-    temp.writeAsBytesSync(bytes,flush:true);if(backup.existsSync())backup.deleteSync();
-    file.renameSync(backup.path);
-    try{temp.renameSync(filePath);if(backup.existsSync())backup.deleteSync();}
-    catch(_){if(!file.existsSync()&&backup.existsSync())backup.renameSync(filePath);rethrow;}
-    return {'success':true};
+    // تعاد البايتات إلى الشاشة ليتم تحديث المصنف الأصلي مباشرة عبر مرجع SAF.
+    return {'success':true,'updatedBytes':bytes};
   }catch(e){return {'success':false,'message':'خطأ في الحفظ الآمن لملف Excel: $e'};}
 }
 
@@ -368,69 +357,23 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
     super.dispose();
   }
 
-  Future<void> _requestPermissions() async {
-    if (!await Permission.camera.isGranted) await Permission.camera.request();
-    if (!await Permission.storage.isGranted) await Permission.storage.request();
-    if (!await Permission.manageExternalStorage.isGranted) {
-      final status = await Permission.manageExternalStorage.request();
-      if (status.isDenied && mounted) _showManageStorageDialog();
-    }
-  }
-
-  void _showManageStorageDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('صلاحية مطلوبة'),
-        content: const Text('لكي يعمل التطبيق، نحتاج صلاحية "إدارة جميع الملفات".'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('لاحقاً')),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await openAppSettings();
-            },
-            child: const Text('فتح الإعدادات'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<String> _getPermanentExcelPath(String originalFileName, String sourceCachePath) async {
-    Directory? externalDir = await getExternalStorageDirectory();
-    String basePath = "";
-    List<String> paths = externalDir!.path.split("/");
-    for (int x = 1; x < paths.length; x++) {
-      if (paths[x] != "Android") {
-        basePath += "/${paths[x]}";
-      } else {
-        break;
-      }
-    }
-
-    Directory targetDir = Directory("$basePath/Download/درجات الطلاب");
-    if (!await targetDir.exists()) {
-      await targetDir.create(recursive: true);
-    }
-
-    File destination = File("${targetDir.path}/$originalFileName");
-    // استبدال نسخة العمل عند كل اختيار لتجنب استخدام نسخة قديمة بالاسم نفسه.
-    final sourceFile = File(sourceCachePath);
-    if (!await sourceFile.exists()) throw Exception('تعذر الوصول إلى الملف المختار.');
-    await destination.writeAsBytes(await sourceFile.readAsBytes(), flush: true);
-    return destination.path;
-  }
-
   Future<void> _loadLastExcelFile() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final String? lastFile = prefs.getString('last_excel_file');
-      if (lastFile != null && await File(lastFile).exists()) {
+      if (lastFile != null &&
+          lastFile.replaceAll('\\\\', '/').contains('/Download/درجات الطلاب/')) {
+        // تجاهل النسخ القديمة التي أنشأتها الإصدارات السابقة، واطلب اختيار الأصل.
+        await prefs.remove('last_excel_file');
+        await prefs.remove('last_excel_file_name');
+        return;
+      }
+      if (lastFile != null) {
         setState(() => _isLoading = true);
 
-        final sheets = await compute(_extractSheetNamesIsolate, lastFile);
-        final fileName = lastFile.split('/').last;
+        final bytes = await ExcelFileAccessService.readBytes(lastFile);
+        final sheets = await compute(_extractSheetNamesIsolate, bytes);
+        final fileName = prefs.getString('last_excel_file_name') ?? lastFile.split('/').last;
 
         final savedSheet = prefs.getString('last_sheet_$fileName');
         final validSheet = (savedSheet != null && sheets.contains(savedSheet))
@@ -456,20 +399,15 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
 
   Future<void> _pickExcelFile() async {
     try {
-      await _requestPermissions();
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['xlsx', 'xlsm'],
-      );
-      if (result == null || result.files.single.path == null) return;
+      final selected = await ExcelFileAccessService.pickExcelDocument();
+      if (selected == null) return;
 
       setState(() => _isLoading = true);
 
-      final cachePath = result.files.single.path!;
-      final fileName = result.files.single.name;
-      final path = await _getPermanentExcelPath(fileName, cachePath);
-
-      final sheets = await compute(_extractSheetNamesIsolate, path);
+      final path = selected.reference;
+      final fileName = selected.name;
+      final bytes = await ExcelFileAccessService.readBytes(path);
+      final sheets = await compute(_extractSheetNamesIsolate, bytes);
 
       final prefs = await SharedPreferences.getInstance();
       final savedSheet = prefs.getString('last_sheet_$fileName');
@@ -487,6 +425,7 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
       });
 
       await prefs.setString('last_excel_file', path);
+      await prefs.setString('last_excel_file_name', fileName);
 
       if (validSheet != null) await _loadData();
       _showSnack('✅ تم تحميل: $fileName');
@@ -502,8 +441,9 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
     setState(() => _isLoading = true);
 
     try {
+      final bytes = await ExcelFileAccessService.readBytes(_excelFilePath!);
       final result = await compute(_getMonthsAndStudentsIsolate, {
-        'filePath': _excelFilePath!,
+        'bytes': bytes,
         'sheetName': _selectedSheet!,
         'isTerm2': _isTerm2,
       });
@@ -581,8 +521,9 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
       if (_excelFilePath != null &&
           _selectedSheet != null &&
           _selectedMonthOrSubject != null) {
+        final bytes = await ExcelFileAccessService.readBytes(_excelFilePath!);
         final result = await compute(_getStudentGradesIsolate, {
-          'filePath': _excelFilePath!,
+          'bytes': bytes,
           'sheetName': _selectedSheet!,
           'targetRow': row,
           'selectedMonth': _selectedMonthOrSubject!,
@@ -641,8 +582,9 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
     setState(() => _isLoading = true);
 
     try {
+      final originalBytes = await ExcelFileAccessService.readBytes(_excelFilePath!);
       final result = await compute(_saveManualGradesIsolate, {
-        'filePath': _excelFilePath!,
+        'bytes': originalBytes,
         'sheetName': _selectedSheet!,
         'targetRow': _selectedStudentRow!,
         'selectedMonth': _selectedMonthOrSubject!,
@@ -652,6 +594,8 @@ class _ManualGradeEntryScreenState extends State<ManualGradeEntryScreen> {
       });
 
       if (result['success'] == true) {
+        final updatedBytes = result['updatedBytes'] as Uint8List;
+        await ExcelFileAccessService.writeBytes(_excelFilePath!, updatedBytes);
         if (_selectedGrade != null) {
           final classStudents = _allStudents
               .where((student) => student['grade'] == _selectedGrade)
