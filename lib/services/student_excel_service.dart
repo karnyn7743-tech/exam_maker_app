@@ -168,11 +168,14 @@ class StudentExcelService {
   }
 
   static Future<bool> validateExcelStructure(String filePath) async {
+    final bytes = await ExcelFileAccessService.readBytes(filePath);
+    return validateExcelBytes(bytes);
+  }
+
+  static bool validateExcelBytes(Uint8List bytes) {
     try {
-      final bytes = await ExcelFileAccessService.readBytes(filePath);
       final fixedBytes = _fixExcelDimensions(bytes);
       final excel = Excel.decodeBytes(fixedBytes);
-      
       if (excel.tables.isEmpty) return false;
 
       final sheet = excel.tables.values.first;
@@ -180,17 +183,19 @@ class StudentExcelService {
 
       final seatCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 2));
       final nameCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 2));
-
       final seatHeader = _normalizeArabic(_extractCleanText(seatCell));
       final nameHeader = _normalizeArabic(_extractCleanText(nameCell));
-
-      bool hasExpectedHeaders = (seatHeader.contains('جلوس') || seatHeader.contains('رقم')) ||
+      final hasExpectedHeaders =
+          (seatHeader.contains('جلوس') || seatHeader.contains('رقم')) ||
           (nameHeader.contains('اسم') || nameHeader.contains('طالب'));
 
-      final testSeat = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 3)));
-      final testName = _extractCleanText(sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 3)));
-      bool hasStudentRow = testSeat.isNotEmpty || testName.isNotEmpty;
-
+      final testSeat = _extractCleanText(
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 3)),
+      );
+      final testName = _extractCleanText(
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 3)),
+      );
+      final hasStudentRow = testSeat.isNotEmpty || testName.isNotEmpty;
       return hasExpectedHeaders || hasStudentRow;
     } catch (_) {
       return false;
