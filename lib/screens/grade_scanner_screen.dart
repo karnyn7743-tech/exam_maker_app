@@ -21,6 +21,22 @@ bool _isMahsala2(String t) => t == 'م٢' || t == 'م2' || t == 'م۲';
 bool _isFasl1(String t) => t == 'ف١' || t == 'ف1' || t == 'ف۱';
 bool _isFasl2(String t) => t == 'ف٢' || t == 'ف2' || t == 'ف۲';
 
+String _normalizeSecretCode(dynamic value) {
+  var text = value?.toString() ?? '';
+  const digits = {
+    '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
+    '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9',
+    '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4',
+    '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9',
+  };
+  digits.forEach((key, replacement) {
+    text = text.replaceAll(key, replacement);
+  });
+  return text
+      .replaceAll(RegExp(r'[\\u200B-\\u200F\\u061C\\uFEFF\\u00A0\\u00AD\\s]'), '')
+      .trim();
+}
+
 // ═══════════════════════════════════════════════════════════
 // أدوات التعامل الآمن مع بنية XLSX الداخلية دون إتلاف المعادلات أو التنسيقات
 // ═══════════════════════════════════════════════════════════
@@ -547,10 +563,10 @@ Map<String, dynamic> _saveGradeIsolate(Map<String, dynamic> args) {
     final maxRow = rows.keys.isEmpty ? 0 : rows.keys.reduce(math.max);
 
     int targetRow = -1;
-    final cleanSecret = secretCode.trim();
+    final cleanSecret = _normalizeSecretCode(secretCode);
     for (int r = 3; r <= maxRow; r++) {
       final cellVal = _getValueAt(rows, 3, r, sharedStrings);
-      if (cellVal != null && cellVal.toString().trim() == cleanSecret) {
+      if (cellVal != null && _normalizeSecretCode(cellVal) == cleanSecret) {
         targetRow = r;
         break;
       }
