@@ -59,6 +59,22 @@ class ExcelFileAccessService {
     return bytes;
   }
 
+  static Future<void> openDocumentExternally(
+    String reference,
+    String mimeType,
+  ) async {
+    if (!isDocumentUri(reference)) {
+      throw Exception('مرجع المستند ليس رابطًا مباشرًا من منتقي Android.');
+    }
+    final opened = await _channel.invokeMethod<bool>(
+      'openExcelDocument',
+      <String, dynamic>{'uri': reference, 'mimeType': mimeType},
+    );
+    if (opened != true) {
+      throw Exception('لم يؤكد النظام فتح ملف Excel الأصلي.');
+    }
+  }
+
   static Future<void> writeBytes(String reference, Uint8List bytes) async {
     if (bytes.isEmpty) throw Exception('لا توجد بيانات صالحة لحفظها في Excel.');
 
