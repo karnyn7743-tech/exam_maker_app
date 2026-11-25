@@ -704,7 +704,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       final prefs = await SharedPreferences.getInstance();
       final String? lastFile = prefs.getString('last_excel_file');
       if (lastFile != null &&
-          lastFile.replaceAll('\\\\', '/').contains('/Download/درجات الطلاب/')) {
+          lastFile.replaceAll('\\', '/').contains('/Download/درجات الطلاب/')) {
         // الإصدارات السابقة كانت تحفظ نسخة ثانية في مجلد التنزيلات؛
         // لا نستخدمها بعد التحديث حتى يختار المستخدم المصنف الأصلي مباشرة.
         await prefs.remove('last_excel_file');
