@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -13,6 +12,7 @@ import '../services/exam_storage_service.dart';
 import '../services/pdf_export_service.dart';
 import '../services/exam_share_service.dart';
 import '../services/student_excel_service.dart';
+import '../services/excel_file_access_service.dart';
 import '../services/omr_sheet_service.dart';
 import '../services/question_bank_service.dart';
 import '../services/direct_print_service.dart';
@@ -1527,7 +1527,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
           _exam.header.topMargin1cm &&
           _exam.header.studentDataMode != 'none' &&
           _exam.header.excelFilePath != null &&
-          File(_exam.header.excelFilePath!).existsSync();
+          _exam.header.excelFilePath!.trim().isNotEmpty;
 
       final double consumedHeight = _pageHeights[pageIndex] ?? 0.0;
       final double fillPercentage = (consumedHeight / kA4PaperHeight).clamp(0.0, 1.5);
@@ -6337,29 +6337,11 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
 
   Future<void> _pickExcelFileForStudents(StateSetter setDlgState) async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['xlsx', 'xls', 'xlsm', 'xlsb'],
-        withData: true,
-      );
-
-      if (result == null || result.files.isEmpty) return;
-      final pickedFile = result.files.single;
-      final bytes = pickedFile.bytes ??
-          (pickedFile.path != null
-              ? await File(pickedFile.path!).readAsBytes()
-              : null);
-      if (bytes == null || bytes.isEmpty) {
-        throw Exception(
-          'تعذر الوصول إلى محتوى الملف من مدير الملفات. أعد اختيار الملف أو انسخه إلى ذاكرة الجهاز.',
-        );
-      }
-
-      // نحتفظ بنسخة داخل مساحة التطبيق الخاصة حتى لا ينقطع الوصول بعد إغلاق مدير الملفات.
-      final path = await StudentExcelService.persistImportedExcelBytes(
-        bytes,
-        pickedFile.name,
-      );
+      final selected = await ExcelFileAccessService.pickExcelDocument();
+      if (selected == null) return;
+      // نقرأ المصنف من مرجعه الأصلي ولا ننشئ نسخة داخل مساحة التطبيق.
+      final bytes = await ExcelFileAccessService.readBytes(selected.reference);
+      final path = selected.reference;
       final excelRes = StudentExcelService.parseExcelBytes(
         bytes,
         expectedSubject: _exam.header.subject,
@@ -6466,7 +6448,7 @@ class _ExamEditorScreenState extends State<ExamEditorScreen> {
                       children: [
                         Text(
                           _exam.header.excelFilePath != null
-                              ? 'الملف المختار: ${_exam.header.excelFilePath!.split(Platform.pathSeparator).last}'
+                              ? (ExcelFileAccessService.isDocumentUri(_exam.header.excelFilePath!) ? 'تم ربط ملف Excel الأصلي مباشرة' : 'الملف المختار: ${_exam.header.excelFilePath!.split(Platform.pathSeparator).last}')
                               : 'لم يتم اختيار ملف بعد (سيتم توليد ورق عادي بالنقط)',
                           style: TextStyle(
                             fontSize: 11,
