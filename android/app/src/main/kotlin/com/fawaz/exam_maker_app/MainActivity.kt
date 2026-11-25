@@ -52,7 +52,10 @@ class MainActivity : FlutterActivity() {
                             type = "*/*"
                             putExtra(Intent.EXTRA_MIME_TYPES, arrayOf(
                                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                "application/vnd.ms-excel.sheet.macroEnabled.12"
+                                "application/vnd.ms-excel.sheet.macroEnabled.12",
+                                "application/vnd.ms-excel",
+                                "application/octet-stream",
+                                "application/zip"
                             ))
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or
                                 Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
