@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/student_excel_service.dart';
+import '../services/excel_file_access_service.dart';
 import 'package:pdfx/pdfx.dart';
 import 'package:printing/printing.dart';
 
@@ -27,6 +28,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
   String? _fileName;
   String? _originalPdfPath;
   String? _excelPath;
+  String? _excelName;
   bool _isPdf = true;
   bool _isBusy = false;
   double _cropTopFraction = 0.0;
@@ -192,6 +194,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
     if (_filePath == null) return;
 
     String? selectedExcelPath = _excelPath;
+    String? selectedExcelName = _excelName;
     String? selectedSubject;
     String? selectedGrade;
     String? selectedPeriod;
@@ -208,21 +211,15 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
         builder: (dialogContext, setDialogState) {
           Future<void> chooseExcel() async {
             try {
-              final result = await FilePicker.platform.pickFiles(
-                type: FileType.custom,
-                allowedExtensions: const ['xlsx', 'xlsm'],
-                withData: false,
-              );
-              if (result == null || result.files.isEmpty) return;
-              final path = result.files.single.path;
-              if (path == null || path.trim().isEmpty) {
-                throw Exception('تعذر الوصول إلى ملف Excel المحدد.');
-              }
+              final selected = await ExcelFileAccessService.pickExcelDocument();
+              if (selected == null) return;
+              final path = selected.reference;
 
               setDialogState(() {
                 loading = true;
                 error = null;
                 selectedExcelPath = path;
+                selectedExcelName = selected.name;
                 selectedSubject = null;
                 selectedGrade = null;
                 selectedPeriod = null;
@@ -332,7 +329,7 @@ class _DocumentHubScreenState extends State<DocumentHubScreen> {
                       if (selectedExcelPath != null) ...[
                         const SizedBox(height: 4),
                         Text(
-                          selectedExcelPath!.split(Platform.pathSeparator).last,
+                          selectedExcelName ?? selectedExcelPath!.split(Platform.pathSeparator).last,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
