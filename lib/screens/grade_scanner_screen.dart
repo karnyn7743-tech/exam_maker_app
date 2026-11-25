@@ -928,19 +928,11 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   Future<int?> _expectedPrintedExamCode() async {
     final path = _excelFilePath;
     final sheetName = _selectedSheet;
-    final period = _selectedMonthOrSubject;
-    if (path == null || sheetName == null || period == null) return null;
+    if (path == null || sheetName == null) return null;
 
-    if (_isFasl1(period) || _isFasl2(period)) {
-      final subjects = await StudentExcelService.getSubjectSheetNames(path);
-      final index = subjects.indexOf(sheetName);
-      return index < 0 ? null : index + 1;
-    }
-
-    final options = await StudentExcelService.getSheetOptions(path, sheetName);
-    final index = options.periods.indexWhere((item) =>
-        item.replaceAll(RegExp(r'\s+'), '') ==
-        period.replaceAll(RegExp(r'\s+'), ''));
+    // في الاختبار النهائي فقط: الكود المطبوع هو ترتيب ورقة المادة.
+    final subjects = await StudentExcelService.getSubjectSheetNames(path);
+    final index = subjects.indexOf(sheetName);
     return index < 0 ? null : index + 1;
   }
 
@@ -964,16 +956,21 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       return;
     }
 
-    if (_printedExamCode.isNotEmpty) {
+    final isFinalTerm = _isFasl1(_selectedMonthOrSubject!) ||
+        _isFasl2(_selectedMonthOrSubject!);
+    if (isFinalTerm && _printedExamCode.isNotEmpty) {
       try {
         final expectedCode = await _expectedPrintedExamCode();
-        final detectedCode = int.tryParse(_convertArabicHindiDigits(_printedExamCode));
+        final detectedCode =
+            int.tryParse(_convertArabicHindiDigits(_printedExamCode));
         if (expectedCode != null && detectedCode != expectedCode) {
-          _showSnack('كود الورقة المقروء ($detectedCode) لا يطابق الفترة المحددة؛ المتوقع ($expectedCode). راجع اختيار المادة أو الشهر.');
+          _showSnack(
+            'كود المادة المقروء ($detectedCode) لا يطابق ترتيب المادة المختارة؛ المتوقع ($expectedCode).',
+          );
           return;
         }
       } catch (e) {
-        _showSnack('تعذر التحقق من كود الشهر/المادة: $e');
+        _showSnack('تعذر التحقق من كود المادة: $e');
         return;
       }
     }
@@ -1079,16 +1076,22 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
             qrRect: qrRect,
             rightSide: false,
           );
-          final rightBytes = await _cropRegionBesideQr(
-            fullImage: oriented,
-            qrRect: qrRect,
-            rightSide: true,
-          );
+          final isFinalTerm = _selectedMonthOrSubject != null &&
+              (_isFasl1(_selectedMonthOrSubject!) ||
+                  _isFasl2(_selectedMonthOrSubject!));
+          // لا نقرأ الرقم يمين QR في الاختبارات الشهرية؛ يقرأ فقط في نهاية الفصل.
+          final rightBytes = isFinalTerm
+              ? await _cropRegionBesideQr(
+                  fullImage: oriented,
+                  qrRect: qrRect,
+                  rightSide: true,
+                )
+              : null;
 
           final gradeText = leftBytes == null
               ? ''
               : _extractNumber(await _ocrFromBytes(leftBytes));
-          final printedCode = rightBytes == null
+          final printedCode = !isFinalTerm || rightBytes == null
               ? ''
               : _extractNumber(await _ocrFromBytes(rightBytes));
 
@@ -1101,14 +1104,20 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
             });
           }
 
-          if (gradeText.isNotEmpty && printedCode.isNotEmpty) {
-            _showSnack('تمت قراءة كود الورقة ($printedCode) والدرجة ($gradeText).');
-          } else if (gradeText.isNotEmpty) {
-            _showSnack('قُرئت الدرجة ($gradeText)، لكن تعذر قراءة كود الشهر/المادة.');
-          } else if (printedCode.isNotEmpty) {
-            _showSnack('قُرئ كود الورقة ($printedCode)، أدخل الدرجة يدوياً.');
+          if (!isFinalTerm && gradeText.isNotEmpty) {
+            _showSnack('تمت قراءة الدرجة ($gradeText).');
+          } else if (isFinalTerm &&
+              gradeText.isNotEmpty &&
+              printedCode.isNotEmpty) {
+            _showSnack('تمت قراءة كود المادة ($printedCode) والدرجة ($gradeText).');
+          } else if (isFinalTerm && gradeText.isNotEmpty) {
+            _showSnack('قُرئت الدرجة ($gradeText)، لكن تعذر قراءة كود المادة.');
+          } else if (isFinalTerm && printedCode.isNotEmpty) {
+            _showSnack('قُرئ كود المادة ($printedCode)، أدخل الدرجة يدوياً.');
           } else {
-            _showSnack('تعذر قراءة الدرجة وكود الورقة؛ أدخلهما/تحقق منهما يدوياً.');
+            _showSnack(isFinalTerm
+                ? 'تعذر قراءة الدرجة وكود المادة.'
+                : 'تعذر قراءة الدرجة؛ أدخلها يدوياً.');
           }
         }
       } catch (e) {
