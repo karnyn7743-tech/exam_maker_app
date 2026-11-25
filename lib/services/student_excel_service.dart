@@ -1,10 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:excel/excel.dart';
 import 'package:xml/xml.dart';
-import 'package:path_provider/path_provider.dart';
 import 'excel_file_access_service.dart';
 
 class StudentData {
@@ -465,27 +463,6 @@ class StudentExcelService {
     );
   }
 
-  /// حفظ نسخة داخل مساحة التطبيق الخاصة لتجاوز اختلاف مسارات Content Provider
-  /// والصلاحيات المؤقتة بين أجهزة Android والشركات المصنّعة.
-  static Future<String> persistImportedExcelBytes(
-    Uint8List bytes,
-    String originalName,
-  ) async {
-    final directory = await getApplicationSupportDirectory();
-    final storageDirectory = Directory('${directory.path}/student_data');
-    if (!await storageDirectory.exists()) {
-      await storageDirectory.create(recursive: true);
-    }
-    final safeName = originalName
-        .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_')
-        .replaceAll(RegExp(r'^\.+'), '');
-    final fileName =
-        'students_${DateTime.now().microsecondsSinceEpoch}_${safeName.isEmpty ? 'workbook.xlsx' : safeName}';
-    final file = File('${storageDirectory.path}/$fileName');
-    await file.writeAsBytes(bytes, flush: true);
-    return file.path;
-  }
-
   static Future<StudentExcelResult> parseExcelFile(
     String filePath, {
     String? expectedSubject,
@@ -825,44 +802,15 @@ class StudentExcelService {
     required double mark,
     required int targetColumnIndex,
   }) async {
-    try {
-      final file = File(filePath);
-      if (!await file.exists()) return false;
-
-      final bytes = await file.readAsBytes();
-      final fixedBytes = _fixExcelDimensions(bytes);
-      final excel = Excel.decodeBytes(fixedBytes);
-
-      if (!excel.tables.containsKey(sheetName)) return false;
-      final sheet = excel.tables[sheetName]!;
-
-      int targetRowIndex = -1;
-      final cleanSecret = _extractCleanText(secretCode);
-
-      for (int r = 3; r < sheet.maxRows; r++) {
-        final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: r));
-        final val = _extractCleanText(cell);
-        if (val == cleanSecret) {
-          targetRowIndex = r;
-          break;
-        }
-      }
-
-      if (targetRowIndex == -1) return false;
-
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: targetColumnIndex, rowIndex: targetRowIndex))
-          .value = DoubleCellValue(mark);
-
-      final updatedBytes = excel.save();
-      if (updatedBytes != null) {
-        await file.writeAsBytes(updatedBytes, flush: true);
-        return true;
-      }
-      return false;
-    } catch (_) {
-      return false;
-    }
+    final result = await saveOmrMarkToExcel(
+      filePath: filePath,
+      secretCode: secretCode,
+      sheetName: sheetName,
+      mark: mark,
+      targetColumnIndex: targetColumnIndex,
+      allowOverwrite: true,
+    );
+    return result == 'saved';
   }
 }
 ), '><v>$mark</v></c>');
