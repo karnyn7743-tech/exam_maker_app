@@ -34,7 +34,7 @@ String _normalizeSecretCode(dynamic value) {
     text = text.replaceAll(key, replacement);
   });
   return text
-      .replaceAll(RegExp(r'[\\u200B-\\u200F\\u061C\\uFEFF\\u00A0\\u00AD\\s]'), '')
+      .replaceAll(RegExp(r'[\u200B-\u200F\u061C\uFEFF\u00A0\u00AD\s]'), '')
       .trim();
 }
 
