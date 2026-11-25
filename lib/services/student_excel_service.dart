@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:excel/excel.dart';
 import 'package:path_provider/path_provider.dart';
+import 'excel_file_access_service.dart';
 
 class StudentData {
   final String seatNo;
@@ -169,10 +170,7 @@ class StudentExcelService {
 
   static Future<bool> validateExcelStructure(String filePath) async {
     try {
-      final file = File(filePath);
-      if (!await file.exists()) return false;
-
-      final bytes = await file.readAsBytes();
+      final bytes = await ExcelFileAccessService.readBytes(filePath);
       final fixedBytes = _fixExcelDimensions(bytes);
       final excel = Excel.decodeBytes(fixedBytes);
       
@@ -225,7 +223,7 @@ class StudentExcelService {
 
   /// أسماء أوراق المواد التي تحتوي على كشف طلاب صحيح.
   static Future<List<String>> getSubjectSheetNames(String filePath) async {
-    final bytes = await File(filePath).readAsBytes();
+    final bytes = await ExcelFileAccessService.readBytes(filePath);
     final excel = Excel.decodeBytes(_fixExcelDimensions(bytes));
     return excel.tables.entries
         .where((entry) => _isSubjectSheet(entry.value))
@@ -238,7 +236,7 @@ class StudentExcelService {
     String filePath,
     String sheetName,
   ) async {
-    final bytes = await File(filePath).readAsBytes();
+    final bytes = await ExcelFileAccessService.readBytes(filePath);
     final excel = Excel.decodeBytes(_fixExcelDimensions(bytes));
     final sheet = excel.tables[sheetName];
     if (sheet == null || !_isSubjectSheet(sheet)) {
@@ -408,7 +406,7 @@ class StudentExcelService {
     required String sheetName,
     required String selectedPeriod,
   }) async {
-    final bytes = await File(filePath).readAsBytes();
+    final bytes = await ExcelFileAccessService.readBytes(filePath);
     final excel = Excel.decodeBytes(_fixExcelDimensions(bytes));
     final sheet = excel.tables[sheetName];
     if (sheet == null || !_isSubjectSheet(sheet)) {
@@ -493,7 +491,7 @@ class StudentExcelService {
     String? targetGrade,
     String? examTitle,
   }) async {
-    final bytes = await File(filePath).readAsBytes();
+    final bytes = await ExcelFileAccessService.readBytes(filePath);
     return parseExcelBytes(
       bytes,
       expectedSubject: expectedSubject,
