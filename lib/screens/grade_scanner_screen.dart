@@ -15,6 +15,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:xml/xml.dart';
 import '../utils/permission_helper.dart';
 import '../services/excel_file_access_service.dart';
+import '../services/student_excel_service.dart';
 
 bool _isMahsala1(String t) => t == 'م١' || t == 'م1' || t == 'م۱';
 bool _isMahsala2(String t) => t == 'م٢' || t == 'م2' || t == 'م۲';
@@ -659,6 +660,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   String? _selectedMonthOrSubject;
 
   String _secretCode = '';
+  String _printedExamCode = '';
   final TextEditingController _gradeController = TextEditingController();
   int _totalStudentsCount = 0;
   int _scannedStudentsCount = 0;
@@ -693,7 +695,6 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   }
 
   Future<void> _requestPermissions() async {
-    await requestStoragePermissionIfNeeded();
     if (!mounted) return;
     await requestCameraPermissionIfNeeded(context);
   }
@@ -849,21 +850,50 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
     return processed;
   }
 
-  Future<Uint8List?> _cropLeftRegion(Uint8List bytes) async {
+  Future<Uint8List?> _cropRegionBesideQr({
+    required img.Image fullImage,
+    required Rect qrRect,
+    required bool rightSide,
+  }) async {
     try {
-      img.Image? full = img.decodeImage(bytes);
-      if (full == null) return null;
-      full = img.bakeOrientation(full);
-      final int w = full.width;
-      final int h = full.height;
-      final int regionW = w ~/ 3;
-      var left = img.copyCrop(full, x: 0, y: 0, width: regionW, height: h);
-      left = _preprocessImageForOcr(left);
-      return Uint8List.fromList(img.encodePng(left));
-    } catch (e) {
+      final qrWidth = qrRect.width;
+      final qrHeight = qrRect.height;
+      if (qrWidth < 4 || qrHeight < 4) return null;
+
+      final gap = qrWidth * 0.12;
+      final regionWidth = qrWidth * (rightSide ? 1.35 : 1.65);
+      final regionHeight = qrHeight * 1.30;
+      final centerY = qrRect.center.dy;
+      final left = rightSide
+          ? qrRect.right + gap
+          : qrRect.left - gap - regionWidth;
+      final top = centerY - (regionHeight / 2);
+      final bounds = Rect.fromLTRB(
+        left.clamp(0.0, fullImage.width.toDouble()),
+        top.clamp(0.0, fullImage.height.toDouble()),
+        (left + regionWidth).clamp(0.0, fullImage.width.toDouble()),
+        (top + regionHeight).clamp(0.0, fullImage.height.toDouble()),
+      );
+      final x = bounds.left.floor();
+      final y = bounds.top.floor();
+      final width = bounds.width.floor();
+      final height = bounds.height.floor();
+      if (width < 8 || height < 8) return null;
+
+      var region = img.copyCrop(
+        fullImage,
+        x: x,
+        y: y,
+        width: width,
+        height: height,
+      );
+      region = _preprocessImageForOcr(region);
+      return Uint8List.fromList(img.encodePng(region));
+    } catch (_) {
       return null;
     }
   }
+
 
   Future<String> _ocrFromBytes(Uint8List bytes) async {
     File? tempFile;
@@ -887,6 +917,25 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
     }
   }
 
+  Future<int?> _expectedPrintedExamCode() async {
+    final path = _excelFilePath;
+    final sheetName = _selectedSheet;
+    final period = _selectedMonthOrSubject;
+    if (path == null || sheetName == null || period == null) return null;
+
+    if (_isFasl1(period) || _isFasl2(period)) {
+      final subjects = await StudentExcelService.getSubjectSheetNames(path);
+      final index = subjects.indexOf(sheetName);
+      return index < 0 ? null : index + 1;
+    }
+
+    final options = await StudentExcelService.getSheetOptions(path, sheetName);
+    final index = options.periods.indexWhere((item) =>
+        item.replaceAll(RegExp(r'\s+'), '') ==
+        period.replaceAll(RegExp(r'\s+'), ''));
+    return index < 0 ? null : index + 1;
+  }
+
   Future<void> _saveGradeDirectly() async {
     if (!_excelLoaded || _excelFilePath == null || _selectedSheet == null) {
       _showSnack('⚠️ اختر ملف الأكسيل أولاً');
@@ -901,10 +950,19 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       return;
     }
 
-    final double? gradeVal = double.tryParse(_gradeController.text.trim());
+    final double? gradeVal = double.tryParse(_convertArabicHindiDigits(_gradeController.text.trim()));
     if (gradeVal == null) {
       _showSnack('⚠️ الدرجة غير صحيحة');
       return;
+    }
+
+    if (_printedExamCode.isNotEmpty) {
+      final expectedCode = await _expectedPrintedExamCode();
+      final detectedCode = int.tryParse(_convertArabicHindiDigits(_printedExamCode));
+      if (expectedCode != null && detectedCode != expectedCode) {
+        _showSnack('كود الورقة المقروء ($detectedCode) لا يطابق الفترة المحددة؛ المتوقع ($expectedCode). راجع اختيار المادة أو الشهر.');
+        return;
+      }
     }
 
     setState(() => _isLoading = true);
@@ -925,6 +983,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
         setState(() {
           _scannedStudentsCount++;
           _secretCode = '';
+          _printedExamCode = '';
           _gradeController.clear();
         });
         _showSnack(
@@ -976,21 +1035,71 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
 
     setState(() {
       _secretCode = qrValue;
+      _printedExamCode = '';
       _gradeController.clear();
     });
 
     if (capture.image != null) {
-      final leftBytes = await _cropLeftRegion(capture.image!);
-      if (leftBytes != null) {
-        final leftText = await _ocrFromBytes(leftBytes);
-        final gradeText = _extractNumber(leftText);
-
-        if (gradeText.isNotEmpty) {
-          setState(() => _gradeController.text = gradeText);
-          _showSnack('✅ درجة مقروءة: $gradeText');
+      try {
+        final fullImage = img.decodeImage(capture.image!);
+        final barcode = capture.barcodes.first;
+        final corners = barcode.corners;
+        if (fullImage == null || corners.length < 4 ||
+            capture.size.width <= 0 || capture.size.height <= 0) {
+          _showSnack('تعذر تحديد مواضع المناطق الثلاث حول رمز QR.');
         } else {
-          _showSnack('ℹ️ لم يتم التعرف على الدرجة، أدخلها يدوياً');
+          final oriented = img.bakeOrientation(fullImage);
+          final scaleX = oriented.width / capture.size.width;
+          final scaleY = oriented.height / capture.size.height;
+          final xs = corners.map((point) => point.dx * scaleX).toList();
+          final ys = corners.map((point) => point.dy * scaleY).toList();
+          final qrRect = Rect.fromLTRB(
+            xs.reduce(math.min),
+            ys.reduce(math.min),
+            xs.reduce(math.max),
+            ys.reduce(math.max),
+          );
+
+          // منطقة الدرجة تقع يسار QR، ورقم الشهر/المادة يقع يمينه.
+          final leftBytes = await _cropRegionBesideQr(
+            fullImage: oriented,
+            qrRect: qrRect,
+            rightSide: false,
+          );
+          final rightBytes = await _cropRegionBesideQr(
+            fullImage: oriented,
+            qrRect: qrRect,
+            rightSide: true,
+          );
+
+          final gradeText = leftBytes == null
+              ? ''
+              : _extractNumber(await _ocrFromBytes(leftBytes));
+          final printedCode = rightBytes == null
+              ? ''
+              : _extractNumber(await _ocrFromBytes(rightBytes));
+
+          if (mounted) {
+            setState(() {
+              _printedExamCode = printedCode.isEmpty
+                  ? ''
+                  : (int.tryParse(printedCode)?.toString() ?? printedCode);
+              if (gradeText.isNotEmpty) _gradeController.text = gradeText;
+            });
+          }
+
+          if (gradeText.isNotEmpty && printedCode.isNotEmpty) {
+            _showSnack('تمت قراءة كود الورقة ($printedCode) والدرجة ($gradeText).');
+          } else if (gradeText.isNotEmpty) {
+            _showSnack('قُرئت الدرجة ($gradeText)، لكن تعذر قراءة كود الشهر/المادة.');
+          } else if (printedCode.isNotEmpty) {
+            _showSnack('قُرئ كود الورقة ($printedCode)، أدخل الدرجة يدوياً.');
+          } else {
+            _showSnack('تعذر قراءة الدرجة وكود الورقة؛ أدخلهما/تحقق منهما يدوياً.');
+          }
         }
+      } catch (e) {
+        _showSnack('تعذر تحليل مناطق QR والدرجة والكود: $e');
       }
     } else {
       _showSnack('⚠️ لم يتم التقاط صورة');
