@@ -280,7 +280,7 @@ class PdfExportService {
     if (exam.header.topMargin1cm &&
         exam.header.studentDataMode != 'none' &&
         exam.header.excelFilePath != null &&
-        File(exam.header.excelFilePath!).existsSync()) {
+        exam.header.excelFilePath!.trim().isNotEmpty) {
       try {
         final excelRes = await StudentExcelService.parseExcelFile(
           exam.header.excelFilePath!,
