@@ -31,7 +31,9 @@ class OmrResultCommitService {
         excelPath, expectedSubject: sheetName,
         targetGrade: exam.header.grade, examTitle: exam.header.examTitle,
       );
-      final matches = parsed.students.where((s) => s.secretCode.trim() == qrSecretCode.trim()).toList();
+      final normalizedQr = StudentExcelService.normalizeSecretCode(qrSecretCode);
+      final matches = parsed.students.where((s) =>
+          StudentExcelService.normalizeSecretCode(s.secretCode) == normalizedQr).toList();
       if (matches.isEmpty) return const OmrCommitResult(OmrCommitStatus.studentNotFound);
       if (matches.length != 1) return const OmrCommitResult(OmrCommitStatus.duplicateStudent);
       final student = matches.single;
