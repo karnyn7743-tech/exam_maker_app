@@ -1138,7 +1138,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       } else {
         final expectedMonthCode = _monthOrdinals[_selectedMonthOrSubject!];
         if (expectedMonthCode == null || detectedCode != expectedMonthCode) {
-          _showSnack('كود الشهر المقروء ($detectedCode) لا يطابق الفترة المحددة (\${_selectedMonthOrSubject!}). لم تتم قراءة الدرجة.');
+          _showSnack('كود الشهر المقروء ($detectedCode) لا يطابق الفترة المحددة (${_selectedMonthOrSubject!}). لم تتم قراءة الدرجة.');
           return;
         }
       }
