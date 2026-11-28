@@ -1478,29 +1478,31 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: Row(
-                children: [
-                  const Text('كود الشهر / المادة:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  const SizedBox(width: 8),
-                  Text(
-                    _printedExamCode.isNotEmpty ? _printedExamCode : 'لم يُقرأ بعد',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: _printedExamCode.isNotEmpty ? Colors.teal.shade800 : Colors.grey,
+            if (_isFinalTermSelected) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Row(
+                  children: [
+                    const Text('كود المادة المقروء:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(width: 8),
+                    Text(
+                      _printedExamCode.isNotEmpty ? _printedExamCode : 'لم يُقرأ بعد',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: _printedExamCode.isNotEmpty ? Colors.teal.shade800 : Colors.grey,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
+              const SizedBox(height: 10),
+            ],
 
             Row(
               children: [
