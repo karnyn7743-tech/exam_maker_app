@@ -1115,34 +1115,41 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
         xs.reduce(math.min), ys.reduce(math.min),
         xs.reduce(math.max), ys.reduce(math.max),
       );
-      final rightBytes = await _cropRegionBesideQr(
-        fullImage: oriented, qrRect: qrRect, rightSide: true,
-      );
-      final printedText = rightBytes == null ? '' : _extractNumber(await _ocrFromBytes(rightBytes));
-      final detectedCode = int.tryParse(_convertArabicHindiDigits(printedText));
-      if (detectedCode == null || detectedCode < 1) {
-        _showSnack('تعذر قراءة كود الشهر/المادة. لم تتم قراءة الدرجة.');
-        return;
-      }
-
-      final isTerm = _isFasl1(_selectedMonthOrSubject!) || _isFasl2(_selectedMonthOrSubject!);
+      // في الاختبارات الشهرية لا نتحقق من الرقم المطبوع؛
+      // أما ف١/ف٢ فيجب أن يطابق رقم المادة ترتيب الورقة المختارة.
+      final isTerm = (_isFasl1(_selectedMonthOrSubject!) || _isFasl2(_selectedMonthOrSubject!));
       String targetSheet = _selectedSheet!;
+      int? detectedCode;
+
       if (isTerm) {
-        final subjects = await StudentExcelService.getSubjectSheetNames(_excelFilePath!);
-        if (detectedCode > subjects.length) {
-          _showSnack('كود المادة ($detectedCode) خارج نطاق أوراق المواد في ملف أعمال السنة.');
+        final rightBytes = await _cropRegionBesideQr(
+          fullImage: oriented, qrRect: qrRect, rightSide: true,
+        );
+        final printedText = rightBytes == null
+            ? ''
+            : _extractNumber(await _ocrFromBytes(rightBytes));
+        detectedCode = int.tryParse(_convertArabicHindiDigits(printedText));
+        if (detectedCode == null || detectedCode < 1) {
+          _showSnack('تعذر قراءة كود المادة. لم تتم قراءة الدرجة.');
           return;
         }
-        targetSheet = subjects[detectedCode - 1];
-        if (mounted) setState(() => _selectedSheet = targetSheet);
-      } else {
-        final expectedMonthCode = _monthOrdinals[_selectedMonthOrSubject!];
-        if (expectedMonthCode == null || detectedCode != expectedMonthCode) {
-          _showSnack('كود الشهر المقروء ($detectedCode) لا يطابق الفترة المحددة (${_selectedMonthOrSubject!}). لم تتم قراءة الدرجة.');
+
+        final subjects =
+            await StudentExcelService.getSubjectSheetNames(_excelFilePath!);
+        final selectedSubjectIndex = subjects.indexOf(_selectedSheet!);
+        if (selectedSubjectIndex < 0) {
+          _showSnack('المادة المختارة غير موجودة ضمن أوراق المواد في ملف أعمال السنة.');
+          return;
+        }
+        final expectedSubjectCode = selectedSubjectIndex + 1;
+        if (detectedCode != expectedSubjectCode) {
+          _showSnack(
+            'كود المادة المقروء ($detectedCode) لا يطابق المادة المختارة ($_selectedSheet)؛ المتوقع ($expectedSubjectCode).',
+          );
           return;
         }
       }
-
+      
       // المرحلة الثانية: لا نقرأ الدرجة إلا بعد التأكد من وجود الرقم السري مرة واحدة.
       final workbookBytes = await ExcelFileAccessService.readBytes(_excelFilePath!);
       final validation = await compute(_validateSecretCodeIsolate, {
@@ -1168,7 +1175,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
       if (mounted) {
         setState(() {
           _secretCode = _normalizeSecretCode(rawQr);
-          _printedExamCode = detectedCode.toString();
+          _printedExamCode = detectedCode?.toString() ?? '';
           if (gradeText.isNotEmpty) _gradeController.text = gradeText;
         });
       }
