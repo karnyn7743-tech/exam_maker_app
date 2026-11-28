@@ -332,24 +332,41 @@ class MainActivity : FlutterActivity() {
                                 )
 
                                 val subjectText = subjectCode.toString()
-                                // Keep the grade box, QR, and code together at the far left.
-                                // Reading order remains Arabic: code to the right of the QR.
+                                // Keep the printed subject/period code in a high-contrast square
+                                // matching the QR dimensions, immediately to its right.
                                 val gradeBoxX = 20f
                                 val qrX = gradeBoxX + 55f + 10f
-                                val subjectRightX = qrX + 38f + 8f +
-                                    (font.getStringWidth(subjectText) / 1000f * 22f)
-
-                                drawRightText(
-                                    stream, font, subjectText,
-                                    subjectRightX, 27f, 22f
-                                )
+                                val codeBoxSize = 38f
+                                val codeBoxX = qrX + codeBoxSize + 8f
+                                val codeBoxY = 12f
 
                                 if (secret.isNotBlank()) {
                                     val qrBitmap = createQrBitmap(secret)
                                     val qrImage = LosslessFactory.createFromImage(output, qrBitmap)
-                                    stream.drawImage(qrImage, qrX, 12f, 38f, 38f)
+                                    stream.drawImage(qrImage, qrX, codeBoxY, codeBoxSize, codeBoxSize)
                                     qrBitmap.recycle()
                                 }
+
+                                // White paper remains the box interior; use a strong black outline.
+                                stream.setStrokingColor(0, 0, 0)
+                                stream.setLineWidth(2.2f)
+                                stream.addRect(codeBoxX, codeBoxY, codeBoxSize, codeBoxSize)
+                                stream.stroke()
+
+                                // Center the dark code in the square and lower it slightly
+                                // from its previous baseline to align visually with the box.
+                                val maxTextWidth = codeBoxSize - 7f
+                                val naturalTextWidth = font.getStringWidth(subjectText) / 1000f * 22f
+                                val codeFontSize = if (naturalTextWidth > maxTextWidth) {
+                                    22f * maxTextWidth / naturalTextWidth
+                                } else {
+                                    22f
+                                }
+                                val textWidth = font.getStringWidth(subjectText) / 1000f * codeFontSize
+                                val textX = codeBoxX + (codeBoxSize - textWidth) / 2f
+                                val textY = codeBoxY + (codeBoxSize - codeFontSize * 0.70f) / 2f
+                                stream.setNonStrokingColor(0, 0, 0)
+                                drawText(stream, font, subjectText, textX, textY, codeFontSize)
 
                                 stream.addRect(gradeBoxX, 10f, 55f, 45f)
                                 stream.stroke()
