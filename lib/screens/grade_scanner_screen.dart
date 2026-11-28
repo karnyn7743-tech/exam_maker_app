@@ -493,6 +493,7 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
 
   List<String> term1List = [];
   List<String> term2List = [];
+  final Map<String, int> monthOrdinals = {};
   bool foundF1 = false;
   bool foundF2 = false;
 
@@ -520,8 +521,10 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
       } else {
         if (!foundF1) {
           term1List.add(text);
+          monthOrdinals.putIfAbsent(text, () => monthOrdinals.length + 1);
         } else if (!foundF2) {
           term2List.add(text);
+          monthOrdinals.putIfAbsent(text, () => monthOrdinals.length + 1);
         }
         col += 5;
       }
@@ -542,7 +545,36 @@ Map<String, dynamic> _getMonthsAndStudentsIsolate(Map<String, dynamic> args) {
   return {
     'students': students,
     'activeMonths': activeMonths,
+    'monthOrdinals': monthOrdinals,
   };
+}
+
+Map<String, dynamic> _validateSecretCodeIsolate(Map<String, dynamic> args) {
+  try {
+    final bytes = args['bytes'] as Uint8List;
+    final sheetName = args['sheetName'] as String;
+    final secretCode = _normalizeSecretCode(args['secretCode'].toString());
+    if (secretCode.isEmpty) return {'found': false, 'duplicate': false};
+
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final sheetPath = _getWorksheetPath(archive, sheetName);
+    final document = _readXml(archive, sheetPath);
+    final sharedStrings = _readSharedStrings(archive);
+    final rows = _getRows(document);
+    final maxRow = rows.keys.isEmpty ? 0 : rows.keys.reduce(math.max);
+
+    int matches = 0;
+    for (int row = 3; row <= maxRow; row++) {
+      final value = _getValueAt(rows, 3, row, sharedStrings);
+      if (value != null && _normalizeSecretCode(value.toString()) == secretCode) {
+        matches++;
+        if (matches > 1) break;
+      }
+    }
+    return {'found': matches == 1, 'duplicate': matches > 1};
+  } catch (e) {
+    return {'found': false, 'duplicate': false, 'error': e.toString()};
+  }
 }
 
 Map<String, dynamic> _saveGradeIsolate(Map<String, dynamic> args) {
@@ -657,6 +689,7 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
 
   bool _isTerm2 = false;
   List<String> _monthsList = [];
+  Map<String, int> _monthOrdinals = {};
   String? _selectedMonthOrSubject;
 
   String _secretCode = '';
@@ -801,10 +834,12 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
 
       final students = result['students'] as int;
       final activeMonths = result['activeMonths'] as List<String>;
+      final monthOrdinals = Map<String, int>.from(result['monthOrdinals'] as Map);
 
       setState(() {
         _totalStudentsCount = students;
         _monthsList = activeMonths;
+        _monthOrdinals = monthOrdinals;
         _selectedMonthOrSubject =
             activeMonths.isNotEmpty ? activeMonths.first : null;
         _isLoading = false;
@@ -928,12 +963,16 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
   Future<int?> _expectedPrintedExamCode() async {
     final path = _excelFilePath;
     final sheetName = _selectedSheet;
-    if (path == null || sheetName == null) return null;
+    final period = _selectedMonthOrSubject;
+    if (path == null || sheetName == null || period == null) return null;
 
-    // في الاختبار النهائي فقط: الكود المطبوع هو ترتيب ورقة المادة.
-    final subjects = await StudentExcelService.getSubjectSheetNames(path);
-    final index = subjects.indexOf(sheetName);
-    return index < 0 ? null : index + 1;
+    final isFinalTerm = _isFasl1(period) || _isFasl2(period);
+    if (isFinalTerm) {
+      final subjects = await StudentExcelService.getSubjectSheetNames(path);
+      final index = subjects.indexOf(sheetName);
+      return index < 0 ? null : index + 1;
+    }
+    return _monthOrdinals[period];
   }
 
   Future<void> _saveGradeDirectly() async {
@@ -1033,102 +1072,115 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
 
   Future<void> _processCapture(BarcodeCapture capture) async {
     if (_isProcessingCapture) return;
-    if (capture.barcodes.isEmpty || capture.barcodes.first.rawValue == null) {
+    if (capture.barcodes.isEmpty || capture.barcodes.first.rawValue == null) return;
+    if (!_excelLoaded || _excelFilePath == null || _selectedSheet == null ||
+        _selectedMonthOrSubject == null) {
+      _showSnack('اختر ملف أعمال السنة والمادة وفترة الرصد أولاً.');
       return;
     }
 
-    final qrValue = capture.barcodes.first.rawValue!.trim();
-    if (qrValue.isEmpty || qrValue == _secretCode) return;
+    final barcode = capture.barcodes.first;
+    final rawQr = barcode.rawValue!.trim();
+    if (rawQr.isEmpty) return;
 
     _isProcessingCapture = true;
     await _scannerController.stop();
-
-    setState(() {
-      _secretCode = qrValue;
-      _printedExamCode = '';
-      _gradeController.clear();
-    });
-
-    if (capture.image != null) {
-      try {
-        final fullImage = img.decodeImage(capture.image!);
-        final barcode = capture.barcodes.first;
-        final corners = barcode.corners;
-        if (fullImage == null || corners.length < 4 ||
-            capture.size.width <= 0 || capture.size.height <= 0) {
-          _showSnack('تعذر تحديد مواضع المناطق الثلاث حول رمز QR.');
-        } else {
-          final oriented = img.bakeOrientation(fullImage);
-          final scaleX = oriented.width / capture.size.width;
-          final scaleY = oriented.height / capture.size.height;
-          final xs = corners.map((point) => point.dx * scaleX).toList();
-          final ys = corners.map((point) => point.dy * scaleY).toList();
-          final qrRect = Rect.fromLTRB(
-            xs.reduce(math.min),
-            ys.reduce(math.min),
-            xs.reduce(math.max),
-            ys.reduce(math.max),
-          );
-
-          // منطقة الدرجة تقع يسار QR، ورقم الشهر/المادة يقع يمينه.
-          final leftBytes = await _cropRegionBesideQr(
-            fullImage: oriented,
-            qrRect: qrRect,
-            rightSide: false,
-          );
-          final isFinalTerm = _selectedMonthOrSubject != null &&
-              (_isFasl1(_selectedMonthOrSubject!) ||
-                  _isFasl2(_selectedMonthOrSubject!));
-          // لا نقرأ الرقم يمين QR في الاختبارات الشهرية؛ يقرأ فقط في نهاية الفصل.
-          final rightBytes = isFinalTerm
-              ? await _cropRegionBesideQr(
-                  fullImage: oriented,
-                  qrRect: qrRect,
-                  rightSide: true,
-                )
-              : null;
-
-          final gradeText = leftBytes == null
-              ? ''
-              : _extractNumber(await _ocrFromBytes(leftBytes));
-          final printedCode = !isFinalTerm || rightBytes == null
-              ? ''
-              : _extractNumber(await _ocrFromBytes(rightBytes));
-
-          if (mounted) {
-            setState(() {
-              _printedExamCode = printedCode.isEmpty
-                  ? ''
-                  : (int.tryParse(printedCode)?.toString() ?? printedCode);
-              if (gradeText.isNotEmpty) _gradeController.text = gradeText;
-            });
-          }
-
-          if (!isFinalTerm && gradeText.isNotEmpty) {
-            _showSnack('تمت قراءة الدرجة ($gradeText).');
-          } else if (isFinalTerm &&
-              gradeText.isNotEmpty &&
-              printedCode.isNotEmpty) {
-            _showSnack('تمت قراءة كود المادة ($printedCode) والدرجة ($gradeText).');
-          } else if (isFinalTerm && gradeText.isNotEmpty) {
-            _showSnack('قُرئت الدرجة ($gradeText)، لكن تعذر قراءة كود المادة.');
-          } else if (isFinalTerm && printedCode.isNotEmpty) {
-            _showSnack('قُرئ كود المادة ($printedCode)، أدخل الدرجة يدوياً.');
-          } else {
-            _showSnack(isFinalTerm
-                ? 'تعذر قراءة الدرجة وكود المادة.'
-                : 'تعذر قراءة الدرجة؛ أدخلها يدوياً.');
-          }
-        }
-      } catch (e) {
-        _showSnack('تعذر تحليل مناطق QR والدرجة والكود: $e');
-      }
-    } else {
-      _showSnack('⚠️ لم يتم التقاط صورة');
+    if (mounted) {
+      setState(() {
+        _secretCode = '';
+        _printedExamCode = '';
+        _gradeController.clear();
+      });
     }
 
-    _isProcessingCapture = false;
-    if (_isScanningActive) await _scannerController.start();
+    try {
+      if (capture.image == null) {
+        _showSnack('لم يتم التقاط صورة الورقة.');
+        return;
+      }
+
+      // المرحلة الأولى: قراءة كود الشهر أو المادة قبل قراءة الدرجة.
+      final fullImage = img.decodeImage(capture.image!);
+      if (fullImage == null || barcode.corners.length < 4 ||
+          capture.size.width <= 0 || capture.size.height <= 0) {
+        _showSnack('تعذر تحديد موضع كود الشهر/المادة بجوار QR.');
+        return;
+      }
+      final oriented = img.bakeOrientation(fullImage);
+      final scaleX = oriented.width / capture.size.width;
+      final scaleY = oriented.height / capture.size.height;
+      final xs = barcode.corners.map((point) => point.dx * scaleX).toList();
+      final ys = barcode.corners.map((point) => point.dy * scaleY).toList();
+      final qrRect = Rect.fromLTRB(
+        xs.reduce(math.min), ys.reduce(math.min),
+        xs.reduce(math.max), ys.reduce(math.max),
+      );
+      final rightBytes = await _cropRegionBesideQr(
+        fullImage: oriented, qrRect: qrRect, rightSide: true,
+      );
+      final printedText = rightBytes == null ? '' : _extractNumber(await _ocrFromBytes(rightBytes));
+      final detectedCode = int.tryParse(_convertArabicHindiDigits(printedText));
+      if (detectedCode == null || detectedCode < 1) {
+        _showSnack('تعذر قراءة كود الشهر/المادة. لم تتم قراءة الدرجة.');
+        return;
+      }
+
+      final isTerm = _isFasl1(_selectedMonthOrSubject!) || _isFasl2(_selectedMonthOrSubject!);
+      String targetSheet = _selectedSheet!;
+      if (isTerm) {
+        final subjects = await StudentExcelService.getSubjectSheetNames(_excelFilePath!);
+        if (detectedCode > subjects.length) {
+          _showSnack('كود المادة ($detectedCode) خارج نطاق أوراق المواد في ملف أعمال السنة.');
+          return;
+        }
+        targetSheet = subjects[detectedCode - 1];
+        if (mounted) setState(() => _selectedSheet = targetSheet);
+      } else {
+        final expectedMonthCode = _monthOrdinals[_selectedMonthOrSubject!];
+        if (expectedMonthCode == null || detectedCode != expectedMonthCode) {
+          _showSnack('كود الشهر المقروء ($detectedCode) لا يطابق الفترة المحددة (\${_selectedMonthOrSubject!}). لم تتم قراءة الدرجة.');
+          return;
+        }
+      }
+
+      // المرحلة الثانية: لا نقرأ الدرجة إلا بعد التأكد من وجود الرقم السري مرة واحدة.
+      final workbookBytes = await ExcelFileAccessService.readBytes(_excelFilePath!);
+      final validation = await compute(_validateSecretCodeIsolate, {
+        'bytes': workbookBytes,
+        'sheetName': targetSheet,
+        'secretCode': rawQr,
+      });
+      if (validation['found'] != true) {
+        await _scannerController.stop();
+        if (mounted) setState(() => _isScanningActive = false);
+        final message = validation['duplicate'] == true
+            ? 'الرقم السري لهذا الطالب مكرر في ورقة المادة ($targetSheet)، ولا يمكن متابعة الرصد.'
+            : 'لا يوجد رقم سري لهذا الطالب في ورقة المادة ($targetSheet). راجع كشف الطلاب أو أعد توليد الرقم السري.';
+        _showDialogAlert(title: 'لا يمكن متابعة الرصد', message: message);
+        return;
+      }
+
+      // المرحلة الثالثة: بعد نجاح التحقق فقط تُقرأ الدرجة المكتوبة.
+      final leftBytes = await _cropRegionBesideQr(
+        fullImage: oriented, qrRect: qrRect, rightSide: false,
+      );
+      final gradeText = leftBytes == null ? '' : _extractNumber(await _ocrFromBytes(leftBytes));
+      if (mounted) {
+        setState(() {
+          _secretCode = _normalizeSecretCode(rawQr);
+          _printedExamCode = detectedCode.toString();
+          if (gradeText.isNotEmpty) _gradeController.text = gradeText;
+        });
+      }
+      _showSnack(gradeText.isNotEmpty
+          ? 'تم التحقق من الرقم السري وقراءة الدرجة ($gradeText).'
+          : 'تم التحقق من الرقم السري؛ تعذر قراءة الدرجة، أدخلها يدوياً.');
+    } catch (e) {
+      _showSnack('تعذر إكمال المسح: $e');
+    } finally {
+      _isProcessingCapture = false;
+      if (mounted && _isScanningActive) await _scannerController.start();
+    }
   }
 
   void _showSnack(String msg) {
