@@ -1478,7 +1478,9 @@ class _GradeScannerScreenState extends State<GradeScannerScreen> {
                 ),
               ),
             ),
-            if (_isFinalTermSelected) ...[
+            if (_selectedMonthOrSubject != null &&
+                (_isFasl1(_selectedMonthOrSubject!) ||
+                    _isFasl2(_selectedMonthOrSubject!))) ...[
               const SizedBox(height: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
